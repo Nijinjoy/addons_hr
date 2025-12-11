@@ -25,12 +25,52 @@ const ExpenseScreen = () => {
   const [billImage, setBillImage] = useState<any>(null);
   const [description, setDescription] = useState('');
 
-  // History Dummy Data (Later connect with ERPNext API)
+  // History Data matching your reference
   const historyData = [
-    { id: '1', type: 'Travel', amount: '150', date: '2025-01-10', status: 'Approved' },
-    { id: '2', type: 'Food', amount: '80', date: '2025-01-12', status: 'Pending' },
-    { id: '3', type: 'Accommodation', amount: '200', date: '2025-01-08', status: 'Approved' },
-    { id: '4', type: 'Transport', amount: '50', date: '2025-01-05', status: 'Rejected' },
+    {
+      id: '1',
+      type: 'Travel',
+      amount: '$250.00',
+      date: '10/15/2025',
+      submittedDate: 'Submitted 10/16/2025',
+      description: 'Client meeting - Taxi fare',
+      status: 'Approved',
+      statusIcon: 'check-circle',
+      statusColor: '#4CAF50',
+    },
+    {
+      id: '2',
+      type: 'Meals',
+      amount: '$85.50',
+      date: '10/18/2025',
+      submittedDate: 'Submitted 10/18/2025',
+      description: 'Team lunch during project meeting',
+      status: 'Pending',
+      statusIcon: 'pending',
+      statusColor: '#FF9800',
+    },
+    {
+      id: '3',
+      type: 'Office Supplies',
+      amount: '$120.00',
+      date: '10/10/2025',
+      submittedDate: 'Submitted 10/11/2025',
+      description: 'Stationery and printer supplies',
+      status: 'Rejected',
+      statusIcon: 'cancel',
+      statusColor: '#F44336',
+    },
+    {
+      id: '4',
+      type: 'Accommodation',
+      amount: '$350.00',
+      date: '10/05/2025',
+      submittedDate: 'Submitted 10/06/2025',
+      description: 'Hotel stay for conference',
+      status: 'Approved',
+      statusIcon: 'check-circle',
+      statusColor: '#4CAF50',
+    },
   ];
 
   const pickImage = async () => {
@@ -54,6 +94,47 @@ const ExpenseScreen = () => {
     { id: '3', text: 'Submit claims within 30 days' },
     { id: '4', text: 'Ensure amounts match receipts' },
   ];
+
+  const renderHistoryItem = ({ item }) => (
+    <View style={styles.historyCard}>
+      {/* Card Header */}
+      <View style={styles.historyCardHeader}>
+        <Text style={styles.historyType}>{item.type}</Text>
+        <View style={[styles.statusContainer, { backgroundColor: item.statusColor + '15' }]}>
+          <Icon 
+            name={item.statusIcon} 
+            size={16} 
+            color={item.statusColor} 
+            style={styles.statusIcon}
+          />
+          <Text style={[styles.statusText, { color: item.statusColor }]}>
+            {item.status}
+          </Text>
+        </View>
+      </View>
+
+      {/* Amount */}
+      <Text style={styles.historyAmount}>{item.amount}</Text>
+
+      {/* Description */}
+      <Text style={styles.historyDescription}>{item.description}</Text>
+
+      {/* Date and Submitted Date */}
+      <View style={styles.dateContainer}>
+        <View style={styles.dateRow}>
+          <Icon name="calendar-today" size={14} color="#666" />
+          <Text style={styles.historyDate}>{item.date}</Text>
+        </View>
+        <View style={styles.dateRow}>
+          <Icon name="schedule" size={14} color="#666" />
+          <Text style={styles.historyDate}>{item.submittedDate}</Text>
+        </View>
+      </View>
+
+      {/* Separator Line */}
+      <View style={styles.separator} />
+    </View>
+  );
 
   return (
     <View style={styles.container}>
@@ -129,7 +210,7 @@ const ExpenseScreen = () => {
                 onChangeText={setExpenseType}
               />
 
-              <Text style={styles.label}>Amount (₹)</Text>
+              <Text style={styles.label}>Amount</Text>
               <TextInput
                 style={styles.input}
                 keyboardType="numeric"
@@ -191,36 +272,16 @@ const ExpenseScreen = () => {
             </View>
           </ScrollView>
         )}
-
-        {/* ---------- History Tab Content ---------- */}
         {activeTab === 'history' && (
-          <FlatList
-            data={historyData}
-            keyExtractor={(item) => item.id}
-            contentContainerStyle={styles.historyContainer}
-            renderItem={({ item }) => (
-              <View style={styles.historyItem}>
-                <View style={styles.historyItemHeader}>
-                  <Text style={styles.historyTitle}>{item.type}</Text>
-                  <Text style={[
-                    styles.statusBadge,
-                    item.status === 'Approved' && styles.statusApproved,
-                    item.status === 'Pending' && styles.statusPending,
-                    item.status === 'Rejected' && styles.statusRejected,
-                  ]}>
-                    {item.status}
-                  </Text>
-                </View>
-                <View style={styles.historyItemDetails}>
-                  <Text style={styles.historyAmount}>₹ {item.amount}</Text>
-                  <Text style={styles.historyDate}>{item.date}</Text>
-                </View>
-              </View>
-            )}
-            ListHeaderComponent={
-              <Text style={styles.historyHeader}>Previous Expense Claims</Text>
-            }
-          />
+          <View style={styles.historyContainer}>
+            <FlatList
+              data={historyData}
+              keyExtractor={(item) => item.id}
+              renderItem={renderHistoryItem}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.historyList}
+            />
+          </View>
         )}
       </View>
     </View>
@@ -228,7 +289,10 @@ const ExpenseScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#14223E' },
+  container: { 
+    flex: 1, 
+    backgroundColor: '#14223E' 
+  },
 
   whiteBackground: {
     flex: 1,
@@ -438,21 +502,26 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  // History Tab Styles
+  // History Tab Styles (Updated to match reference)
   historyContainer: {
-    padding: 20,
+    flex: 1,
+    paddingHorizontal: 20,
   },
   historyHeader: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: '700',
     color: '#1F2937',
-    marginBottom: 20,
+    marginTop: 20,
+    marginBottom: 10,
   },
-  historyItem: {
+  historyList: {
+    paddingBottom: 20,
+  },
+  historyCard: {
     backgroundColor: '#FFFFFF',
-    padding: 16,
     borderRadius: 12,
-    marginBottom: 12,
+    padding: 16,
+    marginBottom: 16,
     borderWidth: 1,
     borderColor: '#E5E7EB',
     shadowColor: '#000',
@@ -461,49 +530,61 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 2,
   },
-  historyItemHeader: {
+  historyCardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 8,
   },
-  historyTitle: {
-    fontSize: 16,
+  historyType: {
+    fontSize: 20,
     fontWeight: '700',
     color: '#1F2937',
   },
-  statusBadge: {
-    fontSize: 12,
-    fontWeight: '600',
+  statusContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
   },
-  statusApproved: {
-    backgroundColor: '#D1FAE5',
-    color: '#065F46',
+  statusIcon: {
+    marginRight: 4,
   },
-  statusPending: {
-    backgroundColor: '#FEF3C7',
-    color: '#92400E',
-  },
-  statusRejected: {
-    backgroundColor: '#FEE2E2',
-    color: '#991B1B',
-  },
-  historyItemDetails: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  statusText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   historyAmount: {
-    fontSize: 18,
+    fontSize: 24,
     fontWeight: '700',
     color: '#1D3765',
+    marginBottom: 8,
+  },
+  historyDescription: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 12,
+    lineHeight: 20,
+  },
+  dateContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  dateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   historyDate: {
-    color: '#6B7280',
-    fontSize: 14,
+    fontSize: 12,
+    color: '#666',
+    marginLeft: 6,
+  },
+  separator: {
+    height: 1,
+    backgroundColor: '#E5E7EB',
+    marginTop: 4,
   },
 });
 
