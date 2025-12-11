@@ -1,0 +1,156 @@
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
+  Image,
+  TouchableWithoutFeedback,
+  Keyboard,
+  TouchableOpacity,
+} from 'react-native';
+import LinearGradient from 'react-native-linear-gradient';
+import Button from '../components/Button';
+
+const logo = require('../assets/images/logo/logo.png'); // Replace with your logo path
+
+const LoginScreen = () => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+
+  const handleLogin = () => {
+    console.log('Email:', email);
+    console.log('Password:', password);
+  };
+
+  const handleRegister = () => {
+    console.log('Navigate to Register Screen');
+  };
+
+  return (
+    <LinearGradient
+      colors={['#141D35', '#1D2B4C', '#14223E']}
+      start={{ x: 0.5, y: 0 }}
+      end={{ x: 0.5, y: 1 }}
+      style={styles.container}
+    >
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={styles.inner}>
+            {/* Top Section - stays at top */}
+            <View style={styles.topSection}>
+              <View style={styles.logoWrapper}>
+                <Image source={logo} style={styles.logo} resizeMode="cover" />
+              </View>
+              <Text style={styles.companyName}>ADDONS HR</Text>
+              <Text style={styles.pageSubtitle}>Sign in to your account</Text>
+            </View>
+
+            {/* Bottom White Wrapper */}
+            <View style={styles.formContainer}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Email</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter your email"
+                  placeholderTextColor="#888"
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Password</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter your password"
+                  placeholderTextColor="#888"
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry
+                />
+              </View>
+
+              <Button title="Login" onPress={handleLogin} containerStyle={styles.loginButton} />
+
+              <TouchableOpacity onPress={handleRegister} style={styles.registerContainer}>
+                <Text style={styles.registerText}>
+                  Don't have an account? <Text style={styles.registerLink}>Register</Text>
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
+    </LinearGradient>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  inner: { flex: 1, justifyContent: 'space-between' }, // space between top section and bottom wrapper
+
+  // Top section
+  topSection: {
+    alignItems: 'center',
+    paddingTop: 80, // place at the top
+  },
+  logoWrapper: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    overflow: 'hidden',
+    borderWidth: 3,
+    borderColor: '#6EC6FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+  },
+  logo: { width: 110, height: 110, borderRadius: 55 },
+  companyName: {
+    color: '#fff',
+    fontSize: 24,
+    fontWeight: '700',
+    marginTop: 12,
+  },
+  pageSubtitle: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '500',
+    marginTop: 8,
+  },
+
+  // White wrapper
+  formContainer: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    padding: 24,
+    width: '100%',
+  },
+  inputGroup: { marginBottom: 16 },
+  label: { fontSize: 14, color: '#1D2B4C', marginBottom: 6, fontWeight: '500' },
+  input: {
+    height: 48,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    fontSize: 16,
+    color: '#1D2B4C',
+    backgroundColor: '#F9FAFB',
+  },
+  loginButton: { marginTop: 16, backgroundColor: '#1D2B4C' },
+  registerContainer: { marginTop: 12, alignItems: 'center' },
+  registerText: { fontSize: 14, color: '#1D2B4C' },
+  registerLink: { fontWeight: '700', color: '#6EC6FF' },
+});
+
+export default LoginScreen;
