@@ -17,28 +17,23 @@ const AppNavigator = () => {
     const initialize = async () => {
       const token = await AsyncStorage.getItem('userToken');
       setUserToken(token);
-      setTimeout(() => {
-        setIsLoading(false);
-      }, 4000);
+
+      // Show splash for 4 seconds
+      setTimeout(() => setIsLoading(false), 4000);
     };
     initialize();
   }, []);
 
-  if (isLoading) {
-    return <SplashScreen />;
-  }
+  if (isLoading) return <SplashScreen />;
 
   return (
     <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {!userToken ? (
-          <>
-            <Stack.Screen name="Auth" component={AuthStack} />
-            <Stack.Screen name="Dashboard" component={DashboardTabs} />
-          </>
-        ) : (
-          <Stack.Screen name="Dashboard" component={DashboardTabs} />
-        )}
+      <Stack.Navigator
+        screenOptions={{ headerShown: false }}
+        initialRouteName={userToken ? 'Dashboard' : 'Auth'}
+      >
+        <Stack.Screen name="Auth" component={AuthStack} />
+        <Stack.Screen name="Dashboard" component={DashboardTabs} />
       </Stack.Navigator>
     </NavigationContainer>
   );

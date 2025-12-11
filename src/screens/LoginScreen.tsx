@@ -13,16 +13,20 @@ import {
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Button from '../components/Button';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../navigation/AppNavigator'; // adjust path
 
-const logo = require('../assets/images/logo/logo.png'); // Replace with your logo path
+const logo = require('../assets/images/logo/logo.png');
 
-const LoginScreen = () => {
+type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
+
+const LoginScreen = ({ navigation }: Props) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
   const handleLogin = () => {
-    console.log('Email:', email);
-    console.log('Password:', password);
+    // Here you can do your login API call and token storage
+    navigation.replace('Dashboard'); // Navigate to DashboardTabs
   };
 
   const handleRegister = () => {
@@ -42,7 +46,7 @@ const LoginScreen = () => {
       >
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <View style={styles.inner}>
-            {/* Top Section - stays at top */}
+            {/* Top Section */}
             <View style={styles.topSection}>
               <View style={styles.logoWrapper}>
                 <Image source={logo} style={styles.logo} resizeMode="cover" />
@@ -95,12 +99,11 @@ const LoginScreen = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  inner: { flex: 1, justifyContent: 'space-between' }, // space between top section and bottom wrapper
+  inner: { flex: 1, justifyContent: 'space-between' },
 
-  // Top section
   topSection: {
     alignItems: 'center',
-    paddingTop: 80, // place at the top
+    paddingTop: 80,
   },
   logoWrapper: {
     width: 120,
@@ -114,20 +117,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   logo: { width: 110, height: 110, borderRadius: 55 },
-  companyName: {
-    color: '#fff',
-    fontSize: 24,
-    fontWeight: '700',
-    marginTop: 12,
-  },
-  pageSubtitle: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '500',
-    marginTop: 8,
-  },
+  companyName: { color: '#fff', fontSize: 24, fontWeight: '700', marginTop: 12 },
+  pageSubtitle: { color: '#fff', fontSize: 16, fontWeight: '500', marginTop: 8 },
 
-  // White wrapper
   formContainer: {
     backgroundColor: '#fff',
     borderTopLeftRadius: 16,
@@ -154,3 +146,4 @@ const styles = StyleSheet.create({
 });
 
 export default LoginScreen;
+
