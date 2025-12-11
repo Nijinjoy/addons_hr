@@ -5,7 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import SplashScreen from '../screens/SplashScreen';
 import AuthStack from './AuthStack';
-import DashboardTabs from './DashboardTabs';
+import DrawerNavigator from './DrawerNavigator';
 
 const Stack = createNativeStackNavigator();
 
@@ -28,15 +28,15 @@ const AppNavigator = () => {
 
   return (
     <NavigationContainer>
-      <Stack.Navigator
-        screenOptions={{ headerShown: false }}
-        initialRouteName={userToken ? 'Dashboard' : 'Auth'}
-      >
-        <Stack.Screen name="Auth" component={AuthStack} />
-        <Stack.Screen name="Dashboard" component={DashboardTabs} />
+      <Stack.Navigator screenOptions={{ headerShown: false }}>
+        {!userToken ? (
+          <Stack.Screen name="Auth" component={AuthStack} />
+        ) : null}
+        <Stack.Screen name="Dashboard" component={DrawerNavigator} />
       </Stack.Navigator>
     </NavigationContainer>
   );
 };
 
 export default AppNavigator;
+

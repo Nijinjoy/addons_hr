@@ -1,28 +1,25 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import Header from '../../components/Header';
 
 const HomeScreen: React.FC = () => {
+  const navigation = useNavigation();
+
   const handleNotificationPress = () => {
     console.log('Notification pressed');
-    // Navigate to notifications screen
-  };
-
-  const handleProfilePress = () => {
-    console.log('Profile pressed');
-    // Navigate to profile screen
+    // Navigate to notifications screen if needed
   };
 
   return (
     <View style={styles.container}>
       <Header 
-        screenName="ADDONS HR" 
-        onNotificationPress={handleNotificationPress}
-        onProfilePress={handleProfilePress}
+        screenName="ADDONS HR"
+        navigation={navigation} // pass drawer navigation here
         notificationCount={5}
-        useGradient={true} // or false for solid color
+        useGradient={true}
       />
-      
+
       <View style={styles.content}>
         <Text>Home Screen Content</Text>
       </View>
