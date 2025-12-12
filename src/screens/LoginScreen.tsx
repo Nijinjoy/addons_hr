@@ -10,12 +10,14 @@ import {
   TouchableWithoutFeedback,
   Keyboard,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Button from '../components/Button';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../navigation/AppNavigator'; // adjust path
-
+import { RootStackParamList } from '../navigation/AppNavigator';
+import { login } from '../services/authService';
+import { validateLogin } from '../utils/validation/authValidation';
 const logo = require('../assets/images/logo/logo.png');
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
@@ -23,12 +25,36 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
 const LoginScreen = ({ navigation }: Props) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+const [emailError, setEmailError] = useState('');
+const [passwordError, setPasswordError] = useState('');
 
-  const handleLogin = () => {
-    // Here you can do your login API call and token storage
-    navigation.replace('Dashboard'); // Navigate to DashboardTabs
-  };
+const handleLogin = async () => {
+  // Reset previous errors
+  setEmailError('');
+  setPasswordError('');
 
+  const errors = validateLogin(email, password);
+
+  // Show inline errors if any
+  if (errors.email || errors.password) {
+    setEmailError(errors.email);
+    setPasswordError(errors.password);
+    return;
+  }
+
+  // Proceed with API login
+  const result = await login(email, password);
+  if (!result) {
+    Alert.alert('Login failed. Try again.');
+    return;
+  }
+
+  if (result.message && result.message.includes('Logged In')) {
+    navigation.replace('Dashboard');
+  } else {
+    Alert.alert(result.message || 'Invalid email or password');
+  }
+};
   const handleRegister = () => {
     console.log('Navigate to Register Screen');
   };
@@ -57,30 +83,32 @@ const LoginScreen = ({ navigation }: Props) => {
 
             {/* Bottom White Wrapper */}
             <View style={styles.formContainer}>
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Email</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter your email"
-                  placeholderTextColor="#888"
-                  value={email}
-                  onChangeText={setEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                />
-              </View>
+ <View style={styles.inputGroup}>
+  <Text style={styles.label}>Email</Text>
+  <TextInput
+    style={styles.input}
+    placeholder="Enter your email"
+    placeholderTextColor="#888"
+    value={email}
+    onChangeText={setEmail}
+    keyboardType="email-address"
+    autoCapitalize="none"
+  />
+  {emailError ? <Text style={styles.errorText}>{emailError}</Text> : null}
+</View>
 
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Password</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter your password"
-                  placeholderTextColor="#888"
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry
-                />
-              </View>
+<View style={styles.inputGroup}>
+  <Text style={styles.label}>Password</Text>
+  <TextInput
+    style={styles.input}
+    placeholder="Enter your password"
+    placeholderTextColor="#888"
+    value={password}
+    onChangeText={setPassword}
+    secureTextEntry
+  />
+  {passwordError ? <Text style={styles.errorText}>{passwordError}</Text> : null}
+</View>
 
               <Button title="Login" onPress={handleLogin} containerStyle={styles.loginButton} />
 
@@ -143,6 +171,11 @@ const styles = StyleSheet.create({
   registerContainer: { marginTop: 12, alignItems: 'center' },
   registerText: { fontSize: 14, color: '#1D2B4C' },
   registerLink: { fontWeight: '700', color: '#6EC6FF' },
+  errorText: {
+  color: '#FF4D4F',
+  fontSize: 12,
+  marginTop: 4,
+}
 });
 
 export default LoginScreen;
