@@ -29,32 +29,27 @@ const [emailError, setEmailError] = useState('');
 const [passwordError, setPasswordError] = useState('');
 
 const handleLogin = async () => {
-  // Reset previous errors
-  setEmailError('');
-  setPasswordError('');
-
-  const errors = validateLogin(email, password);
-
-  // Show inline errors if any
-  if (errors.email || errors.password) {
-    setEmailError(errors.email);
-    setPasswordError(errors.password);
-    return;
-  }
-
-  // Proceed with API login
-  const result = await login(email, password);
-  if (!result) {
-    Alert.alert('Login failed. Try again.');
-    return;
-  }
-
-  if (result.message && result.message.includes('Logged In')) {
+  // setEmailError('');
+  // setPasswordError('');
+  // const errors = validateLogin(email, password);
+  // if (errors.email || errors.password) {
+  //   setEmailError(errors.email);
+  //   setPasswordError(errors.password);
+  //   return;
+  // }
+  // const result = await login(email, password);
+  // console.log("result===>",result);
+  // if (!result) {
+  //   Alert.alert('Login failed. Try again.');
+  //   return;
+  // }
+  // if (result.message && result.message.includes('Logged In')) {
     navigation.replace('Dashboard');
-  } else {
-    Alert.alert(result.message || 'Invalid email or password');
-  }
+  // } else {
+  //   Alert.alert(result.message || 'Invalid email or password');
+  // }
 };
+
   const handleRegister = () => {
     console.log('Navigate to Register Screen');
   };
