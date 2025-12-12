@@ -1,49 +1,133 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { View, Text, Platform } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import HomeScreen from '../screens/Dashboard /HomeScreen'
-import AttendanceScreen from '../screens/Dashboard /AttendanceScreen'
-import LeaveScreen from '../screens/Dashboard /LeaveScreen'
-import ExpenseScreen from '../screens/Dashboard /ExpenseScreen'
-import LeadScreen from '../screens/Dashboard /LeadScreen'
+import HomeScreen from '../screens/Dashboard /HomeScreen';
+import AttendanceScreen from '../screens/Dashboard /AttendanceScreen';
+import LeaveScreen from '../screens/Dashboard /LeaveScreen';
+import ExpenseScreen from '../screens/Dashboard /ExpenseScreen';
+import LeadScreen from '../screens/Dashboard /LeadScreen';
 
 const Tab = createBottomTabNavigator();
 
-const DashboardTabs = () => (
-  <Tab.Navigator
-    screenOptions={({ route }) => ({
-      headerShown: false,
-      tabBarIcon: ({ color, size }) => {
-        let iconName = '';
-        switch (route.name) {
-          case 'Home':
-            iconName = 'home-outline';
-            break;
-          case 'Attendance':
-            iconName = 'calendar-outline';
-            break;
-          case 'Leaves':
-            iconName = 'leaf-outline';
-            break;
-          case 'Expense':
-            iconName = 'wallet-outline';
-            break;
-          case 'Leads':
-            iconName = 'people-outline';
-            break;
+const DashboardTabs = () => {
+  const [fontsLoaded, setFontsLoaded] = useState(Platform.OS === 'android');
+
+  useEffect(() => {
+    if (Platform.OS === 'ios') {
+      const loadFonts = async () => {
+        try {
+          const Font = require('react-native-vector-icons/Font');
+          await Font.load();
+          setFontsLoaded(true);
+        } catch (error) {
+          console.log('Font loading error:', error);
+          setFontsLoaded(false); 
         }
-        return <Ionicons name={iconName} size={size} color={color} />;
-      },
-      tabBarActiveTintColor: '#007AFF',
-      tabBarInactiveTintColor: 'gray',
-    })}
-  >
-    <Tab.Screen name="Home" component={HomeScreen} />
-    <Tab.Screen name="Attendance" component={AttendanceScreen} />
-    <Tab.Screen name="Leaves" component={LeaveScreen} />
-    <Tab.Screen name="Expense" component={ExpenseScreen} />
-    <Tab.Screen name="Leads" component={LeadScreen} />
-  </Tab.Navigator>
-);
+      };
+      loadFonts();
+    }
+  }, []);
+
+  const renderTabIcon = ({ route, color, size, focused }) => {
+    let iconName = '';
+    let label = '';
+    
+    switch (route.name) {
+      case 'Home':
+        iconName = 'home-outline';
+        label = '🏠';
+        break;
+      case 'Attendance':
+        iconName = 'calendar-outline';
+        label = '📅';
+        break;
+      case 'Leaves':
+        iconName = 'leaf-outline';
+        label = '🍃';
+        break;
+      case 'Expense':
+        iconName = 'wallet-outline';
+        label = '💰';
+        break;
+      case 'Leads':
+        iconName = 'people-outline';
+        label = '👥';
+        break;
+    }
+
+    // If fonts are not loaded on iOS, use emoji fallback
+    if (!fontsLoaded && Platform.OS === 'ios') {
+      return (
+        <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={{ fontSize: size * 0.8, color }}>
+            {label}
+          </Text>
+        </View>
+      );
+    }
+
+    // Try to render the icon
+    try {
+      return <Ionicons name={iconName} size={size} color={color} />;
+    } catch (error) {
+      // Fallback if icon fails
+      return (
+        <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={{ fontSize: size * 0.8, color }}>
+            {label}
+          </Text>
+        </View>
+      );
+    }
+  };
+
+  return (
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        headerShown: false,
+        tabBarIcon: ({ color, size, focused }) => 
+          renderTabIcon({ route, color, size, focused }),
+        tabBarActiveTintColor: '#007AFF',
+        tabBarInactiveTintColor: 'gray',
+        tabBarStyle: {
+          paddingBottom: 5,
+          height: Platform.OS === 'ios' ? 85 : 60,
+          paddingTop: 5,
+        },
+        tabBarLabelStyle: {
+          fontSize: 12,
+          marginTop: -5,
+        },
+      })}
+    >
+      <Tab.Screen 
+        name="Home" 
+        component={HomeScreen}
+        options={{ tabBarLabel: 'Home' }}
+      />
+      <Tab.Screen 
+        name="Attendance" 
+        component={AttendanceScreen}
+        options={{ tabBarLabel: 'Attendance' }}
+      />
+      <Tab.Screen 
+        name="Leaves" 
+        component={LeaveScreen}
+        options={{ tabBarLabel: 'Leaves' }}
+      />
+      <Tab.Screen 
+        name="Expense" 
+        component={ExpenseScreen}
+        options={{ tabBarLabel: 'Expense' }}
+      />
+      <Tab.Screen 
+        name="Leads" 
+        component={LeadScreen}
+        options={{ tabBarLabel: 'Leads' }}
+      />
+    </Tab.Navigator>
+  );
+};
 
 export default DashboardTabs;
