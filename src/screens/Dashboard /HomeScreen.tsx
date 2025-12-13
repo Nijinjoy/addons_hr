@@ -83,11 +83,10 @@ const HomeScreen: React.FC = () => {
     <View style={styles.container}>
       <StatusBar 
         barStyle="dark-content"
-        backgroundColor="#F5F5F5"
+        backgroundColor="white" // Changed to white
         translucent={Platform.OS === 'android'}
       />
       
-      {/* The Header component should handle its own safe area insets */}
       <Header 
         screenName="ADDONS HR"
         navigation={navigation}
@@ -95,71 +94,78 @@ const HomeScreen: React.FC = () => {
         useGradient={true}
       />
 
-      <ScrollView 
-        style={[
-          styles.scrollView,
-          {
-            // Apply bottom safe area to scroll view
-            marginBottom: insets.bottom,
-          }
-        ]}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
-        {/* Welcome Section */}
-        <View style={styles.welcomeSection}>
-          <Text style={styles.welcomeText}>Hey, Nijin Joy</Text>
-          <View style={styles.checkInCard}>
-            <View style={styles.checkInHeader}>
-              <View style={styles.checkInStatus}>
-                <View style={[styles.statusDot, styles.activeDot]} />
-                <Text style={styles.checkInStatusText}>Checked In</Text>
-              </View>
-              <TouchableOpacity style={styles.checkOutButton}>
-                <Text style={styles.checkOutButtonText}>Check Out</Text>
-              </TouchableOpacity>
-            </View>
-            
-            <View style={styles.lastCheckInInfo}>
-              <Icon name="access-time" size={16} color="#666" />
-              <Text style={styles.lastCheckInText}>Last check-in was at 04:42 pm on 3 Dec</Text>
-            </View>
-            
-            <TouchableOpacity style={styles.viewListButton}>
-              <Text style={styles.viewListText}>View List</Text>
-              <Icon name="chevron-right" size={16} color="#2E8B57" />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Quick Links Section */}
-        <View style={styles.quickLinksSection}>
-          <Text style={styles.sectionTitle}>Quick Links</Text>
-          <View style={styles.quickLinksGrid}>
-            {quickLinks.map((item) => (
-              <TouchableOpacity 
-                key={item.id}
-                style={styles.quickLinkCard}
-                onPress={() => handleQuickLinkPress(item.screen)}
-              >
-                <View style={styles.quickLinkIcon}>
-                  {renderIcon(item.iconType, item.icon)}
+      {/* White background container below header */}
+      <View style={styles.whiteContainer}>
+        <ScrollView 
+          style={[
+            styles.scrollView,
+            {
+              marginBottom: insets.bottom,
+            }
+          ]}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[
+            styles.scrollContent,
+            {
+              paddingBottom: insets.bottom > 0 ? insets.bottom + 16 : 16,
+            }
+          ]}
+        >
+          {/* Welcome Section */}
+          <View style={styles.welcomeSection}>
+            <Text style={styles.welcomeText}>Hey, Nijin Joy</Text>
+            <View style={styles.checkInCard}>
+              <View style={styles.checkInHeader}>
+                <View style={styles.checkInStatus}>
+                  <View style={[styles.statusDot, styles.activeDot]} />
+                  <Text style={styles.checkInStatusText}>Checked In</Text>
                 </View>
-                <Text style={styles.quickLinkText}>{item.title}</Text>
-                <Icon name="chevron-right" size={20} color="#999" style={styles.chevronIcon} />
+                <TouchableOpacity style={styles.checkOutButton}>
+                  <Text style={styles.checkOutButtonText}>Check Out</Text>
+                </TouchableOpacity>
+              </View>
+              
+              <View style={styles.lastCheckInInfo}>
+                <Icon name="access-time" size={16} color="#666" />
+                <Text style={styles.lastCheckInText}>Last check-in was at 04:42 pm on 3 Dec</Text>
+              </View>
+              
+              <TouchableOpacity style={styles.viewListButton}>
+                <Text style={styles.viewListText}>View List</Text>
+                <Icon name="chevron-right" size={16} color="#2E8B57" />
               </TouchableOpacity>
-            ))}
+            </View>
           </View>
-        </View>
 
-        {/* Additional content space */}
-        <View style={styles.additionalContent}>
-          <Text style={styles.additionalTitle}>Recent Activities</Text>
-          <View style={styles.placeholderCard}>
-            <Text style={styles.placeholderText}>No recent activities</Text>
+          {/* Quick Links Section */}
+          <View style={styles.quickLinksSection}>
+            <Text style={styles.sectionTitle}>Quick Links</Text>
+            <View style={styles.quickLinksGrid}>
+              {quickLinks.map((item) => (
+                <TouchableOpacity 
+                  key={item.id}
+                  style={styles.quickLinkCard}
+                  onPress={() => handleQuickLinkPress(item.screen)}
+                >
+                  <View style={styles.quickLinkIcon}>
+                    {renderIcon(item.iconType, item.icon)}
+                  </View>
+                  <Text style={styles.quickLinkText}>{item.title}</Text>
+                  <Icon name="chevron-right" size={20} color="#999" style={styles.chevronIcon} />
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
-        </View>
-      </ScrollView>
+
+          {/* Additional content space */}
+          <View style={styles.additionalContent}>
+            <Text style={styles.additionalTitle}>Recent Activities</Text>
+            <View style={styles.placeholderCard}>
+              <Text style={styles.placeholderText}>No recent activities</Text>
+            </View>
+          </View>
+        </ScrollView>
+      </View>
     </View>
   );
 };
@@ -167,14 +173,20 @@ const HomeScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: { 
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: 'white', // Changed to white
+  },
+  whiteContainer: {
+    flex: 1,
+    backgroundColor: 'white',
   },
   scrollView: {
     flex: 1,
+    backgroundColor: 'white',
   },
   scrollContent: {
     paddingHorizontal: 16,
-    paddingBottom: 24,
+    backgroundColor: 'white',
+    flexGrow: 1,
   },
   welcomeSection: {
     marginTop: 20,
@@ -195,6 +207,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
   checkInHeader: {
     flexDirection: 'row',
@@ -277,6 +291,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
   quickLinkCard: {
     flexDirection: 'row',
@@ -324,6 +340,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
   placeholderText: {
     fontSize: 16,

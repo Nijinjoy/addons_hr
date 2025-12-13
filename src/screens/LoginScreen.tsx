@@ -7,51 +7,49 @@ import {
   KeyboardAvoidingView,
   Platform,
   Image,
-  TouchableWithoutFeedback,
-  Keyboard,
   TouchableOpacity,
   Alert,
+  ScrollView,
+  Keyboard,
+  TouchableWithoutFeedback,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import LinearGradient from 'react-native-linear-gradient';
 import Button from '../components/Button';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../navigation/AppNavigator';
-import { login } from '../services/authService';
-import { validateLogin } from '../utils/validation/authValidation';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 const logo = require('../assets/images/logo/logo.png');
 
-type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
+type AuthStackParamList = {
+  Login: undefined;
+  Register: undefined;
+  Dashboard: undefined;
+};
+
+type Props = NativeStackScreenProps<AuthStackParamList, 'Login'>;
 
 const LoginScreen = ({ navigation }: Props) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-const [emailError, setEmailError] = useState('');
-const [passwordError, setPasswordError] = useState('');
+  const [passwordVisible, setPasswordVisible] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-const handleLogin = async () => {
-  // setEmailError('');
-  // setPasswordError('');
-  // const errors = validateLogin(email, password);
-  // if (errors.email || errors.password) {
-  //   setEmailError(errors.email);
-  //   setPasswordError(errors.password);
-  //   return;
-  // }
-  // const result = await login(email, password);
-  // console.log("result===>",result);
-  // if (!result) {
-  //   Alert.alert('Login failed. Try again.');
-  //   return;
-  // }
-  // if (result.message && result.message.includes('Logged In')) {
-    navigation.replace('Dashboard');
-  // } else {
-  //   Alert.alert(result.message || 'Invalid email or password');
-  // }
-};
+  const handleLogin = async () => {
+    if (loading) return;
+    try {
+      setLoading(true);
+      await AsyncStorage.setItem('userToken', 'logged-in');
+      navigation.replace('Dashboard');
+    } catch (error) {
+      console.log('Login error:', error);
+      Alert.alert('Error', 'Something went wrong. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleRegister = () => {
-    console.log('Navigate to Register Screen');
+    navigation.navigate('Register');
   };
 
   return (
@@ -66,54 +64,74 @@ const handleLogin = async () => {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <View style={styles.inner}>
-            {/* Top Section */}
-            <View style={styles.topSection}>
-              <View style={styles.logoWrapper}>
-                <Image source={logo} style={styles.logo} resizeMode="cover" />
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.scrollContent}
+            bounces={false}
+          >
+            <View style={styles.content}>
+              <View style={styles.header}>
+                <View style={styles.logoWrapper}>
+                  <Image source={logo} style={styles.logo} resizeMode="cover" />
+                </View>
+                <Text style={styles.companyName}>ADDONS HR</Text>
+                <Text style={styles.pageSubtitle}>Sign in to your account</Text>
               </View>
-              <Text style={styles.companyName}>ADDONS HR</Text>
-              <Text style={styles.pageSubtitle}>Sign in to your account</Text>
+
+              <View style={styles.formContainer}>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Email</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter your email"
+                  placeholderTextColor="#888"
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Password</Text>
+                <View style={styles.passwordWrapper}>
+                    <TextInput
+                      style={[styles.input, styles.passwordInput]}
+                      placeholder="Enter your password"
+                      placeholderTextColor="#888"
+                      value={password}
+                      onChangeText={setPassword}
+                      secureTextEntry={!passwordVisible}
+                    />
+                    <TouchableOpacity
+                      style={styles.eyeButton}
+                      onPress={() => setPasswordVisible((prev) => !prev)}
+                      accessibilityLabel={passwordVisible ? 'Hide password' : 'Show password'}
+                    >
+                      <Ionicons
+                        name={passwordVisible ? 'eye-off-outline' : 'eye-outline'}
+                        size={22}
+                        color="#1D2B4C"
+                      />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                <Button
+                  title={loading ? 'Logging in...' : 'Login'}
+                  onPress={handleLogin}
+                  containerStyle={styles.loginButton}
+                  disabled={loading}
+                />
+
+                <TouchableOpacity onPress={handleRegister} style={styles.registerContainer}>
+                  <Text style={styles.registerText}>
+                    Don't have an account? <Text style={styles.registerLink}>Register</Text>
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
-
-            {/* Bottom White Wrapper */}
-            <View style={styles.formContainer}>
- <View style={styles.inputGroup}>
-  <Text style={styles.label}>Email</Text>
-  <TextInput
-    style={styles.input}
-    placeholder="Enter your email"
-    placeholderTextColor="#888"
-    value={email}
-    onChangeText={setEmail}
-    keyboardType="email-address"
-    autoCapitalize="none"
-  />
-  {emailError ? <Text style={styles.errorText}>{emailError}</Text> : null}
-</View>
-
-<View style={styles.inputGroup}>
-  <Text style={styles.label}>Password</Text>
-  <TextInput
-    style={styles.input}
-    placeholder="Enter your password"
-    placeholderTextColor="#888"
-    value={password}
-    onChangeText={setPassword}
-    secureTextEntry
-  />
-  {passwordError ? <Text style={styles.errorText}>{passwordError}</Text> : null}
-</View>
-
-              <Button title="Login" onPress={handleLogin} containerStyle={styles.loginButton} />
-
-              <TouchableOpacity onPress={handleRegister} style={styles.registerContainer}>
-                <Text style={styles.registerText}>
-                  Don't have an account? <Text style={styles.registerLink}>Register</Text>
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+          </ScrollView>
         </TouchableWithoutFeedback>
       </KeyboardAvoidingView>
     </LinearGradient>
@@ -122,16 +140,25 @@ const handleLogin = async () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  inner: { flex: 1, justifyContent: 'space-between' },
-
-  topSection: {
+  scroll: { flex: 1 },
+  scrollContent: {
+    flexGrow: 1,
+  },
+  content: {
+    flex: 1,
+    justifyContent: 'space-between',
+    paddingBottom: 0,
+  },
+  header: {
     alignItems: 'center',
-    paddingTop: 80,
+    paddingTop: 70,
+    paddingHorizontal: 24,
+    paddingBottom: 24,
   },
   logoWrapper: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+    width: 110,
+    height: 110,
+    borderRadius: 55,
     overflow: 'hidden',
     borderWidth: 3,
     borderColor: '#6EC6FF',
@@ -139,14 +166,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#fff',
   },
-  logo: { width: 110, height: 110, borderRadius: 55 },
-  companyName: { color: '#fff', fontSize: 24, fontWeight: '700', marginTop: 12 },
-  pageSubtitle: { color: '#fff', fontSize: 16, fontWeight: '500', marginTop: 8 },
+  logo: { width: 100, height: 100, borderRadius: 50 },
+  companyName: { color: '#fff', fontSize: 26, fontWeight: '700', marginTop: 16 },
+  pageSubtitle: { color: '#E5E7EB', fontSize: 16, fontWeight: '500', marginTop: 6 },
 
   formContainer: {
     backgroundColor: '#fff',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
     padding: 24,
     width: '100%',
   },
@@ -162,16 +189,24 @@ const styles = StyleSheet.create({
     color: '#1D2B4C',
     backgroundColor: '#F9FAFB',
   },
+  passwordWrapper: {
+    position: 'relative',
+    justifyContent: 'center',
+  },
+  passwordInput: {
+    paddingRight: 44,
+  },
+  eyeButton: {
+    position: 'absolute',
+    right: 12,
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   loginButton: { marginTop: 16, backgroundColor: '#1D2B4C' },
   registerContainer: { marginTop: 12, alignItems: 'center' },
   registerText: { fontSize: 14, color: '#1D2B4C' },
   registerLink: { fontWeight: '700', color: '#6EC6FF' },
-  errorText: {
-  color: '#FF4D4F',
-  fontSize: 12,
-  marginTop: 4,
-}
 });
 
 export default LoginScreen;
-
