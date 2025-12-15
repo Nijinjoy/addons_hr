@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   View, 
   Text, 
@@ -6,15 +6,24 @@ import {
   ScrollView, 
   TouchableOpacity,
   Platform,
-  StatusBar
+  StatusBar,
+  ActivityIndicator,
 } from 'react-native';
 import Header from '../../components/Header';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { getLeads, Lead } from '../../services/leadService';
+import { useNavigation } from '@react-navigation/native';
+import { LeadStackParamList } from '../../navigation/LeadStack';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 const LeadScreen = () => {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation<NativeStackNavigationProp<LeadStackParamList>>();
   const [activeStatusFilter, setActiveStatusFilter] = useState('all');
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   
   const handleNotificationPress = () => {
     console.log('Notifications pressed');
@@ -24,126 +33,104 @@ const LeadScreen = () => {
     console.log('Profile pressed');
   };
 
-  // Sample leads data
-  const leads = [
-    {
-      id: 1,
-      companyName: 'Tech Solutions Inc',
-      contactName: 'John Smith',
-      status: 'Qualified',
-      amount: '$ 50k',
-      source: 'Website',
-      description: 'Interested in enterprise package',
-      email: 'john@techsolutions.com',
-      phone: '+1 234-567-8901',
-      location: 'New York, NY',
-      addedDate: '10/15/2025',
-      emailChecked: false,
-      locationChecked: true,
-    },
-    {
-      id: 2,
-      companyName: 'Global Marketing Ltd',
-      contactName: 'Sarah Johnson',
-      status: 'Proposal',
-      amount: '$ 75k',
-      source: 'Referral',
-      description: 'Needs customization for team of 50',
-      email: 'sarah@globalmarketing.com',
-      phone: '+1 234-567-8902',
-      location: 'Los Angeles, CA',
-      addedDate: '10/10/2025',
-      emailChecked: false,
-      locationChecked: true,
-    },
-    {
-      id: 3,
-      companyName: 'Digital Innovations',
-      contactName: 'Michael Chen',
-      status: 'Contacted',
-      amount: '$ 35k',
-      source: 'Social Media',
-      description: 'Looking for mobile app development',
-      email: 'michael@digitalinnovations.com',
-      phone: '+1 234-567-8903',
-      location: 'San Francisco, CA',
-      addedDate: '10/05/2025',
-      emailChecked: true,
-      locationChecked: true,
-    },
-    {
-      id: 4,
-      companyName: 'Ecommerce Pro',
-      contactName: 'Emily Davis',
-      status: 'Qualified',
-      amount: '$ 90k',
-      source: 'Website',
-      description: 'Requires full ecommerce solution',
-      email: 'emily@ecommercepro.com',
-      phone: '+1 234-567-8904',
-      location: 'Chicago, IL',
-      addedDate: '10/01/2025',
-      emailChecked: false,
-      locationChecked: false,
-    },
-  ];
+  useEffect(() => {
+    const fetchLeadsData = async () => {
+      try {
+        setLoading(true);
+        setError('');
+        const res = await getLeads(100);
+        console.log('LeadScreen leads response:', res);
+        if (!res.ok) {
+          setError(typeof res.message === 'string' ? res.message : 'Failed to load leads');
+          return;
+        }
+        setLeads(res.data || []);
+      } catch (err: any) {
+        console.log('LeadScreen leads fetch error:', err?.message || err);
+        setError('Failed to load leads');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchLeadsData();
+  }, []);
 
   // Status filter tabs
-  const statusFilterTabs = [
-    { id: 'all', label: 'All', color: '#6B7280' },
-    { id: 'qualified', label: 'Qualified', color: '#10B981' },
-    { id: 'proposal', label: 'Proposal', color: '#3B82F6' },
-    { id: 'contacted', label: 'Contacted', color: '#F59E0B' },
-    { id: 'converted', label: 'Converted', color: '#8B5CF6' },
-    { id: 'lost', label: 'Lost', color: '#EF4444' },
-  ];
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'Qualified': return '#10B981';
-      case 'Proposal': return '#3B82F6';
-      case 'Contacted': return '#F59E0B';
-      case 'Converted': return '#8B5CF6';
-      case 'Lost': return '#EF4444';
-      default: return '#6B7280';
+  const getStatusMeta = (status: string | undefined | null) => {
+    const val = (status || 'Open').toLowerCase();
+    switch (val) {
+      case 'qualified':
+        return { color: '#10B981', bg: '#D1FAE5', label: 'Qualified' };
+      case 'proposal':
+        return { color: '#3B82F6', bg: '#DBEAFE', label: 'Proposal' };
+      case 'contacted':
+        return { color: '#F59E0B', bg: '#FEF3C7', label: 'Contacted' };
+      case 'converted':
+        return { color: '#8B5CF6', bg: '#F5F3FF', label: 'Converted' };
+      case 'lost':
+        return { color: '#EF4444', bg: '#FEE2E2', label: 'Lost' };
+      default:
+        return { color: '#6B7280', bg: '#F3F4F6', label: status || 'Open' };
     }
   };
 
-  const getStatusBgColor = (status) => {
-    switch (status) {
-      case 'Qualified': return '#D1FAE5';
-      case 'Proposal': return '#DBEAFE';
-      case 'Contacted': return '#FEF3C7';
-      case 'Converted': return '#F5F3FF';
-      case 'Lost': return '#FEE2E2';
-      default: return '#F3F4F6';
+  const statusFilterTabs = React.useMemo(() => {
+    const seen = new Set<string>();
+    const tabs: { id: string; label: string; color: string }[] = [
+      { id: 'all', label: 'All', color: '#6B7280' },
+    ];
+
+    const defaultOrder = ['qualified', 'proposal', 'contacted', 'converted', 'lost'];
+    const prioritized = defaultOrder.filter(id => {
+      return leads.some(l => (l.status || '').toLowerCase() === id);
+    });
+    for (const id of prioritized) {
+      if (seen.has(id)) continue;
+      const meta = getStatusMeta(id);
+      tabs.push({ id, label: meta.label, color: meta.color });
+      seen.add(id);
     }
-  };
+
+    const remaining = Array.from(
+      new Set(
+        leads
+          .map(l => (l.status || 'open').toLowerCase())
+          .filter(s => s && s !== 'all'),
+      ),
+    ).filter(s => !seen.has(s) && !defaultOrder.includes(s));
+
+    remaining.sort((a, b) => a.localeCompare(b));
+    for (const id of remaining) {
+      const meta = getStatusMeta(id);
+      tabs.push({ id, label: meta.label, color: meta.color });
+      seen.add(id);
+    }
+
+    return tabs;
+  }, [leads]);
 
   const getSourceIcon = (source) => {
     switch (source) {
-      case 'Website': return 'language';
-      case 'Referral': return 'group';
-      case 'Social Media': return 'share';
-      case 'Email': return 'email';
-      case 'Call': return 'call';
-      default: return 'source';
+      case 'Website':
+        return 'language';
+      case 'Referral':
+        return 'group';
+      case 'Social Media':
+        return 'share';
+      case 'Email':
+        return 'email';
+      case 'Call':
+        return 'call';
+      default:
+        return 'source';
     }
   };
 
   // Filter leads based on active filters
   const filteredLeads = leads.filter(lead => {
     if (activeStatusFilter === 'all') return true;
-    
-    const statusMap = {
-      'qualified': 'Qualified',
-      'proposal': 'Proposal',
-      'contacted': 'Contacted',
-      'converted': 'Converted',
-      'lost': 'Lost'
-    };
-    
-    return lead.status === statusMap[activeStatusFilter];
+    return (lead.status || '').toLowerCase() === activeStatusFilter;
   });
 
   return (
@@ -228,14 +215,29 @@ const LeadScreen = () => {
         >
           {/* Leads List - Or Empty State */}
           <View style={styles.leadsList}>
-            {filteredLeads.length > 0 ? (
-              filteredLeads.map((lead) => (
+            {loading && (
+              <View style={styles.loaderRow}>
+                <ActivityIndicator size="small" color="#3B82F6" />
+                <Text style={styles.loaderText}>Loading leads...</Text>
+              </View>
+            )}
+
+            {!!error && !loading && (
+              <View style={styles.errorCard}>
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            )}
+
+            {!loading && !error && filteredLeads.length > 0 ? (
+              filteredLeads.map((lead) => {
+                const meta = getStatusMeta(lead.status);
+                return (
                 <View key={lead.id} style={styles.leadCard}>
                   {/* Company Header */}
                   <View style={styles.companyHeader}>
                     <View style={styles.companyInfo}>
-                      <Text style={styles.companyName}>{lead.companyName}</Text>
-                      <Text style={styles.contactName}>{lead.contactName}</Text>
+                      <Text style={styles.companyName}>{lead.company_name || lead.lead_name || lead.name}</Text>
+                      <Text style={styles.contactName}>{lead.lead_name || lead.company_name || '-'}</Text>
                     </View>
                     <View style={styles.headerActions}>
                       <TouchableOpacity style={styles.starButton}>
@@ -251,18 +253,18 @@ const LeadScreen = () => {
                   <View style={styles.statusRow}>
                     <View style={[
                       styles.statusBadge,
-                      { backgroundColor: getStatusBgColor(lead.status) }
+                      { backgroundColor: meta.bg }
                     ]}>
                       <Text style={[
                         styles.statusText,
-                        { color: getStatusColor(lead.status) }
+                        { color: meta.color }
                       ]}>
-                        {lead.status}
+                        {meta.label}
                       </Text>
                     </View>
                     
                     <View style={styles.amountContainer}>
-                      <Text style={styles.amountText}>{lead.amount}</Text>
+                      <Text style={styles.amountText}>{lead.source || 'N/A'}</Text>
                       <View style={styles.sourceBadge}>
                         <Icon 
                           name={getSourceIcon(lead.source)} 
@@ -270,7 +272,7 @@ const LeadScreen = () => {
                           color="#6B7280" 
                           style={styles.sourceIcon}
                         />
-                        <Text style={styles.sourceText}>{lead.source}</Text>
+                        <Text style={styles.sourceText}>{lead.source || 'N/A'}</Text>
                       </View>
                     </View>
                   </View>
@@ -280,7 +282,7 @@ const LeadScreen = () => {
 
                   {/* Description */}
                   <Text style={styles.descriptionText}>
-                    {lead.description}
+                    {lead.company_name || lead.lead_name || 'Lead'}
                   </Text>
 
                   {/* Contact Info */}
@@ -288,30 +290,24 @@ const LeadScreen = () => {
                     {/* Email Row */}
                     <View style={styles.contactRow}>
                       <View style={styles.checkboxContainer}>
-                        {lead.emailChecked ? (
-                          <Icon name="check-box" size={20} color="#10B981" />
-                        ) : (
-                          <Icon name="check-box-outline-blank" size={20} color="#9CA3AF" />
-                        )}
+                        <Icon name="check-box" size={20} color="#10B981" />
                       </View>
                       <View style={styles.contactDetails}>
-                        <Text style={styles.emailText}>{lead.email}</Text>
-                        <Text style={styles.phoneText}>{lead.phone}</Text>
+                        <Text style={styles.emailText}>{lead.email_id || 'N/A'}</Text>
+                        <Text style={styles.phoneText}>{lead.phone || lead.mobile_no || 'N/A'}</Text>
                       </View>
                     </View>
 
                     {/* Location Row */}
                     <View style={styles.contactRow}>
                       <View style={styles.checkboxContainer}>
-                        {lead.locationChecked ? (
-                          <Icon name="check-box" size={20} color="#10B981" />
-                        ) : (
-                          <Icon name="check-box-outline-blank" size={20} color="#9CA3AF" />
-                        )}
+                        <Icon name="check-box" size={20} color="#10B981" />
                       </View>
                       <View style={styles.contactDetails}>
-                        <Text style={styles.locationText}>{lead.location}</Text>
-                        <Text style={styles.addedText}>Added: {lead.addedDate}</Text>
+                        <Text style={styles.locationText}>{lead.company_name || '-'}</Text>
+                        <Text style={styles.addedText}>
+                          Added: {lead.creation ? new Date(lead.creation).toLocaleDateString() : '-'}
+                        </Text>
                       </View>
                     </View>
                   </View>
@@ -326,13 +322,17 @@ const LeadScreen = () => {
                       <Icon name="email" size={18} color="#8B5CF6" />
                       <Text style={styles.emailButtonText}>Email</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.viewButton}>
-                      <Text style={styles.viewButtonText}>View Details</Text>
-                      <Icon name="chevron-right" size={18} color="#6B7280" />
-                    </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.viewButton}
+                        onPress={() => navigation.navigate('LeadDetail', { lead })}
+                      >
+                        <Text style={styles.viewButtonText}>View Details</Text>
+                        <Icon name="chevron-right" size={18} color="#6B7280" />
+                      </TouchableOpacity>
                   </View>
                 </View>
-              ))
+              );
+            })
             ) : (
               // Empty state when no leads
               <View style={styles.emptyState}>
@@ -512,6 +512,28 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     marginLeft: 8,
+  },
+  loaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 10,
+  },
+  loaderText: {
+    fontSize: 14,
+    color: '#4B5563',
+  },
+  errorCard: {
+    backgroundColor: '#FFF1F2',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  errorText: {
+    color: '#B91C1C',
+    fontSize: 14,
   },
   companyHeader: {
     flexDirection: 'row',

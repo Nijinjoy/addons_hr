@@ -7,19 +7,23 @@ import { DrawerNavigationProp } from '@react-navigation/drawer';
 
 interface HeaderProps {
   screenName: string;
-  navigation: DrawerNavigationProp<any>;
+  navigation?: DrawerNavigationProp<any>;
   notificationCount?: number;
-  useGradient?: boolean; 
+  useGradient?: boolean;
+  showBack?: boolean;
+  onBackPress?: () => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ 
-  screenName, 
+const Header: React.FC<HeaderProps> = ({
+  screenName,
   navigation,
   notificationCount = 0,
-  useGradient = true 
+  useGradient = true,
+  showBack = false,
+  onBackPress,
 }) => {
   return (
-    <LinearGradient 
+    <LinearGradient
       colors={["#141D35", "#1D2B4C", "#14223E"]}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 0 }}
@@ -28,34 +32,47 @@ const Header: React.FC<HeaderProps> = ({
         <StatusBar barStyle="light-content" backgroundColor="#141D35" />
         <View style={styles.container}>
           <View style={styles.leftSection}>
+            {showBack ? (
+              <TouchableOpacity
+                onPress={onBackPress}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                style={styles.backButton}
+              >
+                <Ionicons name="chevron-back" size={22} color="#FFFFFF" />
+              </TouchableOpacity>
+            ) : null}
             <Text style={styles.screenName}>{screenName}</Text>
           </View>
 
           <View style={styles.rightSection}>
             {/* Notification Icon */}
-            <TouchableOpacity 
-              style={styles.iconButton} 
-              onPress={() => console.log('Notifications pressed')}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="notifications-outline" size={24} color="#FFFFFF" />
-              {notificationCount > 0 && (
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>
-                    {notificationCount > 99 ? '99+' : notificationCount}
-                  </Text>
-                </View>
-              )}
-            </TouchableOpacity>
+            {navigation ? (
+              <TouchableOpacity
+                style={styles.iconButton}
+                onPress={() => console.log('Notifications pressed')}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="notifications-outline" size={24} color="#FFFFFF" />
+                {notificationCount > 0 && (
+                  <View style={styles.badge}>
+                    <Text style={styles.badgeText}>
+                      {notificationCount > 99 ? '99+' : notificationCount}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            ) : null}
 
             {/* Profile Icon */}
-            <TouchableOpacity 
-              style={[styles.iconButton, { marginLeft: 16 }]} // space between notification and profile
-              onPress={() => navigation.openDrawer()}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="person-circle-outline" size={28} color="#FFFFFF" />
-            </TouchableOpacity>
+            {navigation ? (
+              <TouchableOpacity
+                style={[styles.iconButton, { marginLeft: 16 }]} // space between notification and profile
+                onPress={() => navigation.openDrawer()}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="person-circle-outline" size={28} color="#FFFFFF" />
+              </TouchableOpacity>
+            ) : null}
           </View>
         </View>
       </SafeAreaView>
@@ -75,7 +92,8 @@ const styles = StyleSheet.create({
       android: { elevation: 4 },
     }),
   },
-  leftSection: { flex: 1 },
+  leftSection: { flex: 1, flexDirection: 'row', alignItems: 'center' },
+  backButton: { marginRight: 8 },
   screenName: { fontSize: 20, fontWeight: '600', color: '#FFFFFF' },
   rightSection: { flexDirection: 'row', alignItems: 'center' },
   iconButton: { padding: 4 },

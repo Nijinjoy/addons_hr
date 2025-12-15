@@ -6,7 +6,7 @@ import HomeScreen from '../screens/Dashboard /HomeScreen';
 import AttendanceScreen from '../screens/Dashboard /AttendanceScreen';
 import LeaveScreen from '../screens/Dashboard /LeaveScreen';
 import ExpenseScreen from '../screens/Dashboard /ExpenseScreen';
-import LeadScreen from '../screens/Dashboard /LeadScreen';
+import LeadStack from './LeadStack';
 
 const Tab = createBottomTabNavigator();
 
@@ -123,7 +123,7 @@ const DashboardTabs = () => {
       />
       <Tab.Screen 
         name="Leads" 
-        component={LeadScreen}
+        component={LeadStack}
         options={{ tabBarLabel: 'Leads' }}
       />
     </Tab.Navigator>
