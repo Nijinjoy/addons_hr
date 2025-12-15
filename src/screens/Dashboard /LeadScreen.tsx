@@ -8,6 +8,8 @@ import {
   Platform,
   StatusBar,
   ActivityIndicator,
+  Linking,
+  Alert,
 } from 'react-native';
 import Header from '../../components/Header';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -39,91 +41,61 @@ const LeadScreen = () => {
         setLoading(true);
         setError('');
         const res = await getLeads(100);
-        console.log('LeadScreen leads response:', res);
         if (!res.ok) {
           setError(typeof res.message === 'string' ? res.message : 'Failed to load leads');
           return;
         }
         setLeads(res.data || []);
       } catch (err: any) {
-        console.log('LeadScreen leads fetch error:', err?.message || err);
+        console.log('LeadScreen fetch error:', err?.message || err);
         setError('Failed to load leads');
       } finally {
         setLoading(false);
       }
     };
-
     fetchLeadsData();
   }, []);
 
   // Status filter tabs
-  const getStatusMeta = (status: string | undefined | null) => {
-    const val = (status || 'Open').toLowerCase();
-    switch (val) {
-      case 'qualified':
-        return { color: '#10B981', bg: '#D1FAE5', label: 'Qualified' };
-      case 'proposal':
-        return { color: '#3B82F6', bg: '#DBEAFE', label: 'Proposal' };
-      case 'contacted':
-        return { color: '#F59E0B', bg: '#FEF3C7', label: 'Contacted' };
-      case 'converted':
-        return { color: '#8B5CF6', bg: '#F5F3FF', label: 'Converted' };
-      case 'lost':
-        return { color: '#EF4444', bg: '#FEE2E2', label: 'Lost' };
-      default:
-        return { color: '#6B7280', bg: '#F3F4F6', label: status || 'Open' };
+  const statusFilterTabs = [
+    { id: 'all', label: 'All', color: '#6B7280' },
+    { id: 'qualified', label: 'Qualified', color: '#10B981' },
+    { id: 'proposal', label: 'Proposal', color: '#3B82F6' },
+    { id: 'contacted', label: 'Contacted', color: '#F59E0B' },
+    { id: 'converted', label: 'Converted', color: '#8B5CF6' },
+    { id: 'lost', label: 'Lost', color: '#EF4444' },
+  ];
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'Qualified': return '#10B981';
+      case 'Proposal': return '#3B82F6';
+      case 'Contacted': return '#F59E0B';
+      case 'Converted': return '#8B5CF6';
+      case 'Lost': return '#EF4444';
+      default: return '#6B7280';
     }
   };
 
-  const statusFilterTabs = React.useMemo(() => {
-    const seen = new Set<string>();
-    const tabs: { id: string; label: string; color: string }[] = [
-      { id: 'all', label: 'All', color: '#6B7280' },
-    ];
-
-    const defaultOrder = ['qualified', 'proposal', 'contacted', 'converted', 'lost'];
-    const prioritized = defaultOrder.filter(id => {
-      return leads.some(l => (l.status || '').toLowerCase() === id);
-    });
-    for (const id of prioritized) {
-      if (seen.has(id)) continue;
-      const meta = getStatusMeta(id);
-      tabs.push({ id, label: meta.label, color: meta.color });
-      seen.add(id);
+  const getStatusBgColor = (status) => {
+    switch (status) {
+      case 'Qualified': return '#D1FAE5';
+      case 'Proposal': return '#DBEAFE';
+      case 'Contacted': return '#FEF3C7';
+      case 'Converted': return '#F5F3FF';
+      case 'Lost': return '#FEE2E2';
+      default: return '#F3F4F6';
     }
-
-    const remaining = Array.from(
-      new Set(
-        leads
-          .map(l => (l.status || 'open').toLowerCase())
-          .filter(s => s && s !== 'all'),
-      ),
-    ).filter(s => !seen.has(s) && !defaultOrder.includes(s));
-
-    remaining.sort((a, b) => a.localeCompare(b));
-    for (const id of remaining) {
-      const meta = getStatusMeta(id);
-      tabs.push({ id, label: meta.label, color: meta.color });
-      seen.add(id);
-    }
-
-    return tabs;
-  }, [leads]);
+  };
 
   const getSourceIcon = (source) => {
     switch (source) {
-      case 'Website':
-        return 'language';
-      case 'Referral':
-        return 'group';
-      case 'Social Media':
-        return 'share';
-      case 'Email':
-        return 'email';
-      case 'Call':
-        return 'call';
-      default:
-        return 'source';
+      case 'Website': return 'language';
+      case 'Referral': return 'group';
+      case 'Social Media': return 'share';
+      case 'Email': return 'email';
+      case 'Call': return 'call';
+      default: return 'source';
     }
   };
 
@@ -229,9 +201,7 @@ const LeadScreen = () => {
             )}
 
             {!loading && !error && filteredLeads.length > 0 ? (
-              filteredLeads.map((lead) => {
-                const meta = getStatusMeta(lead.status);
-                return (
+              filteredLeads.map((lead) => (
                 <View key={lead.id} style={styles.leadCard}>
                   {/* Company Header */}
                   <View style={styles.companyHeader}>
@@ -253,13 +223,13 @@ const LeadScreen = () => {
                   <View style={styles.statusRow}>
                     <View style={[
                       styles.statusBadge,
-                      { backgroundColor: meta.bg }
+                      { backgroundColor: getStatusBgColor(lead.status) }
                     ]}>
                       <Text style={[
                         styles.statusText,
-                        { color: meta.color }
+                        { color: getStatusColor(lead.status) }
                       ]}>
-                        {meta.label}
+                        {lead.status || 'Open'}
                       </Text>
                     </View>
                     
@@ -281,9 +251,9 @@ const LeadScreen = () => {
                   <View style={styles.divider} />
 
                   {/* Description */}
-                  <Text style={styles.descriptionText}>
-                    {lead.company_name || lead.lead_name || 'Lead'}
-                  </Text>
+                        <Text style={styles.descriptionText}>
+                          {lead.description || lead.company_name || lead.lead_name || 'Lead'}
+                        </Text>
 
                   {/* Contact Info */}
                   <View style={styles.contactInfo}>
@@ -305,34 +275,47 @@ const LeadScreen = () => {
                       </View>
                       <View style={styles.contactDetails}>
                         <Text style={styles.locationText}>{lead.company_name || '-'}</Text>
-                        <Text style={styles.addedText}>
-                          Added: {lead.creation ? new Date(lead.creation).toLocaleDateString() : '-'}
-                        </Text>
+                        <Text style={styles.addedText}>Added: {lead.creation ? new Date(lead.creation).toLocaleDateString() : '-'}</Text>
                       </View>
                     </View>
                   </View>
 
                   {/* Actions */}
                   <View style={styles.actionButtons}>
-                    <TouchableOpacity style={styles.callButton}>
+                    <TouchableOpacity style={styles.callButton} onPress={() => {
+                      const num = (lead.phone || lead.mobile_no || '').trim();
+                      if (!num) {
+                        Alert.alert('Call', 'No phone number available for this lead.');
+                        return;
+                      }
+                      const url = `tel:${num.replace(/[^\d+]/g, '')}`;
+                      Linking.openURL(url).catch(() => Alert.alert('Call', 'Unable to open the dialer.'));
+                    }}>
                       <Icon name="call" size={18} color="#3B82F6" />
                       <Text style={styles.callButtonText}>Call</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.emailButton}>
+                    <TouchableOpacity style={styles.emailButton} onPress={() => {
+                      const addr = (lead.email_id || '').trim();
+                      if (!addr) {
+                        Alert.alert('Email', 'No email address available for this lead.');
+                        return;
+                      }
+                      const url = `mailto:${addr}`;
+                      Linking.openURL(url).catch(() => Alert.alert('Email', 'Unable to open the email app.'));
+                    }}>
                       <Icon name="email" size={18} color="#8B5CF6" />
                       <Text style={styles.emailButtonText}>Email</Text>
                     </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.viewButton}
-                        onPress={() => navigation.navigate('LeadDetail', { lead })}
-                      >
-                        <Text style={styles.viewButtonText}>View Details</Text>
-                        <Icon name="chevron-right" size={18} color="#6B7280" />
-                      </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.viewButton}
+                      onPress={() => navigation.navigate('LeadDetail', { lead })}
+                    >
+                      <Text style={styles.viewButtonText}>View Details</Text>
+                      <Icon name="chevron-right" size={18} color="#6B7280" />
+                    </TouchableOpacity>
                   </View>
                 </View>
-              );
-            })
+              ))
             ) : (
               // Empty state when no leads
               <View style={styles.emptyState}>

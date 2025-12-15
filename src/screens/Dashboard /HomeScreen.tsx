@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   View, 
   Text, 
@@ -6,20 +6,89 @@ import {
   TouchableOpacity, 
   ScrollView,
   StatusBar,
-  Platform
+  Platform,
+  Alert,
+  PermissionsAndroid,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import Header from '../../components/Header';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { checkIn } from '../../services/attendanceService';
 
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
+  const [checkInLoading, setCheckInLoading] = useState(false);
+  const [lastCheckInText, setLastCheckInText] = useState('Last check-in was at 04:42 pm on 3 Dec');
 
   const handleNotificationPress = () => {
     console.log('Notification pressed');
+  };
+  const requestLocationPermission = async (): Promise<boolean> => {
+    if (Platform.OS !== 'android') return true;
+    const granted = await PermissionsAndroid.request(
+      PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+      {
+        title: 'Location Permission',
+        message: 'We need location to log your check-in.',
+        buttonPositive: 'OK',
+      }
+    );
+    return granted === PermissionsAndroid.RESULTS.GRANTED;
+  };
+
+  const getLocation = (): Promise<{ latitude?: number; longitude?: number }> => {
+    return new Promise((resolve) => {
+      if (!navigator?.geolocation) {
+        resolve({});
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const { latitude, longitude } = pos.coords || {};
+          resolve({ latitude, longitude });
+        },
+        (err) => {
+          console.log('getCurrentPosition error:', err);
+          resolve({});
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
+      );
+    });
+  };
+
+  const handleCheckIn = async () => {
+    if (checkInLoading) return;
+    try {
+      setCheckInLoading(true);
+      const emp = (await AsyncStorage.getItem('employee_id')) || (await AsyncStorage.getItem('user_id')) || '';
+      if (!emp) {
+        Alert.alert('Check In', 'Employee id not found. Please log in again.');
+        return;
+      }
+      const hasPerm = await requestLocationPermission();
+      if (!hasPerm) {
+        Alert.alert('Permission needed', 'Enable location permission to record your check-in.');
+        return;
+      }
+      const coords = await getLocation();
+      const res = await checkIn(emp, 'IN', coords);
+      console.log('HomeScreen check-in response:', res);
+      if (!res.ok) {
+        Alert.alert('Check In', res.message || 'Failed to check in');
+        return;
+      }
+      const nowText = new Date().toLocaleString();
+      setLastCheckInText(`Checked in at ${nowText}`);
+      Alert.alert('Check In', 'Checked in successfully.');
+    } catch (err: any) {
+      Alert.alert('Check In', err?.message || 'Failed to check in');
+    } finally {
+      setCheckInLoading(false);
+    }
   };
 
   // Quick links data
@@ -119,14 +188,14 @@ const HomeScreen: React.FC = () => {
                   <View style={[styles.statusDot, styles.activeDot]} />
                   <Text style={styles.checkInStatusText}>Checked In</Text>
                 </View>
-                <TouchableOpacity style={styles.checkOutButton}>
-                  <Text style={styles.checkOutButtonText}>Check Out</Text>
+                <TouchableOpacity style={styles.checkOutButton} onPress={handleCheckIn} disabled={checkInLoading}>
+                  <Text style={styles.checkOutButtonText}>{checkInLoading ? 'Checking...' : 'Check In'}</Text>
                 </TouchableOpacity>
               </View>
               
               <View style={styles.lastCheckInInfo}>
                 <Icon name="access-time" size={16} color="#666" />
-                <Text style={styles.lastCheckInText}>Last check-in was at 04:42 pm on 3 Dec</Text>
+                <Text style={styles.lastCheckInText}>{lastCheckInText}</Text>
               </View>
               
               <TouchableOpacity style={styles.viewListButton}>
@@ -234,7 +303,7 @@ const styles = StyleSheet.create({
     color: '#333',
   },
   checkOutButton: {
-    backgroundColor: '#FF6B6B',
+    backgroundColor: '#22C55E',
     paddingHorizontal: 20,
     paddingVertical: 8,
     borderRadius: 6,

@@ -1,5 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
+  Modal,
+  TextInput,
+} from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import Header from '../../components/Header';
 import { getLeaveBalance, getLeaveHistory } from '../../services/leaveService';
@@ -31,6 +40,13 @@ const LeaveScreen = () => {
   const [leaveHistory, setLeaveHistory] = useState<LeaveHistoryItem[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [historyError, setHistoryError] = useState('');
+  const [applyModalVisible, setApplyModalVisible] = useState(false);
+  const [applyLeaveType, setApplyLeaveType] = useState('');
+  const [applyFromDate, setApplyFromDate] = useState('');
+  const [applyToDate, setApplyToDate] = useState('');
+  const [applyReason, setApplyReason] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [showLeaveTypeOptions, setShowLeaveTypeOptions] = useState(false);
 
   const handleNotificationPress = () => {
     console.log('Notification pressed');
@@ -41,8 +57,11 @@ const LeaveScreen = () => {
   };
 
   const handleApplyLeave = () => {
-    console.log('Apply for leave');
+    setApplyModalVisible(true);
+    setShowLeaveTypeOptions(false);
   };
+
+  const leaveTypeOptions = ['Annual Leave', 'Sick Leave', 'Casual Leave'];
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -296,6 +315,105 @@ const LeaveScreen = () => {
             })}
         </View>
       </ScrollView>
+      <Modal
+        visible={applyModalVisible}
+        animationType="slide"
+        transparent
+        statusBarTranslucent
+        presentationStyle="overFullScreen"
+        onRequestClose={() => setApplyModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHandle} />
+            <Text style={styles.modalTitle}>Apply for Leave</Text>
+            <Text style={styles.modalSubtitle}>
+              Fill in the details below to submit your leave request.
+            </Text>
+
+            <Text style={styles.modalLabel}>Leave Type</Text>
+            <TouchableOpacity
+              style={styles.modalSelect}
+              onPress={() => setShowLeaveTypeOptions((prev) => !prev)}
+            >
+              <Text style={applyLeaveType ? styles.modalSelectValue : styles.modalSelectPlaceholder}>
+                {applyLeaveType || 'Select leave type'}
+              </Text>
+              <Ionicons
+                name={showLeaveTypeOptions ? 'chevron-up' : 'chevron-down'}
+                size={16}
+                color="#6B7280"
+              />
+            </TouchableOpacity>
+            {showLeaveTypeOptions && (
+              <View style={styles.dropdownList}>
+                {leaveTypeOptions.map((opt) => (
+                  <TouchableOpacity
+                    key={opt}
+                    style={styles.dropdownItem}
+                    onPress={() => {
+                      setApplyLeaveType(opt);
+                      setShowLeaveTypeOptions(false);
+                    }}
+                  >
+                    <Text style={styles.dropdownItemText}>{opt}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
+            <Text style={styles.modalLabel}>From Date</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="YYYY-MM-DD"
+              value={applyFromDate}
+              onChangeText={setApplyFromDate}
+            />
+
+            <Text style={styles.modalLabel}>To Date</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="YYYY-MM-DD"
+              value={applyToDate}
+              onChangeText={setApplyToDate}
+            />
+
+            <Text style={styles.modalLabel}>Reason</Text>
+            <TextInput
+              style={[styles.modalInput, styles.modalTextArea]}
+              placeholder="Reason for leave"
+              value={applyReason}
+              onChangeText={setApplyReason}
+              multiline
+            />
+
+            <TouchableOpacity
+              style={[styles.applyButton, submitting && { opacity: 0.7 }]}
+              onPress={() => {
+                console.log('Submit leave form', {
+                  type: applyLeaveType,
+                  from: applyFromDate,
+                  to: applyToDate,
+                  reason: applyReason,
+                });
+              }}
+              disabled={submitting}
+            >
+              <Ionicons name="paper-plane-outline" size={20} color="#FFFFFF" />
+              <Text style={styles.applyButtonText}>
+                {submitting ? 'Applying...' : 'Apply Leave'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => setApplyModalVisible(false)}
+            >
+              <Text style={styles.closeButtonText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -389,13 +507,108 @@ const styles = StyleSheet.create({
     color: '#B91C1C',
     fontSize: 14,
   },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end',
+  },
+  modalSheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    gap: 10,
+  },
+  modalHandle: {
+    alignSelf: 'center',
+    width: 60,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#E5E7EB',
+    marginBottom: 6,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  modalSubtitle: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginBottom: 8,
+  },
+  modalLabel: {
+    fontSize: 14,
+    color: '#4B5563',
+    marginTop: 6,
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 10,
+    padding: 12,
+    fontSize: 14,
+    color: '#111827',
+    backgroundColor: '#F9FAFB',
+  },
+  modalTextArea: {
+    minHeight: 80,
+    textAlignVertical: 'top',
+  },
+  modalSelect: {
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    backgroundColor: '#F9FAFB',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  modalSelectPlaceholder: {
+    color: '#9CA3AF',
+    fontSize: 14,
+  },
+  modalSelectValue: {
+    color: '#111827',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  dropdownList: {
+    marginTop: 6,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    maxHeight: 180,
+  },
+  dropdownItem: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  dropdownItemText: {
+    fontSize: 14,
+    color: '#111827',
+  },
+  closeButton: {
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  closeButtonText: {
+    color: '#6B7280',
+    fontSize: 14,
+    fontWeight: '600',
+  },
   applyButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#007AFF',
-    marginHorizontal: 16,
-    marginBottom: 16,
+    marginTop: 12,
     padding: 16,
     borderRadius: 12,
     elevation: 3,

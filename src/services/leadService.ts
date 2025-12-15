@@ -11,6 +11,19 @@ type Lead = {
   mobile_no?: string;
   source?: string;
   creation?: string;
+  job_title?: string;
+  gender?: string;
+  lead_type?: string;
+  request_type?: string;
+  service_type?: string;
+  whatsapp?: string;
+  building?: string;
+  location?: string;
+  territory?: string;
+  no_of_employees?: string | number;
+  industry?: string;
+  owner?: string;
+  associate_details?: string;
 };
 
 type LeadResult =
@@ -100,6 +113,19 @@ const normalizeLeads = (rows: any[]): Lead[] => {
     mobile_no: r.mobile_no,
     source: r.source,
     creation: r.creation,
+    job_title: (r as any)?.job_title,
+    gender: (r as any)?.gender,
+    lead_type: (r as any)?.lead_type,
+    request_type: (r as any)?.request_type,
+    service_type: (r as any)?.service_type,
+    whatsapp: (r as any)?.whatsapp,
+    building: (r as any)?.building,
+    location: (r as any)?.location,
+    territory: (r as any)?.territory,
+    no_of_employees: (r as any)?.no_of_employees ?? (r as any)?.number_of_employees,
+    industry: (r as any)?.industry,
+    owner: (r as any)?.owner,
+    associate_details: (r as any)?.associate_details,
   }));
 };
 
@@ -144,6 +170,20 @@ export const fetchLeads = async (limit: number = 50): Promise<Lead[]> => {
         'mobile_no',
         'source',
         'creation',
+        'job_title',
+        'gender',
+        'lead_type',
+        'request_type',
+        'service_type',
+        'whatsapp',
+        'building',
+        'location',
+        'territory',
+        'no_of_employees',
+        'number_of_employees',
+        'industry',
+        'owner',
+        'associate_details',
       ]),
       order_by: 'creation desc',
       limit_page_length: limit,

@@ -21,6 +21,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import { validateLogin } from '../utils/validation/authValidation';
 import { login as authLogin } from '../services/authService';
 import { resolveEmployeeIdForUser } from '../services/leaves';
+import { checkIn } from '../services/attendanceService';
 const logo = require('../assets/images/logo/logo.png');
 
 type AuthStackParamList = {
@@ -91,6 +92,20 @@ const LoginScreen = ({ navigation }: Props) => {
           }
         } catch (err) {
           console.log('Failed to resolve employee id after login:', err);
+        }
+
+        // Attempt an immediate check-in log (for diagnostics) and store the response
+        try {
+          const employeeId = (await AsyncStorage.getItem('employee_id')) || '';
+          if (employeeId) {
+            const checkInRes = await checkIn(employeeId, 'IN');
+            console.log('Login check-in response:', checkInRes);
+            await AsyncStorage.setItem('last_checkin_response', JSON.stringify(checkInRes));
+          } else {
+            console.log('No employee id available for immediate check-in after login');
+          }
+        } catch (checkErr: any) {
+          console.log('Immediate check-in after login failed:', checkErr?.message || checkErr);
         }
 
         // Reset to root dashboard after login
