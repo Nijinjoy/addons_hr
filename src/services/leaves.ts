@@ -9,8 +9,18 @@ function pickEnv(...keys: string[]): string {
   return '';
 }
 
-const BASE_URL = (pickEnv('ERP_URL_RESOURCE', 'ERP_URL') || '').replace(/\/$/, '');
-const METHOD_URL = (pickEnv('ERP_URL_METHOD', 'ERP_METHOD_URL') || '').replace(/\/$/, '');
+const BASE_URL = (pickEnv('ERP_URL_RESOURCE', 'ERP_URL') ||
+  'https://addonsajith.frappe.cloud/api/resource').replace(/\/$/, '');
+const deriveMethodFromResource = (resourceUrl: string): string => {
+  const clean = (resourceUrl || '').replace(/\/$/, '');
+  if (!clean) return '';
+  if (clean.endsWith('/api/resource')) return clean.replace(/\/api\/resource$/, '/api/method');
+  return `${clean}/api/method`;
+};
+
+const METHOD_URL = (pickEnv('ERP_URL_METHOD', 'ERP_METHOD_URL') ||
+  deriveMethodFromResource(BASE_URL) ||
+  'https://addonsajith.frappe.cloud/api/method').replace(/\/$/, '');
 const API_KEY = pickEnv('ERP_APIKEY', 'ERP_API_KEY');
 const API_SECRET = pickEnv('ERP_SECRET', 'ERP_API_SECRET');
 
@@ -60,13 +70,77 @@ function buildQuery(url: string, params: Record<string, string | number | undefi
 
 // Resolve Employee document name for a given user (email/username)
 export async function resolveEmployeeIdForUser(userId: string): Promise<string | null> {
-  const user = String(userId || '').trim();
+  const user = decodeURIComponent(String(userId || '').trim());
   if (!user) return null;
+
+  const cacheKey = `employee_id_for_${encodeURIComponent(user)}`;
+  const persistEmployeeId = async (empId: string) => {
+    try {
+      await AsyncStorage.multiSet([
+        ['employee_id', empId],
+        [cacheKey, empId],
+      ]);
+    } catch {
+      // ignore storage errors; caller still gets the value
+    }
+  };
+
+  // Prefer method endpoint (same host as login, works with sid)
+  try {
+    if (!METHOD_URL) throw new Error('METHOD_URL not configured');
+    // Method attempt 1: get_list
+    try {
+      const url = buildQuery(`${METHOD_URL}/frappe.client.get_list`, {
+        doctype: 'Employee',
+        fields: JSON.stringify(['name', 'user_id']),
+        filters: JSON.stringify([['user_id', '=', user]]),
+        limit_page_length: 10,
+      });
+      const res = await requestJSON<{ message?: any[] }>(url, {
+        method: 'GET',
+        headers: await authHeaders(),
+      });
+      const row = (res?.message ?? []).find((r) => r?.name) || (res?.message ?? [])[0];
+      const name = row?.name || row?.employee;
+      if (name) {
+        const id = String(name);
+        await persistEmployeeId(id);
+        return id;
+      }
+    } catch (inner) {
+      // continue to get_value fallback
+    }
+
+    // Method attempt 2: get_value (single value fetch)
+    try {
+      const url = `${METHOD_URL}/frappe.client.get_value`;
+      const body = {
+        doctype: 'Employee',
+        fieldname: 'name',
+        filters: { user_id: user },
+      };
+      const res = await requestJSON<{ message?: { name?: string } }>(url, {
+        method: 'POST',
+        headers: await authHeaders(),
+        body: JSON.stringify(body),
+      });
+      const name = res?.message?.name;
+      if (name) {
+        const id = String(name);
+        await persistEmployeeId(id);
+        return id;
+      }
+    } catch (inner2) {
+      // continue to resource fallback
+    }
+  } catch (errMethod: any) {
+    console.warn('resolveEmployeeIdForUser method failed', errMethod?.message || errMethod);
+  }
 
   const tryResource = async (filters: any) => {
     const url = buildQuery(`${BASE_URL}/Employee`, {
       filters: JSON.stringify(filters),
-      fields: JSON.stringify(['name', 'user_id', 'user']),
+      fields: JSON.stringify(['name', 'user_id']),
       limit_page_length: 10,
     });
     const res = await requestJSON<{ data?: any[] }>(url, {
@@ -75,54 +149,32 @@ export async function resolveEmployeeIdForUser(userId: string): Promise<string |
     });
     const row = (res?.data ?? []).find((r) => r?.name) || (res?.data ?? [])[0];
     const name = row?.name || row?.employee;
-    return name ? String(name) : null;
+    if (name) {
+      const id = String(name);
+      await persistEmployeeId(id);
+      return id;
+    }
+    return null;
   };
 
   try {
     const found = await tryResource([['user_id', '=', user]]);
-    if (found) return found;
+    if (found) {
+      await persistEmployeeId(found);
+      return found;
+    }
   } catch (err1: any) {
     console.warn('resolveEmployeeIdForUser resource failed', err1?.message || err1);
   }
 
   try {
     const found = await tryResource({ user_id: user });
-    if (found) return found;
+    if (found) {
+      await persistEmployeeId(found);
+      return found;
+    }
   } catch (err2: any) {
     console.warn('resolveEmployeeIdForUser resource alt failed', err2?.message || err2);
-  }
-
-  try {
-    const found = await tryResource([['user', '=', user]]);
-    if (found) return found;
-  } catch (err3: any) {
-    console.warn('resolveEmployeeIdForUser resource user failed', err3?.message || err3);
-  }
-
-  try {
-    const found = await tryResource({ user });
-    if (found) return found;
-  } catch (err4: any) {
-    console.warn('resolveEmployeeIdForUser resource user alt failed', err4?.message || err4);
-  }
-
-  try {
-    if (!METHOD_URL) throw new Error('METHOD_URL not configured');
-    const url = buildQuery(`${METHOD_URL}/frappe.client.get_list`, {
-      doctype: 'Employee',
-      fields: JSON.stringify(['name', 'user_id']),
-      filters: JSON.stringify([['user_id', '=', user]]),
-      limit_page_length: 10,
-    });
-    const res = await requestJSON<{ message?: any[] }>(url, {
-      method: 'GET',
-      headers: await authHeaders(),
-    });
-    const row = (res?.message ?? []).find((r) => r?.name) || (res?.message ?? [])[0];
-    const name = row?.name || row?.employee;
-    if (name) return String(name);
-  } catch (err5: any) {
-    console.error('resolveEmployeeIdForUser method failed', err5?.message || err5);
   }
 
   return null;

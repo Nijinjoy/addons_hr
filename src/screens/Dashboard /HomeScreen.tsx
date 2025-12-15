@@ -86,9 +86,8 @@ const HomeScreen: React.FC = () => {
         backgroundColor="white" // Changed to white
         translucent={Platform.OS === 'android'}
       />
-      
       <Header 
-        screenName="ADDONS HR"
+        screenName="ADDON-S ERP"
         navigation={navigation}
         notificationCount={5}
         useGradient={true}

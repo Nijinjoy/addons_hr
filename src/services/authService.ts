@@ -1,4 +1,5 @@
 import { ERP_URL_METHOD } from '../config/env';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type LoginResult =
   | { ok: true; data: any; cookies?: Record<string, string> }
@@ -19,6 +20,12 @@ const parseServerMessages = (payload: any): string | undefined => {
 
 export const login = async (username: string, password: string): Promise<LoginResult> => {
   try {
+    if (!ERP_URL_METHOD) {
+      const message = 'ERP_URL_METHOD is not configured. Please set it in your .env and rebuild the app.';
+      console.error(message);
+      return { ok: false, message };
+    }
+
     const url = `${ERP_URL_METHOD}/login`;
     console.log('Calling ERPNext login API at:', url);
     console.log('Login payload (sanitized):', { username, pwdLength: password?.length || 0 });
@@ -80,4 +87,29 @@ const extractCookies = (setCookieHeader: string): Record<string, string> => {
     }
   }
   return result;
+};
+
+export const logout = async (): Promise<{ ok: boolean; message?: string }> => {
+  try {
+    if (!ERP_URL_METHOD) {
+      console.warn('logout: ERP_URL_METHOD not configured; performing local logout only.');
+    } else {
+      try {
+        await fetch(`${ERP_URL_METHOD}/logout`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+      } catch (err: any) {
+        console.warn('logout API call failed (continuing with local logout):', err?.message || err);
+      }
+    }
+
+    try {
+      await AsyncStorage.multiRemove(['sid', 'full_name', 'user_id', 'user_image', 'employee_id']);
+    } catch (err2) {
+      console.warn('Error clearing storage during logout:', err2);
+    }
+
+    return { ok: true };
+  } catch (error: any) {
+    console.error('logout error:', error?.message || error);
+    return { ok: false, message: error?.message || 'Failed to logout' };
+  }
 };

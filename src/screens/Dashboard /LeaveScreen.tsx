@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import Header from '../../components/Header';
 import { getLeaveBalance, getLeaveHistory } from '../../services/leaveService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface LeaveBalance {
   type: string;
@@ -23,7 +24,6 @@ interface LeaveHistoryItem {
 }
 
 const LeaveScreen = () => {
-  const TEST_EMPLOYEE_ID = 'HR-EMP-00020';
   const [leaveBalances, setLeaveBalances] = useState<LeaveBalance[]>([]);
   const [loadingBalance, setLoadingBalance] = useState(false);
   const [balanceError, setBalanceError] = useState('');
@@ -75,8 +75,13 @@ const LeaveScreen = () => {
       try {
         setLoadingBalance(true);
         setBalanceError('');
-        // For testing, force the provided employee id
-        const employee = TEST_EMPLOYEE_ID;
+        const storedEmployee = (await AsyncStorage.getItem('employee_id')) || '';
+        const fallbackUser = (await AsyncStorage.getItem('user_id')) || '';
+        const employee = storedEmployee || fallbackUser;
+        if (!employee) {
+          setBalanceError('Employee id not found. Please log in again.');
+          return;
+        }
         const res = await getLeaveBalance({ employee });
         console.log('LeaveScreen balance response:', res);
         if (!res.ok) {
@@ -113,7 +118,13 @@ const LeaveScreen = () => {
       try {
         setLoadingHistory(true);
         setHistoryError('');
-        const employee = TEST_EMPLOYEE_ID;
+        const storedEmployee = (await AsyncStorage.getItem('employee_id')) || '';
+        const fallbackUser = (await AsyncStorage.getItem('user_id')) || '';
+        const employee = storedEmployee || fallbackUser;
+        if (!employee) {
+          setHistoryError('Employee id not found. Please log in again.');
+          return;
+        }
         const res = await getLeaveHistory({ employee, limit: 50 });
         console.log('LeaveScreen history response:', res);
         if (!res.ok) {

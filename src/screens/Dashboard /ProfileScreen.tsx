@@ -1,10 +1,11 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, Modal, TouchableWithoutFeedback } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, Modal, TouchableWithoutFeedback, Alert } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import { profile as profileImage } from '../../assets/images';
+import { logout } from '../../services/authService';
 
 type ProfileScreenProps = {
   onBack?: () => void;
@@ -67,11 +68,41 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack }) => {
     setSelectedSection(null);
   };
 
-  const handleLogout = () => {
-    navigation.getParent()?.reset({
-      index: 0,
-      routes: [{ name: 'Auth' as never }],
-    });
+  const handleLogout = async () => {
+    Alert.alert(
+      'Log Out',
+      'Are you sure you want to log out?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Log Out',
+          style: 'destructive',
+          onPress: async () => {
+            await logout();
+            // Close drawer if open and reset to Auth stack
+            const drawerNav: any = navigation.getParent?.();
+            try {
+              drawerNav?.closeDrawer?.();
+            } catch {
+              // ignore
+            }
+            const rootNav: any = drawerNav?.getParent?.() || navigation.getParent?.();
+            if (rootNav?.reset) {
+              rootNav.reset({
+                index: 0,
+                routes: [{ name: 'Auth' as never }],
+              });
+            } else {
+              navigation.reset?.({
+                index: 0,
+                routes: [{ name: 'Auth' as never }],
+              });
+            }
+          },
+        },
+      ],
+      { cancelable: true }
+    );
   };
 
   return (

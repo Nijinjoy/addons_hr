@@ -20,6 +20,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { validateLogin } from '../utils/validation/authValidation';
 import { login as authLogin } from '../services/authService';
+import { resolveEmployeeIdForUser } from '../services/leaves';
 const logo = require('../assets/images/logo/logo.png');
 
 type AuthStackParamList = {
@@ -62,7 +63,7 @@ const LoginScreen = ({ navigation }: Props) => {
         const toStore: [string, string][] = [];
         if (cookies.sid) toStore.push(['sid', cookies.sid]);
         if (cookies.full_name) toStore.push(['full_name', cookies.full_name]);
-        if (cookies.user_id) toStore.push(['user_id', cookies.user_id]);
+        if (cookies.user_id) toStore.push(['user_id', decodeURIComponent(cookies.user_id)]);
         if (cookies.user_image) toStore.push(['user_image', cookies.user_image]);
 
         if (toStore.length) {
@@ -72,6 +73,24 @@ const LoginScreen = ({ navigation }: Props) => {
           } catch (storageError) {
             console.log('Error storing login cookies:', storageError);
           }
+        }
+
+        // Resolve and store the Employee ID linked to this user for downstream APIs
+        try {
+          const userKey = decodeURIComponent(cookies.user_id || email);
+          const employeeId = await resolveEmployeeIdForUser(userKey);
+          if (employeeId) {
+            const employeePairs: [string, string][] = [
+              ['employee_id', employeeId],
+              [`employee_id_for_${encodeURIComponent(userKey)}`, employeeId],
+            ];
+            await AsyncStorage.multiSet(employeePairs);
+            console.log('Stored employee id:', employeePairs);
+          } else {
+            console.log('No employee id resolved for user:', userKey);
+          }
+        } catch (err) {
+          console.log('Failed to resolve employee id after login:', err);
         }
 
         // Reset to root dashboard after login

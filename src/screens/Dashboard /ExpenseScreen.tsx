@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -8,11 +8,13 @@ import {
   Image,
   FlatList,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import Header from '../../components/Header';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { launchImageLibrary } from 'react-native-image-picker';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { getExpenseHistory, ExpenseHistoryItem } from '../../services/expenseClaim';
 
 const ExpenseScreen = () => {
   const [activeTab, setActiveTab] = useState<'submit' | 'history'>('submit');
@@ -25,53 +27,9 @@ const ExpenseScreen = () => {
   const [billImage, setBillImage] = useState<any>(null);
   const [description, setDescription] = useState('');
 
-  // History Data matching your reference
-  const historyData = [
-    {
-      id: '1',
-      type: 'Travel',
-      amount: '$250.00',
-      date: '10/15/2025',
-      submittedDate: 'Submitted 10/16/2025',
-      description: 'Client meeting - Taxi fare',
-      status: 'Approved',
-      statusIcon: 'check-circle',
-      statusColor: '#4CAF50',
-    },
-    {
-      id: '2',
-      type: 'Meals',
-      amount: '$85.50',
-      date: '10/18/2025',
-      submittedDate: 'Submitted 10/18/2025',
-      description: 'Team lunch during project meeting',
-      status: 'Pending',
-      statusIcon: 'pending',
-      statusColor: '#FF9800',
-    },
-    {
-      id: '3',
-      type: 'Office Supplies',
-      amount: '$120.00',
-      date: '10/10/2025',
-      submittedDate: 'Submitted 10/11/2025',
-      description: 'Stationery and printer supplies',
-      status: 'Rejected',
-      statusIcon: 'cancel',
-      statusColor: '#F44336',
-    },
-    {
-      id: '4',
-      type: 'Accommodation',
-      amount: '$350.00',
-      date: '10/05/2025',
-      submittedDate: 'Submitted 10/06/2025',
-      description: 'Hotel stay for conference',
-      status: 'Approved',
-      statusIcon: 'check-circle',
-      statusColor: '#4CAF50',
-    },
-  ];
+  const [expenseHistory, setExpenseHistory] = useState<ExpenseHistoryItem[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [historyError, setHistoryError] = useState('');
 
   const pickImage = async () => {
     const result = await launchImageLibrary({ mediaType: 'photo' });
@@ -95,46 +53,95 @@ const ExpenseScreen = () => {
     { id: '4', text: 'Ensure amounts match receipts' },
   ];
 
-  const renderHistoryItem = ({ item }) => (
-    <View style={styles.historyCard}>
-      {/* Card Header */}
-      <View style={styles.historyCardHeader}>
-        <Text style={styles.historyType}>{item.type}</Text>
-        <View style={[styles.statusContainer, { backgroundColor: item.statusColor + '15' }]}>
-          <Icon 
-            name={item.statusIcon} 
-            size={16} 
-            color={item.statusColor} 
-            style={styles.statusIcon}
-          />
-          <Text style={[styles.statusText, { color: item.statusColor }]}>
-            {item.status}
-          </Text>
+  const formatAmount = (amount?: number) => {
+    if (typeof amount !== 'number' || isNaN(amount)) return '$0.00';
+    return `$${amount.toFixed(2)}`;
+  };
+
+  const getStatusMeta = (status: string) => {
+    const normalized = (status || '').toLowerCase();
+    switch (normalized) {
+      case 'approved':
+      case 'paid':
+        return { color: '#4CAF50', icon: 'check-circle', label: 'Approved' };
+      case 'rejected':
+      case 'cancelled':
+        return { color: '#F44336', icon: 'cancel', label: 'Rejected' };
+      case 'draft':
+        return { color: '#9CA3AF', icon: 'pending', label: 'Draft' };
+      default:
+        return { color: '#FF9800', icon: 'pending', label: 'Pending' };
+    }
+  };
+
+  const renderHistoryItem = ({ item }: { item: ExpenseHistoryItem }) => {
+    const statusMeta = getStatusMeta(item.status);
+    return (
+      <View style={styles.historyCard}>
+        {/* Card Header */}
+        <View style={styles.historyCardHeader}>
+          <Text style={styles.historyType}>{item.title || 'Expense Claim'}</Text>
+          <View style={[styles.statusContainer, { backgroundColor: statusMeta.color + '15' }]}>
+            <Icon
+              name={statusMeta.icon}
+              size={16}
+              color={statusMeta.color}
+              style={styles.statusIcon}
+            />
+            <Text style={[styles.statusText, { color: statusMeta.color }]}>
+              {statusMeta.label}
+            </Text>
+          </View>
         </View>
+
+        {/* Amount */}
+        <Text style={styles.historyAmount}>{formatAmount(item.sanctionedAmount || item.amount)}</Text>
+
+        {/* Description */}
+        {!!item.title && <Text style={styles.historyDescription}>{item.title}</Text>}
+
+        {/* Date and Submitted Date */}
+        <View style={styles.dateContainer}>
+          <View style={styles.dateRow}>
+            <Icon name="calendar-today" size={14} color="#666" />
+            <Text style={styles.historyDate}>{item.date || '-'}</Text>
+          </View>
+          <View style={styles.dateRow}>
+            <Icon name="schedule" size={14} color="#666" />
+            <Text style={styles.historyDate}>ID: {item.id}</Text>
+          </View>
+        </View>
+
+        {/* Separator Line */}
+        <View style={styles.separator} />
       </View>
+    );
+  };
 
-      {/* Amount */}
-      <Text style={styles.historyAmount}>{item.amount}</Text>
+  const fetchHistory = async () => {
+    try {
+      setLoadingHistory(true);
+      setHistoryError('');
+      const res = await getExpenseHistory({ limit: 50 });
+      console.log('ExpenseScreen history response:', res);
+      if (!res.ok) {
+        setHistoryError(typeof res.message === 'string' ? res.message : 'Failed to load expense history');
+        return;
+      }
+      setExpenseHistory(res.data || []);
+    } catch (error: any) {
+      console.log('ExpenseScreen history fetch error:', error?.message || error);
+      setHistoryError('Failed to load expense history');
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
 
-      {/* Description */}
-      <Text style={styles.historyDescription}>{item.description}</Text>
-
-      {/* Date and Submitted Date */}
-      <View style={styles.dateContainer}>
-        <View style={styles.dateRow}>
-          <Icon name="calendar-today" size={14} color="#666" />
-          <Text style={styles.historyDate}>{item.date}</Text>
-        </View>
-        <View style={styles.dateRow}>
-          <Icon name="schedule" size={14} color="#666" />
-          <Text style={styles.historyDate}>{item.submittedDate}</Text>
-        </View>
-      </View>
-
-      {/* Separator Line */}
-      <View style={styles.separator} />
-    </View>
-  );
+  useEffect(() => {
+    if (activeTab === 'history') {
+      fetchHistory();
+    }
+  }, [activeTab]);
 
   return (
     <View style={styles.container}>
@@ -274,13 +281,36 @@ const ExpenseScreen = () => {
         )}
         {activeTab === 'history' && (
           <View style={styles.historyContainer}>
-            <FlatList
-              data={historyData}
-              keyExtractor={(item) => item.id}
-              renderItem={renderHistoryItem}
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={styles.historyList}
-            />
+            {loadingHistory && (
+              <View style={styles.loaderRow}>
+                <ActivityIndicator size="small" color="#1D3765" />
+                <Text style={styles.loaderText}>Loading expense history...</Text>
+              </View>
+            )}
+
+            {!!historyError && !loadingHistory && (
+              <View style={styles.errorCard}>
+                <Text style={styles.errorText}>{historyError}</Text>
+              </View>
+            )}
+
+            {!loadingHistory && !historyError && expenseHistory.length === 0 && (
+              <View style={styles.emptyState}>
+                <Icon name="receipt-long" size={64} color="#9CA3AF" style={styles.emptyIcon} />
+                <Text style={styles.emptyTitle}>No expense history found.</Text>
+                <Text style={styles.emptySubtitle}>Submit your first expense claim to see it here.</Text>
+              </View>
+            )}
+
+            {!loadingHistory && !historyError && (
+              <FlatList
+                data={expenseHistory}
+                keyExtractor={(item) => item.id}
+                renderItem={renderHistoryItem}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.historyList}
+              />
+            )}
           </View>
         )}
       </View>
@@ -359,6 +389,48 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     marginLeft: 10,
+  },
+  loaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  loaderText: {
+    color: '#4B5563',
+    fontSize: 14,
+  },
+  emptyState: {
+    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyIcon: {
+    marginBottom: 10,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: 6,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center',
+  },
+  errorCard: {
+    backgroundColor: '#FFF1F2',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  errorText: {
+    color: '#B91C1C',
+    fontSize: 14,
   },
   tipsContainer: {
     backgroundColor: '#F9FAFB',
