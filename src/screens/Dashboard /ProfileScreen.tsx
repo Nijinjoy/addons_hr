@@ -1,22 +1,65 @@
-import React from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, Modal, TouchableWithoutFeedback } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
-const avatar = require('../../assets/images/logo/logo.png');
+import LinearGradient from 'react-native-linear-gradient';
+import { profile as profileImage } from '../../assets/images';
 
 type ProfileScreenProps = {
   onBack?: () => void;
 };
 
 const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack }) => {
-  const profile = {
-    name: 'Nijin Joy',
-    role: 'Senior Engineer',
-    email: 'nijin.joy@addon-s.com',
-    phone: '+91 98765 43210',
-    location: 'Kochi, India',
+  const [selectedSection, setSelectedSection] = useState<string | null>(null);
+  const [modalVisible, setModalVisible] = useState(false);
+
+  const quickLinks = [
+    { label: 'Employee Details', icon: 'person-outline' as const },
+    { label: 'Company Information', icon: 'briefcase-outline' as const },
+    { label: 'Contact Information', icon: 'document-text-outline' as const },
+    { label: 'Salary Information', icon: 'cash-outline' as const },
+  ];
+
+  const detailMap = useMemo(
+    () => ({
+      'Employee Details': [
+        { label: 'Full Name', value: 'Nijin Joy' },
+        { label: 'Employee Number', value: '-' },
+        { label: 'Gender', value: 'Male' },
+        { label: 'Date of Birth', value: '1 Sep 1999' },
+        { label: 'Date of Joining', value: '16 Oct 2025' },
+        { label: 'Blood Group', value: '-' },
+      ],
+      'Company Information': [
+        { label: 'Department', value: 'Engineering' },
+        { label: 'Designation', value: 'Mobile App Developer' },
+        { label: 'Employment Type', value: 'Full Time' },
+        { label: 'Reporting Manager', value: 'John Doe' },
+      ],
+      'Contact Information': [
+        { label: 'Email', value: 'nijin.joy@addon-s.com' },
+        { label: 'Phone', value: '+91 98765 43210' },
+        { label: 'Location', value: 'Kochi, India' },
+        { label: 'Address', value: '-' },
+      ],
+      'Salary Information': [
+        { label: 'Bank Name', value: '-' },
+        { label: 'Account Number', value: '-' },
+        { label: 'IFSC Code', value: '-' },
+        { label: 'Salary Cycle', value: 'Monthly' },
+      ],
+    }),
+    []
+  );
+
+  const handleOpenSection = (section: string) => {
+    setSelectedSection(section);
+    setModalVisible(true);
+  };
+
+  const handleCloseModal = () => {
+    setModalVisible(false);
+    setSelectedSection(null);
   };
 
   return (
@@ -27,58 +70,80 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack }) => {
         end={{ x: 1, y: 0 }}
         style={styles.headerGradient}
       >
-        <SafeAreaView edges={['top']} style={styles.safeHeader}>
+        <SafeAreaView edges={['top']} style={styles.headerSafeArea}>
           <View style={styles.navBar}>
-            <TouchableOpacity onPress={onBack} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <Ionicons name="arrow-back-outline" size={24} color="#FFFFFF" />
+            <TouchableOpacity
+              onPress={onBack}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              style={styles.backButton}
+            >
+              <Ionicons name="chevron-back" size={22} color="#FFFFFF" />
             </TouchableOpacity>
             <Text style={styles.navTitle}>Profile</Text>
-            <View style={{ width: 24 }} />
           </View>
         </SafeAreaView>
       </LinearGradient>
 
-      <ScrollView contentContainerStyle={styles.container} bounces={false}>
+      <ScrollView contentContainerStyle={styles.container} bounces={false} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <View style={styles.avatarWrapper}>
-            <Image source={avatar} style={styles.avatar} />
+            <Image source={profileImage} style={styles.avatar} />
           </View>
-          <Text style={styles.name}>{profile.name}</Text>
-          <Text style={styles.role}>{profile.role}</Text>
+          <Text style={styles.name}>Nijin Joy</Text>
+          <Text style={styles.role}>Mobile App Developer</Text>
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Contact</Text>
-          <View style={styles.row}>
-            <Ionicons name="mail-outline" size={20} color="#1D2B4C" />
-            <Text style={styles.rowText}>{profile.email}</Text>
-          </View>
-          <View style={styles.row}>
-            <Ionicons name="call-outline" size={20} color="#1D2B4C" />
-            <Text style={styles.rowText}>{profile.phone}</Text>
-          </View>
-          <View style={styles.row}>
-            <Ionicons name="location-outline" size={20} color="#1D2B4C" />
-            <Text style={styles.rowText}>{profile.location}</Text>
-          </View>
+          {quickLinks.map((item, index) => (
+            <TouchableOpacity
+              key={item.label}
+              style={[styles.row, index === quickLinks.length - 1 && styles.lastRow]}
+              activeOpacity={0.8}
+              onPress={() => handleOpenSection(item.label)}
+            >
+              <View style={styles.iconWrapper}>
+                <Ionicons name={item.icon} size={18} color="#6B7280" />
+              </View>
+              <Text style={styles.rowText}>{item.label}</Text>
+              <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+            </TouchableOpacity>
+          ))}
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Quick Actions</Text>
-          <TouchableOpacity style={styles.actionButton}>
-            <Ionicons name="create-outline" size={20} color="#1D2B4C" />
-            <Text style={styles.actionText}>Edit Profile</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.actionButton}>
-            <Ionicons name="settings-outline" size={20} color="#1D2B4C" />
-            <Text style={styles.actionText}>Account Settings</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.actionButton, styles.logoutButton]}>
-            <Ionicons name="log-out-outline" size={20} color="#fff" />
-            <Text style={[styles.actionText, { color: '#fff' }]}>Logout</Text>
+          <TouchableOpacity style={[styles.row, styles.lastRow]} activeOpacity={0.8}>
+            <View style={styles.iconWrapper}>
+              <Ionicons name="settings-outline" size={18} color="#6B7280" />
+            </View>
+            <Text style={styles.rowText}>Settings</Text>
+            <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
           </TouchableOpacity>
         </View>
+
+        <TouchableOpacity style={styles.logoutButton} activeOpacity={0.85}>
+          <Ionicons name="log-out-outline" size={18} color="#D14343" />
+          <Text style={styles.logoutText}>Log Out</Text>
+        </TouchableOpacity>
       </ScrollView>
+
+      <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={handleCloseModal}>
+        <TouchableWithoutFeedback onPress={handleCloseModal}>
+          <View style={styles.modalOverlay} />
+        </TouchableWithoutFeedback>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHandle} />
+          <Text style={styles.modalTitle}>{selectedSection}</Text>
+          <View style={styles.divider} />
+          <View>
+            {(selectedSection ? detailMap[selectedSection] : [])?.map(item => (
+              <View key={item.label} style={styles.detailRow}>
+                <Text style={styles.detailLabel}>{item.label}</Text>
+                <Text style={styles.detailValue}>{item.value}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -86,92 +151,153 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack }) => {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: '#F6F7F9',
   },
   headerGradient: {
-    paddingBottom: 16,
+    paddingBottom: 12,
   },
-  safeHeader: {
-    paddingHorizontal: 16,
+  headerSafeArea: {
+    paddingHorizontal: 12,
   },
   container: {
-    paddingTop: 24,
-    paddingHorizontal: 24,
-    paddingBottom: 32,
+    paddingTop: 16,
+    paddingHorizontal: 16,
+    paddingBottom: 24,
   },
   header: {
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 16,
   },
   avatarWrapper: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    borderWidth: 3,
-    borderColor: '#6EC6FF',
+    width: 96,
+    height: 96,
+    borderRadius: 48,
     overflow: 'hidden',
-    marginBottom: 12,
-    backgroundColor: '#fff',
+    marginBottom: 10,
   },
   avatar: { width: '100%', height: '100%' },
-  name: { fontSize: 22, fontWeight: '700', color: '#1D2B4C' },
-  role: { fontSize: 14, color: '#4B5563', marginTop: 4 },
+  name: { fontSize: 18, fontWeight: '700', color: '#111827' },
+  role: { fontSize: 14, color: '#6B7280', marginTop: 4 },
   card: {
     backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1D2B4C',
-    marginBottom: 12,
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 1,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderColor: '#F0F1F3',
+  },
+  lastRow: {
+    borderBottomWidth: 0,
+  },
+  iconWrapper: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F4F6F8',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   rowText: {
-    marginLeft: 10,
-    fontSize: 14,
-    color: '#374151',
-  },
-  actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 10,
-    borderRadius: 10,
-    backgroundColor: '#F3F4F6',
-    marginBottom: 10,
-  },
-  actionText: {
-    marginLeft: 10,
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1D2B4C',
+    flex: 1,
+    marginLeft: 12,
+    fontSize: 15,
+    color: '#1F2937',
   },
   logoutButton: {
-    backgroundColor: '#FF4D4F',
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E5A5A5',
+    paddingVertical: 14,
+    borderRadius: 12,
+    marginTop: 8,
+  },
+  logoutText: {
+    marginLeft: 8,
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#D14343',
   },
   navBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    paddingTop: 4,
+    paddingBottom: 8,
   },
   navTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: '#FFFFFF',
-    marginLeft: 12,
+    marginLeft: 6,
+  },
+  backButton: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+  },
+  modalContainer: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 24,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 6,
+  },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: '#D1D5DB',
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 12,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#E5E7EB',
+    marginBottom: 8,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+  },
+  detailLabel: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  detailValue: {
+    fontSize: 14,
+    color: '#111827',
+    fontWeight: '600',
   },
 });
 
