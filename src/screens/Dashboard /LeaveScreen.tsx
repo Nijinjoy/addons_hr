@@ -11,6 +11,7 @@ import {
   Platform,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import { useNavigation } from '@react-navigation/native';
 import Header from '../../components/Header';
 import { getLeaveBalance, getLeaveHistory, applyLeave } from '../../services/leaveService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -35,6 +36,7 @@ interface LeaveHistoryItem {
 }
 
 const LeaveScreen = () => {
+  const navigation = useNavigation<any>();
   const [leaveBalances, setLeaveBalances] = useState<LeaveBalance[]>([]);
   const [loadingBalance, setLoadingBalance] = useState(false);
   const [balanceError, setBalanceError] = useState('');
@@ -191,8 +193,9 @@ const LeaveScreen = () => {
       <Header
         screenName="Leaves & Holidays"
         onNotificationPress={handleNotificationPress}
-        onProfilePress={handleProfilePress}
+        onProfilePress={() => navigation.getParent()?.openDrawer?.()}
         notificationCount={3}
+        navigation={navigation as any}
       />
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.section}>

@@ -39,12 +39,12 @@ const DashboardTabs = () => {
         label = '🏠';
         break;
       case 'Attendance':
-        iconName = 'calendar-outline';
-        label = '📅';
+        iconName = focused ? 'finger-print' : 'finger-print-outline';
+        label = '🕑';
         break;
       case 'Leaves':
-        iconName = 'leaf-outline';
-        label = '🍃';
+        iconName = focused ? 'calendar-number' : 'calendar-number-outline';
+        label = '📅';
         break;
       case 'Expense':
         iconName = 'wallet-outline';

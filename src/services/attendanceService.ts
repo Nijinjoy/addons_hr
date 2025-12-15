@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Config from 'react-native-config';
+import { ERP_URL_METHOD as ENV_URL_METHOD, ERP_URL_RESOURCE as ENV_URL_RESOURCE, ERP_APIKEY as ENV_APIKEY, ERP_SECRET as ENV_SECRET } from '../config/env';
 
 type AttendanceResult =
   | { ok: true; data: any }
@@ -12,7 +12,7 @@ const pick = (...values: (string | undefined | null)[]): string => {
   return '';
 };
 
-const BASE_URL = (pick(Config.ERP_URL_RESOURCE, process.env?.ERP_URL_RESOURCE) || '').replace(/\/$/, '');
+const BASE_URL = (pick(ENV_URL_RESOURCE, process.env?.ERP_URL_RESOURCE) || '').replace(/\/$/, '');
 const deriveMethodFromResource = (resourceUrl: string): string => {
   const clean = (resourceUrl || '').replace(/\/$/, '');
   if (!clean) return '';
@@ -21,9 +21,9 @@ const deriveMethodFromResource = (resourceUrl: string): string => {
   }
   return `${clean}/api/method`;
 };
-const METHOD_URL = (pick(Config.ERP_URL_METHOD, process.env?.ERP_URL_METHOD) || deriveMethodFromResource(BASE_URL)).replace(/\/$/, '');
-const API_KEY = pick(Config.ERP_APIKEY, process.env?.ERP_APIKEY);
-const API_SECRET = pick(Config.ERP_SECRET, process.env?.ERP_SECRET);
+const METHOD_URL = (pick(ENV_URL_METHOD, process.env?.ERP_URL_METHOD) || deriveMethodFromResource(BASE_URL)).replace(/\/$/, '');
+const API_KEY = pick(ENV_APIKEY, process.env?.ERP_APIKEY);
+const API_SECRET = pick(ENV_SECRET, process.env?.ERP_SECRET);
 
 const authHeaders = async (): Promise<Record<string, string>> => {
   const base: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -61,6 +61,32 @@ const requestJSON = async <T = any>(url: string, options: RequestInit): Promise<
 
 const buildUrl = (path: string) => `${METHOD_URL}/${path.replace(/^\//, '')}`;
 
+// Format as YYYY-MM-DD HH:mm:ss (naive, no timezone) to avoid offset-aware comparisons on server
+const formatLocalTimestamp = (d: Date) => {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return (
+    d.getFullYear() +
+    '-' +
+    pad(d.getMonth() + 1) +
+    '-' +
+    pad(d.getDate()) +
+    ' ' +
+    pad(d.getHours()) +
+    ':' +
+    pad(d.getMinutes()) +
+    ':' +
+    pad(d.getSeconds())
+  );
+};
+
+const tryMethod = async (path: string, payload: Record<string, any>) => {
+  return requestJSON<{ message?: any }>(buildUrl(path), {
+    method: 'POST',
+    headers: await authHeaders(),
+    body: JSON.stringify(payload),
+  });
+};
+
 export const checkIn = async (
   employee: string,
   logType: 'IN' | 'OUT' | 'AUTO' = 'IN',
@@ -69,25 +95,54 @@ export const checkIn = async (
   const emp = String(employee || '').trim();
   if (!emp) return { ok: false, message: 'Employee id is required' };
 
+  const payload: Record<string, any> = {
+    employee: emp,
+    log_type: logType,
+    device_id: 'mobile',
+  };
+  if (coords?.latitude != null && coords?.longitude != null) {
+    payload.latitude = coords.latitude;
+    payload.longitude = coords.longitude;
+  }
+
+  // Try known method paths (HRMS first, then ERPNext)
+  const methodPaths = [
+    'hrms.hr.doctype.employee_checkin.employee_checkin.add_log_from_mobile',
+    'hrms.hr.doctype.employee_checkin.employee_checkin.add_log',
+    'hrms.hr.api.employee_checkin.add_log_from_mobile',
+    'erpnext.hr.doctype.employee_checkin.employee_checkin.add_log_from_mobile',
+    'erpnext.hr.doctype.employee_checkin.employee_checkin.add_log',
+  ];
+
+  for (const path of methodPaths) {
+    try {
+      const res = await tryMethod(path, payload);
+      return { ok: true, data: (res as any)?.message ?? res };
+    } catch (err: any) {
+      console.warn(`checkIn method ${path} failed`, err?.message || err);
+    }
+  }
+
+  // Fallback: direct insert via resource API
   try {
-    const payload: Record<string, any> = {
+    const body = {
       employee: emp,
       log_type: logType,
       device_id: 'mobile',
+      time: formatLocalTimestamp(new Date()),
+      latitude: payload.latitude,
+      longitude: payload.longitude,
     };
-    if (coords?.latitude != null && coords?.longitude != null) {
-      payload.latitude = coords.latitude;
-      payload.longitude = coords.longitude;
-    }
-    const methodPath = 'erpnext.hr.doctype.employee_checkin.employee_checkin.add_log_from_mobile';
-    const res = await requestJSON<{ message?: any }>(buildUrl(methodPath), {
+    console.log('checkIn resource payload:', body);
+    const resResource = await requestJSON<{ data?: any }>(`${BASE_URL}/Employee%20Checkin`, {
       method: 'POST',
       headers: await authHeaders(),
-      body: JSON.stringify(payload),
+      body: JSON.stringify(body),
     });
-    return { ok: true, data: (res as any)?.message ?? res };
-  } catch (err: any) {
-    return { ok: false, message: err?.message || 'Failed to check in' };
+    return { ok: true, data: (resResource as any)?.data ?? resResource };
+  } catch (errRes: any) {
+    console.error('checkIn resource fallback failed', errRes?.message || errRes);
+    return { ok: false, message: errRes?.message || 'Failed to check in' };
   }
 };
 

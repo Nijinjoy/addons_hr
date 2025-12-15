@@ -32,7 +32,7 @@ const LeadScreen = () => {
   };
 
   const handleProfilePress = () => {
-    console.log('Profile pressed');
+    navigation.getParent()?.openDrawer?.();
   };
 
   useEffect(() => {
@@ -115,6 +115,7 @@ const LeadScreen = () => {
       
       <Header
         screenName="Leads"
+        navigation={navigation as any}
         onNotificationPress={handleNotificationPress}
         onProfilePress={handleProfilePress}
         notificationCount={2}
@@ -435,20 +436,20 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   leadsList: {
-    padding: 16,
+    padding: 12,
     backgroundColor: 'white',
     flex: 1,
   },
   leadCard: {
     backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
+    shadowOpacity: 0.04,
+    shadowRadius: 1.5,
+    elevation: 1,
     borderWidth: 1,
     borderColor: '#E5E7EB',
   },
@@ -552,12 +553,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
   },
   statusText: {
     fontSize: 12,
@@ -576,9 +577,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#F3F4F6',
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 10,
+    borderRadius: 8,
   },
   sourceIcon: {
     marginRight: 4,
@@ -590,21 +591,21 @@ const styles = StyleSheet.create({
   divider: {
     height: 1,
     backgroundColor: '#E5E7EB',
-    marginVertical: 12,
+    marginVertical: 8,
   },
   descriptionText: {
     fontSize: 14,
     color: '#374151',
-    marginBottom: 16,
+    marginBottom: 10,
     lineHeight: 20,
   },
   contactInfo: {
-    marginBottom: 16,
+    marginBottom: 10,
   },
   contactRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   checkboxContainer: {
     width: 24,
@@ -635,8 +636,8 @@ const styles = StyleSheet.create({
   },
   actionButtons: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    gap: 8,
   },
   callButton: {
     flexDirection: 'row',
@@ -645,6 +646,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 6,
+    marginRight: 6,
   },
   callButtonText: {
     color: '#3B82F6',
@@ -659,6 +661,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 6,
+    marginRight: 6,
   },
   emailButtonText: {
     color: '#8B5CF6',
@@ -669,6 +672,7 @@ const styles = StyleSheet.create({
   viewButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginLeft: 'auto',
   },
   viewButtonText: {
     color: '#6B7280',

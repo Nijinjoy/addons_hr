@@ -6,8 +6,10 @@ import Animated, { FadeInUp, FadeIn } from 'react-native-reanimated';
 import Header from '../../components/Header';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { useNavigation } from '@react-navigation/native';
 
 const AttendanceScreen: React.FC = () => {
+  const navigation = useNavigation<any>();
   const [selectedDate, setSelectedDate] = useState('');
 
   const markedDates = {
@@ -22,6 +24,9 @@ const AttendanceScreen: React.FC = () => {
         screenName="Attendance" 
         useGradient={true}
         notificationCount={2}
+        navigation={navigation as any}
+        onNotificationPress={() => console.log('Notifications pressed')}
+        onProfilePress={() => navigation.getParent()?.openDrawer?.()}
       />
 
       {/* White background container below header */}

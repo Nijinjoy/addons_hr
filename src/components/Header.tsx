@@ -12,6 +12,8 @@ interface HeaderProps {
   useGradient?: boolean;
   showBack?: boolean;
   onBackPress?: () => void;
+  onNotificationPress?: () => void;
+  onProfilePress?: () => void;
 }
 
 const Header: React.FC<HeaderProps> = ({
@@ -21,6 +23,8 @@ const Header: React.FC<HeaderProps> = ({
   useGradient = true,
   showBack = false,
   onBackPress,
+  onNotificationPress,
+  onProfilePress,
 }) => {
   return (
     <LinearGradient
@@ -46,33 +50,34 @@ const Header: React.FC<HeaderProps> = ({
 
           <View style={styles.rightSection}>
             {/* Notification Icon */}
-            {navigation ? (
-              <TouchableOpacity
-                style={styles.iconButton}
-                onPress={() => console.log('Notifications pressed')}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="notifications-outline" size={24} color="#FFFFFF" />
-                {notificationCount > 0 && (
-                  <View style={styles.badge}>
-                    <Text style={styles.badgeText}>
-                      {notificationCount > 99 ? '99+' : notificationCount}
-                    </Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            ) : null}
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={onNotificationPress || (() => console.log('Notifications pressed'))}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="notifications-outline" size={24} color="#FFFFFF" />
+              {notificationCount > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>
+                    {notificationCount > 99 ? '99+' : notificationCount}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
 
             {/* Profile Icon */}
-            {navigation ? (
-              <TouchableOpacity
-                style={[styles.iconButton, { marginLeft: 16 }]} // space between notification and profile
-                onPress={() => navigation.openDrawer()}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="person-circle-outline" size={28} color="#FFFFFF" />
-              </TouchableOpacity>
-            ) : null}
+            <TouchableOpacity
+              style={[styles.iconButton, { marginLeft: 16 }]} // space between notification and profile
+              onPress={
+                onProfilePress ||
+                (navigation
+                  ? () => navigation.openDrawer()
+                  : () => console.log('Profile pressed'))
+              }
+              activeOpacity={0.7}
+            >
+              <Ionicons name="person-circle-outline" size={28} color="#FFFFFF" />
+            </TouchableOpacity>
           </View>
         </View>
       </SafeAreaView>

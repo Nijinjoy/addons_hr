@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Config from 'react-native-config';
 import { resolveEmployeeIdForUser } from './leaves';
+import { ERP_URL_METHOD as ENV_URL_METHOD, ERP_URL_RESOURCE as ENV_URL_RESOURCE, ERP_APIKEY as ENV_APIKEY, ERP_SECRET as ENV_SECRET } from '../config/env';
 
 type ExpenseHistoryItem = {
   id: string;
@@ -11,10 +11,30 @@ type ExpenseHistoryItem = {
   date: string;
   status: string;
   title?: string;
+  expenseType?: string;
+  description?: string;
 };
 
 type ExpenseHistoryResult =
   | { ok: true; data: ExpenseHistoryItem[] }
+  | { ok: false; message: string; status?: number; raw?: string };
+
+type ExpenseTypeResult =
+  | { ok: true; data: string[] }
+  | { ok: false; message: string; status?: number; raw?: string };
+
+const EXPENSE_TYPES_CACHE_KEY = 'expense_types_cache';
+
+type ApplyExpenseInput = {
+  employee: string;
+  expense_type: string;
+  amount: number;
+  posting_date: string; // YYYY-MM-DD
+  description?: string;
+};
+
+type ApplyExpenseResult =
+  | { ok: true; data: any }
   | { ok: false; message: string; status?: number; raw?: string };
 
 const pick = (...values: (string | undefined | null)[]): string => {
@@ -24,8 +44,7 @@ const pick = (...values: (string | undefined | null)[]): string => {
   return '';
 };
 
-const BASE_URL = (pick(Config.ERP_URL_RESOURCE, process.env?.ERP_URL_RESOURCE) ||
-  'https://addonsajith.frappe.cloud/api/resource').replace(/\/$/, '');
+const BASE_URL = (ENV_URL_RESOURCE || process.env?.ERP_URL_RESOURCE || '').replace(/\/$/, '');
 
 const deriveMethodFromResource = (resourceUrl: string): string => {
   const clean = (resourceUrl || '').replace(/\/$/, '');
@@ -34,12 +53,14 @@ const deriveMethodFromResource = (resourceUrl: string): string => {
   return `${clean}/api/method`;
 };
 
-const METHOD_URL = (pick(Config.ERP_URL_METHOD, process.env?.ERP_URL_METHOD) ||
-  deriveMethodFromResource(BASE_URL) ||
-  'https://addonsajith.frappe.cloud/api/method').replace(/\/$/, '');
+const METHOD_URL = (
+  ENV_URL_METHOD ||
+  process.env?.ERP_URL_METHOD ||
+  deriveMethodFromResource(BASE_URL)
+).replace(/\/$/, '');
 
-const API_KEY = pick(Config.ERP_APIKEY, process.env?.ERP_APIKEY);
-const API_SECRET = pick(Config.ERP_SECRET, process.env?.ERP_SECRET);
+const API_KEY = pick(ENV_APIKEY, process.env?.ERP_APIKEY);
+const API_SECRET = pick(ENV_SECRET, process.env?.ERP_SECRET);
 
 const authHeaders = async (): Promise<Record<string, string>> => {
   const base: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -88,6 +109,15 @@ const normalizeClaims = (rows: any[]): ExpenseHistoryItem[] => {
     const claimed = Number(r.total_claimed_amount ?? r.total ?? 0) || 0;
     const sanctioned = Number(r.total_sanctioned_amount ?? r.grand_total ?? 0) || 0;
     const amount = sanctioned || claimed;
+    // Derive expense type/description from child table if available
+    let expenseType = '';
+    let description = '';
+    const child = Array.isArray(r.expenses) && r.expenses.length ? r.expenses[0] : null;
+    if (child) {
+      expenseType = child.expense_type || '';
+      description = child.description || child.remarks || '';
+    }
+
     return {
       id: String(r.name || r.id || idx),
       employee: String(r.employee || ''),
@@ -96,9 +126,27 @@ const normalizeClaims = (rows: any[]): ExpenseHistoryItem[] => {
       sanctionedAmount: sanctioned,
       date: String(r.posting_date || r.creation || ''),
       status: String(r.status || r.approval_status || ''),
-      title: r.title || r.remarks || '',
+      title: expenseType || r.title || '',
+      expenseType,
+      description: description || r.remarks || r.description || '',
     };
   });
+};
+
+const fetchExpenseDetail = async (name: string): Promise<any | null> => {
+  const trimmed = String(name || '').trim();
+  if (!trimmed) return null;
+  try {
+    const res = await requestJSON<{ message?: any }>(`${METHOD_URL}/frappe.client.get`, {
+      method: 'POST',
+      headers: await authHeaders(),
+      body: JSON.stringify({ doctype: 'Expense Claim', name: trimmed }),
+    });
+    return res?.message ?? null;
+  } catch (err: any) {
+    console.warn('fetchExpenseDetail failed', err?.message || err);
+    return null;
+  }
 };
 
 export const fetchExpenseHistory = async (
@@ -120,9 +168,8 @@ export const fetchExpenseHistory = async (
         'posting_date',
         'status',
         'approval_status',
-        'title',
         'grand_total',
-        'total',
+        'expenses',
       ]),
       order_by: 'creation desc',
       limit_page_length: limit,
@@ -131,7 +178,25 @@ export const fetchExpenseHistory = async (
       method: 'GET',
       headers: await authHeaders(),
     });
-    return normalizeClaims(res?.data ?? []);
+    const items = normalizeClaims(res?.data ?? []);
+
+    // Enrich missing expenseType/description with detail fetch (limit to 10 to avoid overfetch)
+    const missing = items.filter((i) => !i.expenseType).slice(0, 10);
+    for (const m of missing) {
+      const detail = await fetchExpenseDetail(m.id);
+      if (detail) {
+        const child = Array.isArray(detail.expenses) && detail.expenses.length ? detail.expenses[0] : null;
+        const expenseType = (child && (child.expense_type || child.expense)) || detail.expense_type || m.expenseType;
+        const description = (child && (child.description || child.remarks)) || detail.remarks || detail.description || m.description;
+        if (expenseType) {
+          m.expenseType = expenseType;
+          m.title = expenseType;
+        }
+        if (description) m.description = description;
+      }
+    }
+
+    return items;
   } catch (err1: any) {
     console.warn('fetchExpenseHistory resource failed', err1?.message || err1);
   }
@@ -148,9 +213,8 @@ export const fetchExpenseHistory = async (
         'posting_date',
         'status',
         'approval_status',
-        'title',
         'grand_total',
-        'total',
+        'expenses',
       ]),
       filters: JSON.stringify([['employee', '=', id]]),
       order_by: 'creation desc',
@@ -160,7 +224,24 @@ export const fetchExpenseHistory = async (
       method: 'GET',
       headers: await authHeaders(),
     });
-    return normalizeClaims(res?.message ?? []);
+    const items = normalizeClaims(res?.message ?? []);
+
+    const missing = items.filter((i) => !i.expenseType).slice(0, 10);
+    for (const m of missing) {
+      const detail = await fetchExpenseDetail(m.id);
+      if (detail) {
+        const child = Array.isArray(detail.expenses) && detail.expenses.length ? detail.expenses[0] : null;
+        const expenseType = (child && (child.expense_type || child.expense)) || detail.expense_type || m.expenseType;
+        const description = (child && (child.description || child.remarks)) || detail.remarks || detail.description || m.description;
+        if (expenseType) {
+          m.expenseType = expenseType;
+          m.title = expenseType;
+        }
+        if (description) m.description = description;
+      }
+    }
+
+    return items;
   } catch (err2: any) {
     console.error('fetchExpenseHistory method failed', err2?.message || err2);
     return [];
@@ -223,3 +304,152 @@ export const getExpenseHistory = async (params?: {
 };
 
 export type { ExpenseHistoryItem };
+
+export const applyExpenseClaim = async (input: ApplyExpenseInput): Promise<ApplyExpenseResult> => {
+  const employee = String(input.employee || '').trim();
+  if (!employee) return { ok: false, message: 'Employee id is required.' };
+  if (!input.expense_type) return { ok: false, message: 'Expense type is required.' };
+  if (!input.posting_date) return { ok: false, message: 'Posting date is required.' };
+  if (isNaN(Number(input.amount))) return { ok: false, message: 'Amount must be a number.' };
+
+  try {
+    const sid = await AsyncStorage.getItem('sid');
+    if (!sid) return { ok: false, message: 'No active session. Please log in.' };
+
+    const payload: Record<string, any> = {
+      employee,
+      expense_type: input.expense_type,
+      total_claimed_amount: Number(input.amount),
+      posting_date: input.posting_date,
+      expenses: [
+        {
+          expense_type: input.expense_type,
+          amount: Number(input.amount),
+          expense_date: input.posting_date,
+          description: input.description || 'Expense',
+        },
+      ],
+    };
+    if (input.description) payload.remarks = input.description;
+
+    // Attempt resource POST
+    try {
+      const res = await requestJSON(`${BASE_URL}/Expense%20Claim`, {
+        method: 'POST',
+        headers: await authHeaders(),
+        body: JSON.stringify(payload),
+      });
+      return { ok: true, data: (res as any)?.data ?? res ?? true };
+    } catch (err1: any) {
+      console.warn('applyExpenseClaim resource failed', err1?.message || err1);
+    }
+
+    // Fallback to method insert
+    try {
+      const doc = { doctype: 'Expense Claim', ...payload };
+      const res2 = await requestJSON(`${METHOD_URL}/frappe.client.insert`, {
+        method: 'POST',
+        headers: await authHeaders(),
+        body: JSON.stringify({ doc }),
+      });
+      return { ok: true, data: (res2 as any)?.message ?? true };
+    } catch (err2: any) {
+      console.error('applyExpenseClaim method failed', err2?.message || err2);
+      return { ok: false, message: err2?.message || 'Failed to submit expense claim' };
+    }
+  } catch (error: any) {
+    const message = error?.message || 'Unexpected error while applying expense claim';
+    return { ok: false, message };
+  }
+};
+
+export const getExpenseTypes = async (): Promise<ExpenseTypeResult> => {
+  try {
+    const sid = await AsyncStorage.getItem('sid');
+    if (!sid) return { ok: false, message: 'No active session. Please log in.' };
+
+    const saveCache = async (items: string[]) => {
+      try {
+        await AsyncStorage.setItem(EXPENSE_TYPES_CACHE_KEY, JSON.stringify(items));
+      } catch {
+        // ignore cache errors
+      }
+    };
+
+    const readCache = async (): Promise<string[] | null> => {
+      try {
+        const cached = await AsyncStorage.getItem(EXPENSE_TYPES_CACHE_KEY);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed)) return parsed.map(String).filter(Boolean);
+        }
+      } catch {
+        // ignore cache errors
+      }
+      return null;
+    };
+
+    // Try resource: Expense Claim Type
+    if (BASE_URL) {
+      try {
+        const url = buildQuery(`${BASE_URL}/Expense%20Claim%20Type`, {
+          fields: JSON.stringify(['name']),
+          limit_page_length: 200,
+        });
+        const res = await requestJSON<{ data?: any[] }>(url, {
+          method: 'GET',
+          headers: await authHeaders(),
+        });
+        const items = (res?.data ?? []).map((r) => String(r?.name || '')).filter(Boolean);
+        if (items.length) {
+          await saveCache(items);
+          return { ok: true, data: items };
+        }
+      } catch (err1: any) {
+        console.warn('getExpenseTypes resource failed', err1?.message || err1);
+      }
+    }
+
+    // Fallback to method
+    try {
+      const url = buildQuery(`${METHOD_URL}/frappe.client.get_list`, {
+        doctype: 'Expense Claim Type',
+        fields: JSON.stringify(['name']),
+        limit_page_length: 200,
+      });
+      const res = await requestJSON<{ message?: any[] }>(url, {
+        method: 'GET',
+        headers: await authHeaders(),
+      });
+      const items = (res?.message ?? []).map((r) => String(r?.name || '')).filter(Boolean);
+      await saveCache(items);
+      return { ok: true, data: items };
+    } catch (err2: any) {
+      console.warn('getExpenseTypes method GET failed, retrying with POST', err2?.message || err2);
+      try {
+        const resPost = await requestJSON<{ message?: any[] }>(`${METHOD_URL}/frappe.client.get_list`, {
+          method: 'POST',
+          headers: await authHeaders(),
+          body: JSON.stringify({
+            doctype: 'Expense Claim Type',
+            fields: ['name'],
+            limit_page_length: 200,
+          }),
+        });
+        const items = (resPost?.message ?? []).map((r: any) => String(r?.name || '')).filter(Boolean);
+        await saveCache(items);
+        return { ok: true, data: items };
+      } catch (err3: any) {
+        console.error('getExpenseTypes method POST failed', err3?.message || err3);
+        const cached = await readCache();
+        if (cached && cached.length) {
+          console.warn('Returning cached expense types due to failure.');
+          return { ok: true, data: cached };
+        }
+        return { ok: false, message: err3?.message || 'Failed to load expense types' };
+      }
+    }
+  } catch (error: any) {
+    return { ok: false, message: error?.message || 'Unexpected error while fetching expense types' };
+  }
+};

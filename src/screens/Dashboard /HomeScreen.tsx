@@ -9,6 +9,7 @@ import {
   Platform,
   Alert,
   PermissionsAndroid,
+  Linking,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import Header from '../../components/Header';
@@ -28,16 +29,32 @@ const HomeScreen: React.FC = () => {
     console.log('Notification pressed');
   };
   const requestLocationPermission = async (): Promise<boolean> => {
-    if (Platform.OS !== 'android') return true;
-    const granted = await PermissionsAndroid.request(
-      PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-      {
-        title: 'Location Permission',
-        message: 'We need location to log your check-in.',
-        buttonPositive: 'OK',
-      }
-    );
-    return granted === PermissionsAndroid.RESULTS.GRANTED;
+    if (Platform.OS !== 'android') {
+      return true;
+    }
+
+    try {
+      const alreadyGrantedFine = await PermissionsAndroid.check(
+        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+      );
+      const alreadyGrantedCoarse = await PermissionsAndroid.check(
+        PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
+      );
+      if (alreadyGrantedFine || alreadyGrantedCoarse) return true;
+
+      const granted = await PermissionsAndroid.requestMultiple([
+        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+        PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
+      ]);
+
+      const fineGranted = granted[PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION] === PermissionsAndroid.RESULTS.GRANTED;
+      const coarseGranted = granted[PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION] === PermissionsAndroid.RESULTS.GRANTED;
+
+      return fineGranted || coarseGranted;
+    } catch (err) {
+      console.log('requestLocationPermission error:', err);
+      return false;
+    }
   };
 
   const getLocation = (): Promise<{ latitude?: number; longitude?: number }> => {
@@ -49,6 +66,7 @@ const HomeScreen: React.FC = () => {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           const { latitude, longitude } = pos.coords || {};
+          console.log('Got location:', latitude, longitude);
           resolve({ latitude, longitude });
         },
         (err) => {
@@ -71,10 +89,21 @@ const HomeScreen: React.FC = () => {
       }
       const hasPerm = await requestLocationPermission();
       if (!hasPerm) {
-        Alert.alert('Permission needed', 'Enable location permission to record your check-in.');
+        Alert.alert(
+          'Permission needed',
+          'Location permission is required to record your check-in.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Open Settings', onPress: () => Linking.openSettings() },
+          ],
+        );
         return;
       }
       const coords = await getLocation();
+      if (coords.latitude == null || coords.longitude == null) {
+        Alert.alert('Location error', 'Unable to fetch your location. Please try again with GPS enabled.');
+        return;
+      }
       const res = await checkIn(emp, 'IN', coords);
       console.log('HomeScreen check-in response:', res);
       if (!res.ok) {

@@ -14,13 +14,25 @@ import Header from '../../components/Header';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { launchImageLibrary } from 'react-native-image-picker';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { getExpenseHistory, ExpenseHistoryItem } from '../../services/expenseClaim';
+import {
+  getExpenseHistory,
+  ExpenseHistoryItem,
+  applyExpenseClaim,
+  getExpenseTypes,
+} from '../../services/expenseClaim';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useNavigation } from '@react-navigation/native';
 
 const ExpenseScreen = () => {
+  const navigation = useNavigation<any>();
   const [activeTab, setActiveTab] = useState<'submit' | 'history'>('submit');
 
   // Submit Tab States
   const [expenseType, setExpenseType] = useState('');
+  const [expenseTypes, setExpenseTypes] = useState<string[]>([]);
+  const [loadingExpenseTypes, setLoadingExpenseTypes] = useState(false);
+  const [expenseTypeError, setExpenseTypeError] = useState('');
+  const [showExpenseTypeDropdown, setShowExpenseTypeDropdown] = useState(false);
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -30,6 +42,7 @@ const ExpenseScreen = () => {
   const [expenseHistory, setExpenseHistory] = useState<ExpenseHistoryItem[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [historyError, setHistoryError] = useState('');
+  const [submittingExpense, setSubmittingExpense] = useState(false);
 
   const pickImage = async () => {
     const result = await launchImageLibrary({ mediaType: 'photo' });
@@ -39,8 +52,46 @@ const ExpenseScreen = () => {
     }
   };
 
-  const submitExpense = () => {
-    console.log('Submitting expense...');
+  const submitExpense = async () => {
+    if (submittingExpense) return;
+    if (!expenseType || !amount || !date) {
+      console.log('Expense form missing fields');
+      return;
+    }
+    try {
+      setSubmittingExpense(true);
+      const employee =
+        (await AsyncStorage.getItem('employee_id')) ||
+        (await AsyncStorage.getItem('user_id')) ||
+        '';
+      if (!employee) {
+        console.log('No employee id for expense claim');
+        return;
+      }
+      const res = await applyExpenseClaim({
+        employee,
+        expense_type: expenseType,
+        amount: Number(amount),
+        posting_date: date.toISOString().slice(0, 10),
+        description: description,
+      });
+      console.log('Apply expense claim response:', res);
+      if (res.ok) {
+        setExpenseType('');
+        setAmount('');
+        setDescription('');
+        setBillImage(null);
+        setShowNewExpenseForm(false);
+        setShowExpenseTypeDropdown(false);
+        fetchHistory();
+      } else {
+        console.log('Failed to apply expense claim', res.message);
+      }
+    } catch (err: any) {
+      console.log('Expense claim submit error:', err?.message || err);
+    } finally {
+      setSubmittingExpense(false);
+    }
   };
 
   // New Expense Claim Form Modal
@@ -54,8 +105,8 @@ const ExpenseScreen = () => {
   ];
 
   const formatAmount = (amount?: number) => {
-    if (typeof amount !== 'number' || isNaN(amount)) return '$0.00';
-    return `$${amount.toFixed(2)}`;
+    if (typeof amount !== 'number' || isNaN(amount)) return 'AED 0.00';
+    return `AED ${amount.toFixed(2)}`;
   };
 
   const getStatusMeta = (status: string) => {
@@ -80,35 +131,31 @@ const ExpenseScreen = () => {
       <View style={styles.historyCard}>
         {/* Card Header */}
         <View style={styles.historyCardHeader}>
-          <Text style={styles.historyType}>{item.title || 'Expense Claim'}</Text>
-          <View style={[styles.statusContainer, { backgroundColor: statusMeta.color + '15' }]}>
-            <Icon
-              name={statusMeta.icon}
-              size={16}
-              color={statusMeta.color}
-              style={styles.statusIcon}
-            />
-            <Text style={[styles.statusText, { color: statusMeta.color }]}>
-              {statusMeta.label}
-            </Text>
+          <View style={styles.historyLeft}>
+            <Text style={styles.historyType}>{item.title || 'Expense Claim'}</Text>
+            <View style={[styles.statusContainer, { backgroundColor: statusMeta.color + '15' }]}>
+              <Icon
+                name={statusMeta.icon}
+                size={16}
+                color={statusMeta.color}
+                style={styles.statusIcon}
+              />
+              <Text style={[styles.statusText, { color: statusMeta.color }]}>
+                {statusMeta.label}
+              </Text>
+            </View>
           </View>
+          <Text style={styles.historyAmount}>{formatAmount(item.sanctionedAmount || item.amount)}</Text>
         </View>
 
-        {/* Amount */}
-        <Text style={styles.historyAmount}>{formatAmount(item.sanctionedAmount || item.amount)}</Text>
-
         {/* Description */}
-        {!!item.title && <Text style={styles.historyDescription}>{item.title}</Text>}
+        {!!item.description && <Text style={styles.historyDescription}>{item.description}</Text>}
 
         {/* Date and Submitted Date */}
         <View style={styles.dateContainer}>
           <View style={styles.dateRow}>
             <Icon name="calendar-today" size={14} color="#666" />
             <Text style={styles.historyDate}>{item.date || '-'}</Text>
-          </View>
-          <View style={styles.dateRow}>
-            <Icon name="schedule" size={14} color="#666" />
-            <Text style={styles.historyDate}>ID: {item.id}</Text>
           </View>
         </View>
 
@@ -122,7 +169,16 @@ const ExpenseScreen = () => {
     try {
       setLoadingHistory(true);
       setHistoryError('');
-      const res = await getExpenseHistory({ limit: 50 });
+      const employeeId =
+        (await AsyncStorage.getItem('employee_id')) ||
+        (await AsyncStorage.getItem('user_id')) ||
+        '';
+      if (!employeeId) {
+        setHistoryError('Employee id not found. Please log in.');
+        setExpenseHistory([]);
+        return;
+      }
+      const res = await getExpenseHistory({ employeeId, limit: 50 });
       console.log('ExpenseScreen history response:', res);
       if (!res.ok) {
         setHistoryError(typeof res.message === 'string' ? res.message : 'Failed to load expense history');
@@ -143,11 +199,42 @@ const ExpenseScreen = () => {
     }
   }, [activeTab]);
 
+  const loadExpenseTypes = async (force = false) => {
+    if (loadingExpenseTypes) return;
+    if (!force && expenseTypes.length) return;
+    const fallbackTypes = ['Travel', 'Food', 'Fuel', 'Accommodation', 'Miscellaneous'];
+    try {
+      setLoadingExpenseTypes(true);
+      setExpenseTypeError('');
+      const res = await getExpenseTypes();
+      console.log('ExpenseScreen expense types response:', res);
+      if (!res.ok) {
+        setExpenseTypeError(res.message || 'Failed to load expense types');
+        if (expenseTypes.length === 0) {
+          setExpenseTypes(fallbackTypes);
+          console.log('Using fallback expense types:', fallbackTypes);
+        }
+        return;
+      }
+      setExpenseTypes(res.data || []);
+      if ((res.data || []).length === 0) {
+        setExpenseTypeError('No expense types found for your account.');
+      }
+    } catch (err: any) {
+      console.log('ExpenseScreen expense types fetch error:', err?.message || err);
+      setExpenseTypeError(err?.message || 'Failed to load expense types');
+    } finally {
+      setLoadingExpenseTypes(false);
+    }
+  };
+
+  useEffect(() => {
+    loadExpenseTypes();
+  }, []);
+
   return (
     <View style={styles.container}>
-      <Header screenName="Expenses" />
-
-      {/* White Background Screen Body */}
+      <Header screenName="Expenses" navigation={navigation as any} />
       <View style={styles.whiteBackground}>
 
         {/* ---------- Tabs ---------- */}
@@ -210,12 +297,51 @@ const ExpenseScreen = () => {
 
             <View style={styles.formBody}>
               <Text style={styles.label}>Expense Type</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="e.g. Travel, Food, Fuel"
-                value={expenseType}
-                onChangeText={setExpenseType}
-              />
+              <TouchableOpacity
+                style={styles.selectBox}
+                onPress={() => {
+                  if (!showExpenseTypeDropdown && expenseTypes.length === 0) {
+                    loadExpenseTypes(true);
+                  }
+                  setShowExpenseTypeDropdown((prev) => !prev);
+                }}
+                disabled={loadingExpenseTypes}
+                activeOpacity={0.8}
+              >
+                <Text style={expenseType ? styles.selectValue : styles.selectPlaceholder}>
+                  {expenseType ||
+                    (loadingExpenseTypes ? 'Loading expense types...' : 'Select expense type')}
+                </Text>
+                <Icon
+                  name={showExpenseTypeDropdown ? 'expand-less' : 'expand-more'}
+                  size={22}
+                  color="#6B7280"
+                />
+              </TouchableOpacity>
+              {showExpenseTypeDropdown && (
+                <View style={styles.dropdownList}>
+                  {expenseTypes.length === 0 && (
+                    <Text style={styles.dropdownEmptyText}>
+                      {loadingExpenseTypes ? 'Loading expense types...' : 'No expense types found'}
+                    </Text>
+                  )}
+                  {expenseTypes.map((type) => (
+                    <TouchableOpacity
+                      key={type}
+                      style={styles.dropdownItem}
+                      onPress={() => {
+                        setExpenseType(type);
+                        setShowExpenseTypeDropdown(false);
+                      }}
+                    >
+                      <Text style={styles.dropdownItemText}>{type}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+              {!!expenseTypeError && !loadingExpenseTypes && (
+                <Text style={styles.helperText}>{expenseTypeError}</Text>
+              )}
 
               <Text style={styles.label}>Amount</Text>
               <TextInput
@@ -497,6 +623,54 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#111827',
   },
+  selectBox: {
+    backgroundColor: '#F9FAFB',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    fontSize: 16,
+    color: '#111827',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  selectValue: {
+    fontSize: 16,
+    color: '#111827',
+  },
+  selectPlaceholder: {
+    fontSize: 16,
+    color: '#9CA3AF',
+  },
+  dropdownList: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    marginTop: 8,
+    overflow: 'hidden',
+  },
+  dropdownItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  dropdownItemText: {
+    fontSize: 16,
+    color: '#111827',
+  },
+  dropdownEmptyText: {
+    padding: 12,
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  helperText: {
+    marginTop: 6,
+    color: '#DC2626',
+    fontSize: 13,
+  },
   dateBox: {
     backgroundColor: '#F9FAFB',
     padding: 12,
@@ -608,10 +782,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 8,
   },
+  historyLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexShrink: 1,
+  },
   historyType: {
     fontSize: 20,
     fontWeight: '700',
     color: '#1F2937',
+    marginRight: 6,
+    flexShrink: 1,
   },
   statusContainer: {
     flexDirection: 'row',
