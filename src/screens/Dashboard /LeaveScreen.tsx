@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import Header from '../../components/Header';
+import { getLeaveBalance, getLeaveHistory } from '../../services/leaveService';
 
 interface LeaveBalance {
   type: string;
@@ -11,52 +12,25 @@ interface LeaveBalance {
   color: string;
 }
 
-interface LeaveRequest {
+interface LeaveHistoryItem {
   id: string;
   type: string;
   startDate: string;
   endDate: string;
   days: number;
-  status: 'pending' | 'approved' | 'rejected';
-  reason: string;
+  status: string;
+  reason?: string | null;
 }
 
 const LeaveScreen = () => {
-  const [leaveBalances] = useState<LeaveBalance[]>([
-    { type: 'Annual Leave', available: 12, used: 8, total: 20, color: '#007AFF' },
-    { type: 'Sick Leave', available: 5, used: 3, total: 8, color: '#FF3B30' },
-    { type: 'Casual Leave', available: 7, used: 3, total: 10, color: '#34C759' },
-  ]);
+  const TEST_EMPLOYEE_ID = 'HR-EMP-00020';
+  const [leaveBalances, setLeaveBalances] = useState<LeaveBalance[]>([]);
+  const [loadingBalance, setLoadingBalance] = useState(false);
+  const [balanceError, setBalanceError] = useState('');
 
-  const [leaveRequests] = useState<LeaveRequest[]>([
-    {
-      id: '1',
-      type: 'Annual Leave',
-      startDate: '2024-12-20',
-      endDate: '2024-12-22',
-      days: 3,
-      status: 'pending',
-      reason: 'Family vacation',
-    },
-    {
-      id: '2',
-      type: 'Sick Leave',
-      startDate: '2024-12-10',
-      endDate: '2024-12-11',
-      days: 2,
-      status: 'approved',
-      reason: 'Medical appointment',
-    },
-    {
-      id: '3',
-      type: 'Casual Leave',
-      startDate: '2024-11-28',
-      endDate: '2024-11-28',
-      days: 1,
-      status: 'rejected',
-      reason: 'Personal work',
-    },
-  ]);
+  const [leaveHistory, setLeaveHistory] = useState<LeaveHistoryItem[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [historyError, setHistoryError] = useState('');
 
   const handleNotificationPress = () => {
     console.log('Notification pressed');
@@ -96,6 +70,85 @@ const LeaveScreen = () => {
     }
   };
 
+  useEffect(() => {
+    const fetchBalance = async () => {
+      try {
+        setLoadingBalance(true);
+        setBalanceError('');
+        // For testing, force the provided employee id
+        const employee = TEST_EMPLOYEE_ID;
+        const res = await getLeaveBalance({ employee });
+        console.log('LeaveScreen balance response:', res);
+        if (!res.ok) {
+          setBalanceError(typeof res.message === 'string' ? res.message : 'Failed to load leave balance');
+          return;
+        }
+
+        const summary = (res.data || []) as { leave_type: string; allocated: number; used: number; available: number }[];
+
+        const mapped: LeaveBalance[] = summary.map((item: any, idx: number) => {
+          const total = Number(item.allocated || 0);
+          const available = Number(item.available || 0);
+          const used = Number(item.used || 0);
+          const safeTotal = total || available + used;
+          return {
+            type: item.leave_type || `Leave ${idx + 1}`,
+            available,
+            used,
+            total: safeTotal,
+            color: colorPalette[idx % colorPalette.length],
+          };
+        });
+
+        setLeaveBalances(mapped);
+      } catch (error: any) {
+        console.log('LeaveScreen balance fetch error:', error?.message || error);
+        setBalanceError('Failed to load leave balance');
+      } finally {
+        setLoadingBalance(false);
+      }
+    };
+
+    const fetchHistory = async () => {
+      try {
+        setLoadingHistory(true);
+        setHistoryError('');
+        const employee = TEST_EMPLOYEE_ID;
+        const res = await getLeaveHistory({ employee, limit: 50 });
+        console.log('LeaveScreen history response:', res);
+        if (!res.ok) {
+          setHistoryError(typeof res.message === 'string' ? res.message : 'Failed to load leave history');
+          return;
+        }
+
+        const mapped: LeaveHistoryItem[] = (res.data || []).map((item, idx) => ({
+          id: item.id || item.name || String(idx),
+          type: item.type || item.leave_type || 'Leave',
+          startDate: item.startDate || item.from_date || '',
+          endDate: item.endDate || item.to_date || '',
+          days: Number(item.days ?? item.total_leave_days ?? 0) || 0,
+          status: item.status || 'pending',
+          reason: item.reason || item.description || '',
+        }));
+
+        setLeaveHistory(mapped);
+      } catch (error: any) {
+        console.log('LeaveScreen history fetch error:', error?.message || error);
+        setHistoryError('Failed to load leave history');
+      } finally {
+        setLoadingHistory(false);
+      }
+    };
+
+    fetchBalance();
+    fetchHistory();
+  }, []);
+
+  const colorPalette = useMemo(
+    () => ['#007AFF', '#FF3B30', '#34C759', '#8E8E93', '#FF9500', '#5856D6'],
+    []
+  );
+
   return (
     <View style={styles.container}>
       <Header
@@ -107,28 +160,46 @@ const LeaveScreen = () => {
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Leave Balance</Text>
-          {leaveBalances.map((leave, index) => (
-            <View key={index} style={styles.balanceCard}>
-              <View style={styles.balanceHeader}>
-                <Text style={styles.leaveType}>{leave.type}</Text>
-                <Text style={styles.availableDays}>
-                  {leave.available} <Text style={styles.totalDays}>/ {leave.total}</Text>
-                </Text>
-              </View>
-              <View style={styles.progressBarContainer}>
-                <View
-                  style={[
-                    styles.progressBar,
-                    {
-                      width: `${(leave.used / leave.total) * 100}%`,
-                      backgroundColor: leave.color,
-                    },
-                  ]}
-                />
-              </View>
-              <Text style={styles.usedText}>{leave.used} days used</Text>
+          {loadingBalance && (
+            <View style={styles.balanceLoader}>
+              <ActivityIndicator size="small" color="#007AFF" />
+              <Text style={styles.loaderText}>Loading leave balance...</Text>
             </View>
-          ))}
+          )}
+          {!!balanceError && !loadingBalance && (
+            <View style={styles.errorCard}>
+              <Text style={styles.errorText}>{balanceError}</Text>
+            </View>
+          )}
+          {!loadingBalance && !balanceError && leaveBalances.length === 0 && (
+            <View style={styles.errorCard}>
+              <Text style={styles.errorText}>No leave balances found.</Text>
+            </View>
+          )}
+          {!loadingBalance &&
+            !balanceError &&
+            leaveBalances.map((leave, index) => (
+              <View key={index} style={styles.balanceCard}>
+                <View style={styles.balanceHeader}>
+                  <Text style={styles.leaveType}>{leave.type}</Text>
+                  <Text style={styles.availableDays}>
+                    {leave.available} <Text style={styles.totalDays}>/ {leave.total}</Text>
+                  </Text>
+                </View>
+                <View style={styles.progressBarContainer}>
+                  <View
+                    style={[
+                      styles.progressBar,
+                      {
+                        width: `${leave.total ? Math.max(0, Math.min(100, (leave.available / leave.total) * 100)) : 0}%`,
+                        backgroundColor: leave.color,
+                      },
+                    ]}
+                  />
+                </View>
+                <Text style={styles.usedText}>{leave.used} days used</Text>
+              </View>
+            ))}
         </View>
 
         {/* Apply Leave Button */}
@@ -137,54 +208,81 @@ const LeaveScreen = () => {
           <Text style={styles.applyButtonText}>Apply for Leave</Text>
         </TouchableOpacity>
 
-        {/* Leave Requests Section */}
+        {/* Leave History Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Recent Requests</Text>
-          {leaveRequests.map((request) => (
-            <View key={request.id} style={styles.requestCard}>
-              <View style={styles.requestHeader}>
-                <View style={styles.requestTypeContainer}>
-                  <Ionicons name="calendar-outline" size={20} color="#007AFF" />
-                  <Text style={styles.requestType}>{request.type}</Text>
-                </View>
-                <View
-                  style={[
-                    styles.statusBadge,
-                    { backgroundColor: getStatusColor(request.status) + '20' },
-                  ]}
-                >
-                  <Ionicons
-                    name={getStatusIcon(request.status)}
-                    size={14}
-                    color={getStatusColor(request.status)}
-                  />
-                  <Text
-                    style={[styles.statusText, { color: getStatusColor(request.status) }]}
-                  >
-                    {request.status.charAt(0).toUpperCase() + request.status.slice(1)}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.requestDetails}>
-                <View style={styles.dateContainer}>
-                  <Text style={styles.dateLabel}>From:</Text>
-                  <Text style={styles.dateValue}>{request.startDate}</Text>
-                </View>
-                <View style={styles.dateContainer}>
-                  <Text style={styles.dateLabel}>To:</Text>
-                  <Text style={styles.dateValue}>{request.endDate}</Text>
-                </View>
-                <View style={styles.daysContainer}>
-                  <Text style={styles.daysLabel}>Duration:</Text>
-                  <Text style={styles.daysValue}>{request.days} day(s)</Text>
-                </View>
-              </View>
-
-              <Text style={styles.reasonLabel}>Reason:</Text>
-              <Text style={styles.reasonText}>{request.reason}</Text>
+          <Text style={styles.sectionTitle}>Leave History</Text>
+          {loadingHistory && (
+            <View style={styles.balanceLoader}>
+              <ActivityIndicator size="small" color="#007AFF" />
+              <Text style={styles.loaderText}>Loading leave history...</Text>
             </View>
-          ))}
+          )}
+          {!!historyError && !loadingHistory && (
+            <View style={styles.errorCard}>
+              <Text style={styles.errorText}>{historyError}</Text>
+            </View>
+          )}
+          {!loadingHistory && !historyError && leaveHistory.length === 0 && (
+            <View style={styles.errorCard}>
+              <Text style={styles.errorText}>No leave history found.</Text>
+            </View>
+          )}
+          {!loadingHistory &&
+            !historyError &&
+            leaveHistory.map((request) => {
+              const status = (request.status || '').toLowerCase();
+              return (
+                <View key={request.id} style={styles.requestCard}>
+                  <View style={styles.requestHeader}>
+                    <View style={styles.requestTypeContainer}>
+                      <Ionicons name="calendar-outline" size={20} color="#007AFF" />
+                      <Text style={styles.requestType}>{request.type}</Text>
+                    </View>
+                    <View
+                      style={[
+                        styles.statusBadge,
+                        { backgroundColor: getStatusColor(status) + '20' },
+                      ]}
+                    >
+                      <Ionicons
+                        name={getStatusIcon(status)}
+                        size={14}
+                        color={getStatusColor(status)}
+                      />
+                      <Text
+                        style={[styles.statusText, { color: getStatusColor(status) }]}
+                      >
+                        {status
+                          ? status.charAt(0).toUpperCase() + status.slice(1)
+                          : 'Pending'}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.requestDetails}>
+                    <View style={styles.dateContainer}>
+                      <Text style={styles.dateLabel}>From:</Text>
+                      <Text style={styles.dateValue}>{request.startDate || '-'}</Text>
+                    </View>
+                    <View style={styles.dateContainer}>
+                      <Text style={styles.dateLabel}>To:</Text>
+                      <Text style={styles.dateValue}>{request.endDate || '-'}</Text>
+                    </View>
+                    <View style={styles.daysContainer}>
+                      <Text style={styles.daysLabel}>Duration:</Text>
+                      <Text style={styles.daysValue}>{request.days || 0} day(s)</Text>
+                    </View>
+                  </View>
+
+                  {!!request.reason && (
+                    <>
+                      <Text style={styles.reasonLabel}>Reason:</Text>
+                      <Text style={styles.reasonText}>{request.reason}</Text>
+                    </>
+                  )}
+                </View>
+              );
+            })}
         </View>
       </ScrollView>
     </View>
@@ -194,7 +292,7 @@ const LeaveScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#FFFFFF',
   },
   scrollView: {
     flex: 1,
@@ -251,9 +349,34 @@ const styles = StyleSheet.create({
     height: '100%',
     borderRadius: 4,
   },
+  balanceLoader: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
+  },
+  loaderText: {
+    fontSize: 14,
+    color: '#4B5563',
+  },
   usedText: {
     fontSize: 12,
     color: '#8E8E93',
+  },
+  errorCard: {
+    backgroundColor: '#FFF1F2',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  errorText: {
+    color: '#B91C1C',
+    fontSize: 14,
   },
   applyButton: {
     flexDirection: 'row',
@@ -281,11 +404,13 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    elevation: 3,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 3,
   },
   requestHeader: {
     flexDirection: 'row',

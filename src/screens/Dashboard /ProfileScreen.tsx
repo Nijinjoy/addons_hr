@@ -3,17 +3,22 @@ import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, Modal, Tou
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
+import { useNavigation } from '@react-navigation/native';
 import { profile as profileImage } from '../../assets/images';
 
 type ProfileScreenProps = {
   onBack?: () => void;
 };
 
+type DetailKey = 'Employee Details' | 'Company Information' | 'Contact Information' | 'Salary Information';
+type DetailItem = { label: string; value: string };
+
 const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack }) => {
-  const [selectedSection, setSelectedSection] = useState<string | null>(null);
+  const navigation = useNavigation<any>();
+  const [selectedSection, setSelectedSection] = useState<DetailKey | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
 
-  const quickLinks = [
+  const quickLinks: { label: DetailKey; icon: keyof typeof Ionicons.glyphMap }[] = [
     { label: 'Employee Details', icon: 'person-outline' as const },
     { label: 'Company Information', icon: 'briefcase-outline' as const },
     { label: 'Contact Information', icon: 'document-text-outline' as const },
@@ -48,11 +53,11 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack }) => {
         { label: 'IFSC Code', value: '-' },
         { label: 'Salary Cycle', value: 'Monthly' },
       ],
-    }),
+    }) as Record<DetailKey, DetailItem[]>,
     []
   );
 
-  const handleOpenSection = (section: string) => {
+  const handleOpenSection = (section: DetailKey) => {
     setSelectedSection(section);
     setModalVisible(true);
   };
@@ -60,6 +65,13 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack }) => {
   const handleCloseModal = () => {
     setModalVisible(false);
     setSelectedSection(null);
+  };
+
+  const handleLogout = () => {
+    navigation.getParent()?.reset({
+      index: 0,
+      routes: [{ name: 'Auth' as never }],
+    });
   };
 
   return (
@@ -120,7 +132,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack }) => {
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={styles.logoutButton} activeOpacity={0.85}>
+        <TouchableOpacity style={styles.logoutButton} activeOpacity={0.85} onPress={handleLogout}>
           <Ionicons name="log-out-outline" size={18} color="#D14343" />
           <Text style={styles.logoutText}>Log Out</Text>
         </TouchableOpacity>

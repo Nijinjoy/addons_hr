@@ -18,6 +18,8 @@ import LinearGradient from 'react-native-linear-gradient';
 import Button from '../components/Button';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import { validateLogin } from '../utils/validation/authValidation';
+import { login as authLogin } from '../services/authService';
 const logo = require('../assets/images/logo/logo.png');
 
 type AuthStackParamList = {
@@ -33,13 +35,51 @@ const LoginScreen = ({ navigation }: Props) => {
   const [password, setPassword] = useState('');
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [emailError, setEmailError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [loginError, setLoginError] = useState('');
 
   const handleLogin = async () => {
     if (loading) return;
+    setLoginError('');
+    const errors = validateLogin(email, password);
+    setEmailError(errors.email);
+    setPasswordError(errors.password);
+    if (errors.email || errors.password) return;
+
     try {
       setLoading(true);
-      await AsyncStorage.setItem('userToken', 'logged-in');
-      navigation.replace('Dashboard');
+      console.log('LoginScreen: attempting login with email', email);
+      const response = await authLogin(email, password);
+      console.log('LoginScreen response:', response);
+
+      if (!response.ok) {
+        const message = response.message || 'Unable to login. Please check your credentials and try again.';
+        setLoginError(message);
+        Alert.alert('Login Failed', message);
+      } else {
+        const cookies = response.cookies || {};
+        const toStore: [string, string][] = [];
+        if (cookies.sid) toStore.push(['sid', cookies.sid]);
+        if (cookies.full_name) toStore.push(['full_name', cookies.full_name]);
+        if (cookies.user_id) toStore.push(['user_id', cookies.user_id]);
+        if (cookies.user_image) toStore.push(['user_image', cookies.user_image]);
+
+        if (toStore.length) {
+          try {
+            await AsyncStorage.multiSet(toStore);
+            console.log('Stored login cookies:', toStore.map(([k, v]) => ({ key: k, length: v.length })));
+          } catch (storageError) {
+            console.log('Error storing login cookies:', storageError);
+          }
+        }
+
+        // Reset to root dashboard after login
+        navigation.getParent()?.reset({
+          index: 0,
+          routes: [{ name: 'Dashboard' as never }],
+        });
+      }
     } catch (error) {
       console.log('Login error:', error);
       Alert.alert('Error', 'Something went wrong. Please try again.');
@@ -89,7 +129,9 @@ const LoginScreen = ({ navigation }: Props) => {
                   onChangeText={setEmail}
                   keyboardType="email-address"
                   autoCapitalize="none"
+                  onFocus={() => setEmailError('')}
                 />
+                {!!emailError && <Text style={styles.errorText}>{emailError}</Text>}
               </View>
 
               <View style={styles.inputGroup}>
@@ -102,6 +144,7 @@ const LoginScreen = ({ navigation }: Props) => {
                       value={password}
                       onChangeText={setPassword}
                       secureTextEntry={!passwordVisible}
+                      onFocus={() => setPasswordError('')}
                     />
                     <TouchableOpacity
                       style={styles.eyeButton}
@@ -114,8 +157,9 @@ const LoginScreen = ({ navigation }: Props) => {
                         color="#1D2B4C"
                       />
                     </TouchableOpacity>
-                  </View>
                 </View>
+                {!!passwordError && <Text style={styles.errorText}>{passwordError}</Text>}
+              </View>
 
                 <Button
                   title={loading ? 'Logging in...' : 'Login'}
@@ -123,6 +167,7 @@ const LoginScreen = ({ navigation }: Props) => {
                   containerStyle={styles.loginButton}
                   disabled={loading}
                 />
+                {!!loginError && <Text style={styles.errorText}>{loginError}</Text>}
 
                 <TouchableOpacity onPress={handleRegister} style={styles.registerContainer}>
                   <Text style={styles.registerText}>
@@ -207,6 +252,11 @@ const styles = StyleSheet.create({
   registerContainer: { marginTop: 12, alignItems: 'center' },
   registerText: { fontSize: 14, color: '#1D2B4C' },
   registerLink: { fontWeight: '700', color: '#6EC6FF' },
+  errorText: {
+    color: '#DC2626',
+    fontSize: 12,
+    marginTop: 6,
+  },
 });
 
 export default LoginScreen;

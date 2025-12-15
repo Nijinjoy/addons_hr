@@ -10,28 +10,34 @@ import DrawerNavigator from './DrawerNavigator';
 const Stack = createNativeStackNavigator();
 
 const AppNavigator = () => {
-  const [isLoading, setIsLoading] = useState(true);
-  const [userToken, setUserToken] = useState<string | null>(null);
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
+  const [hasSession, setHasSession] = useState(false);
 
   useEffect(() => {
-    const initialize = async () => {
-      const token = await AsyncStorage.getItem('userToken');
-      setUserToken(token);
-
-      // Show splash for 4 seconds
-      setTimeout(() => setIsLoading(false), 4000);
+    const checkSession = async () => {
+      try {
+        const sid = await AsyncStorage.getItem('sid');
+        setHasSession(!!sid);
+      } catch (error) {
+        console.log('Session check error:', error);
+        setHasSession(false);
+      } finally {
+        // allow splash to be visible briefly
+        setTimeout(() => setIsCheckingSession(false), 1200);
+      }
     };
-    initialize();
+    checkSession();
   }, []);
 
-  if (isLoading) return <SplashScreen />;
+  if (isCheckingSession) return <SplashScreen />;
 
   return (
     <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {!userToken ? (
-          <Stack.Screen name="Auth" component={AuthStack} />
-        ) : null}
+      <Stack.Navigator
+        screenOptions={{ headerShown: false }}
+        initialRouteName={hasSession ? 'Dashboard' : 'Auth'}
+      >
+        <Stack.Screen name="Auth" component={AuthStack} />
         <Stack.Screen name="Dashboard" component={DrawerNavigator} />
       </Stack.Navigator>
     </NavigationContainer>
@@ -39,4 +45,3 @@ const AppNavigator = () => {
 };
 
 export default AppNavigator;
-

@@ -1,0 +1,141 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  computeLeaveBalances,
+  resolveEmployeeIdForUser,
+  fetchLeaveHistory,
+  LeaveHistoryItem,
+} from './leaves';
+
+type LeaveBalanceParams = {
+  employee: string;
+  leaveType?: string;
+  date?: string; // ISO date, defaults to today
+};
+
+type LeaveBalanceResult =
+  | { ok: true; data: any }
+  | { ok: false; message: string; status?: number; raw?: string };
+
+type LeaveHistoryParams = {
+  employee: string;
+  limit?: number;
+};
+
+type LeaveHistoryResult =
+  | { ok: true; data: LeaveHistoryItem[] }
+  | { ok: false; message: string; status?: number; raw?: string };
+
+// Simple memoization to avoid back-to-back identical calls
+let lastKey = '';
+let lastValue: LeaveBalanceResult | null = null;
+
+export const getLeaveBalance = async (params: LeaveBalanceParams): Promise<LeaveBalanceResult> => {
+  const { employee, leaveType, date = new Date().toISOString().slice(0, 10) } = params;
+  const rawEmployee = String(employee || '').trim();
+  const cacheKey = `${rawEmployee}::${leaveType || 'all'}::${date}`;
+
+  if (lastKey === cacheKey && lastValue) {
+    return lastValue;
+  }
+
+  try {
+    const sid = await AsyncStorage.getItem('sid');
+    if (!sid) {
+      const result: LeaveBalanceResult = { ok: false, message: 'No active session. Please log in.' };
+      lastKey = cacheKey;
+      lastValue = result;
+      return result;
+    }
+
+    if (!rawEmployee) {
+      const result: LeaveBalanceResult = { ok: false, message: 'Employee id not found. Please log in.' };
+      lastKey = cacheKey;
+      lastValue = result;
+      return result;
+    }
+
+    let employeeId = rawEmployee;
+    const employeeCacheKey = `employee_id_for_${encodeURIComponent(rawEmployee)}`;
+    try {
+      const cachedId = await AsyncStorage.getItem(employeeCacheKey);
+      if (cachedId) employeeId = cachedId;
+    } catch {
+      // ignore storage errors
+    }
+
+    // Use robust balances aggregator from services/leaves (uses API key auth with multiple fallbacks)
+    let balances = await computeLeaveBalances(employeeId);
+
+    // If we used the login user id (email) and got nothing, try resolving Employee doc name
+    if (balances.length === 0 && employeeId === rawEmployee) {
+      const resolved = await resolveEmployeeIdForUser(rawEmployee);
+      if (resolved) {
+        employeeId = resolved;
+        try {
+          await AsyncStorage.setItem(employeeCacheKey, resolved);
+        } catch {
+          // ignore storage errors
+        }
+        balances = await computeLeaveBalances(employeeId);
+      }
+    }
+
+    const filtered = leaveType ? balances.filter((b) => b.leave_type === leaveType) : balances;
+    const result: LeaveBalanceResult = { ok: true, data: filtered };
+    lastKey = cacheKey;
+    lastValue = result;
+    return result;
+  } catch (error: any) {
+    const message = error?.message || 'Unexpected error while fetching leave balance';
+    console.log('Leave balance error:', message);
+    const result: LeaveBalanceResult = { ok: false, message };
+    lastKey = cacheKey;
+    lastValue = result;
+    return result;
+  }
+};
+
+export const getLeaveHistory = async (params: LeaveHistoryParams): Promise<LeaveHistoryResult> => {
+  const { employee, limit = 50 } = params;
+  const rawEmployee = String(employee || '').trim();
+
+  try {
+    const sid = await AsyncStorage.getItem('sid');
+    if (!sid) {
+      return { ok: false, message: 'No active session. Please log in.' };
+    }
+
+    if (!rawEmployee) {
+      return { ok: false, message: 'Employee id not found. Please log in.' };
+    }
+
+    let employeeId = rawEmployee;
+    const employeeCacheKey = `employee_id_for_${encodeURIComponent(rawEmployee)}`;
+    try {
+      const cachedId = await AsyncStorage.getItem(employeeCacheKey);
+      if (cachedId) employeeId = cachedId;
+    } catch {
+      // ignore storage errors
+    }
+
+    let history = await fetchLeaveHistory(employeeId, limit);
+    if (history.length === 0 && employeeId === rawEmployee) {
+      const resolved = await resolveEmployeeIdForUser(rawEmployee);
+      if (resolved) {
+        employeeId = resolved;
+        try {
+          await AsyncStorage.setItem(employeeCacheKey, resolved);
+        } catch {
+          // ignore storage errors
+        }
+        history = await fetchLeaveHistory(employeeId, limit);
+      }
+    }
+
+    return { ok: true, data: history };
+  } catch (error: any) {
+    const message = error?.message || 'Unexpected error while fetching leave history';
+    console.log('Leave history error:', message);
+    return { ok: false, message };
+  }
+};
