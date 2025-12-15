@@ -25,6 +25,18 @@ type LeaveHistoryResult =
   | { ok: true; data: LeaveHistoryItem[] }
   | { ok: false; message: string; status?: number; raw?: string };
 
+type ApplyLeaveInput = {
+  employee: string;
+  leave_type: string;
+  from_date: string;
+  to_date: string;
+  reason?: string;
+};
+
+type ApplyLeaveResult =
+  | { ok: true; data: any }
+  | { ok: false; message: string; status?: number; raw?: string };
+
 // Simple memoization to avoid back-to-back identical calls
 let lastKey = '';
 let lastValue: LeaveBalanceResult | null = null;
@@ -137,5 +149,55 @@ export const getLeaveHistory = async (params: LeaveHistoryParams): Promise<Leave
     const message = error?.message || 'Unexpected error while fetching leave history';
     console.log('Leave history error:', message);
     return { ok: false, message };
+  }
+};
+
+export const applyLeave = async (input: ApplyLeaveInput): Promise<ApplyLeaveResult> => {
+  const rawEmployee = String(input.employee || '').trim();
+  if (!rawEmployee) return { ok: false, message: 'Employee id is required.' };
+  if (!input.leave_type) return { ok: false, message: 'Leave type is required.' };
+  if (!input.from_date || !input.to_date) return { ok: false, message: 'From and To dates are required.' };
+
+  try {
+    const sid = await AsyncStorage.getItem('sid');
+    if (!sid) return { ok: false, message: 'No active session. Please log in.' };
+
+    const payload: Record<string, any> = {
+      employee: rawEmployee,
+      leave_type: input.leave_type,
+      from_date: input.from_date,
+      to_date: input.to_date,
+    };
+    if (input.reason) {
+      payload.reason = input.reason;
+      payload.description = input.reason;
+    }
+
+    const res = await fetch(`https://addonsajith.frappe.cloud/api/resource/Leave Application`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Cookie: `sid=${sid}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const text = await res.text();
+    let json: any = null;
+    try {
+      json = text ? JSON.parse(text) : null;
+    } catch {
+      json = null;
+    }
+
+    if (!res.ok) {
+      const message =
+        json?.message || json?.exception || json?._server_messages || `Request failed with status ${res.status}`;
+      return { ok: false, message: typeof message === 'string' ? message : 'Failed to apply leave', raw: text };
+    }
+
+    return { ok: true, data: json?.data ?? json ?? true };
+  } catch (error: any) {
+    return { ok: false, message: error?.message || 'Unexpected error while applying leave' };
   }
 };

@@ -8,11 +8,13 @@ import {
   ActivityIndicator,
   Modal,
   TextInput,
+  Platform,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import Header from '../../components/Header';
-import { getLeaveBalance, getLeaveHistory } from '../../services/leaveService';
+import { getLeaveBalance, getLeaveHistory, applyLeave } from '../../services/leaveService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 interface LeaveBalance {
   type: string;
@@ -47,6 +49,10 @@ const LeaveScreen = () => {
   const [applyReason, setApplyReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [showLeaveTypeOptions, setShowLeaveTypeOptions] = useState(false);
+  const [showFromPicker, setShowFromPicker] = useState(false);
+  const [showToPicker, setShowToPicker] = useState(false);
+  const [fromDateValue, setFromDateValue] = useState<Date | null>(null);
+  const [toDateValue, setToDateValue] = useState<Date | null>(null);
 
   const handleNotificationPress = () => {
     console.log('Notification pressed');
@@ -57,11 +63,12 @@ const LeaveScreen = () => {
   };
 
   const handleApplyLeave = () => {
+    if (!applyLeaveType) setApplyLeaveType(leaveTypeOptions[0]);
     setApplyModalVisible(true);
     setShowLeaveTypeOptions(false);
   };
 
-  const leaveTypeOptions = ['Annual Leave', 'Sick Leave', 'Casual Leave'];
+  const leaveTypeOptions = leaveBalances.map((lb) => lb.type).filter(Boolean);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -133,46 +140,46 @@ const LeaveScreen = () => {
       }
     };
 
-    const fetchHistory = async () => {
-      try {
-        setLoadingHistory(true);
-        setHistoryError('');
-        const storedEmployee = (await AsyncStorage.getItem('employee_id')) || '';
-        const fallbackUser = (await AsyncStorage.getItem('user_id')) || '';
-        const employee = storedEmployee || fallbackUser;
-        if (!employee) {
-          setHistoryError('Employee id not found. Please log in again.');
-          return;
-        }
-        const res = await getLeaveHistory({ employee, limit: 50 });
-        console.log('LeaveScreen history response:', res);
-        if (!res.ok) {
-          setHistoryError(typeof res.message === 'string' ? res.message : 'Failed to load leave history');
-          return;
-        }
-
-        const mapped: LeaveHistoryItem[] = (res.data || []).map((item, idx) => ({
-          id: item.id || item.name || String(idx),
-          type: item.type || item.leave_type || 'Leave',
-          startDate: item.startDate || item.from_date || '',
-          endDate: item.endDate || item.to_date || '',
-          days: Number(item.days ?? item.total_leave_days ?? 0) || 0,
-          status: item.status || 'pending',
-          reason: item.reason || item.description || '',
-        }));
-
-        setLeaveHistory(mapped);
-      } catch (error: any) {
-        console.log('LeaveScreen history fetch error:', error?.message || error);
-        setHistoryError('Failed to load leave history');
-      } finally {
-        setLoadingHistory(false);
-      }
-    };
-
     fetchBalance();
-    fetchHistory();
+    refreshHistory();
   }, []);
+
+  const refreshHistory = async () => {
+    try {
+      setLoadingHistory(true);
+      setHistoryError('');
+      const storedEmployee = (await AsyncStorage.getItem('employee_id')) || '';
+      const fallbackUser = (await AsyncStorage.getItem('user_id')) || '';
+      const employee = storedEmployee || fallbackUser;
+      if (!employee) {
+        setHistoryError('Employee id not found. Please log in again.');
+        return;
+      }
+      const res = await getLeaveHistory({ employee, limit: 50 });
+      console.log('LeaveScreen history response:', res);
+      if (!res.ok) {
+        setHistoryError(typeof res.message === 'string' ? res.message : 'Failed to load leave history');
+        return;
+      }
+
+      const mapped: LeaveHistoryItem[] = (res.data || []).map((item, idx) => ({
+        id: item.id || item.name || String(idx),
+        type: item.type || item.leave_type || 'Leave',
+        startDate: item.startDate || item.from_date || '',
+        endDate: item.endDate || item.to_date || '',
+        days: Number(item.days ?? item.total_leave_days ?? 0) || 0,
+        status: item.status || 'pending',
+        reason: item.reason || item.description || '',
+      }));
+
+      setLeaveHistory(mapped);
+    } catch (error: any) {
+      console.log('LeaveScreen history fetch error:', error?.message || error);
+      setHistoryError('Failed to load leave history');
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
 
   const colorPalette = useMemo(
     () => ['#007AFF', '#FF3B30', '#34C759', '#8E8E93', '#FF9500', '#5856D6'],
@@ -235,7 +242,7 @@ const LeaveScreen = () => {
         {/* Apply Leave Button */}
         <TouchableOpacity style={styles.applyButton} onPress={handleApplyLeave}>
           <Ionicons name="add-circle-outline" size={24} color="#FFFFFF" />
-          <Text style={styles.applyButtonText}>Apply for Leave</Text>
+          <Text style={styles.applyButtonText}>Request for Leave</Text>
         </TouchableOpacity>
 
         {/* Leave History Section */}
@@ -363,20 +370,54 @@ const LeaveScreen = () => {
             )}
 
             <Text style={styles.modalLabel}>From Date</Text>
-            <TextInput
+            <TouchableOpacity
               style={styles.modalInput}
-              placeholder="YYYY-MM-DD"
-              value={applyFromDate}
-              onChangeText={setApplyFromDate}
-            />
+              onPress={() => setShowFromPicker(true)}
+              activeOpacity={0.8}
+            >
+              <Text style={applyFromDate ? styles.modalSelectValue : styles.modalSelectPlaceholder}>
+                {applyFromDate || 'Select from date'}
+              </Text>
+            </TouchableOpacity>
+            {showFromPicker && (
+              <DateTimePicker
+                value={fromDateValue || new Date()}
+                mode="date"
+                display="default"
+                onChange={(_, date) => {
+                  setShowFromPicker(false);
+                  if (date) {
+                    setFromDateValue(date);
+                    setApplyFromDate(date.toISOString().slice(0, 10));
+                  }
+                }}
+              />
+            )}
 
             <Text style={styles.modalLabel}>To Date</Text>
-            <TextInput
+            <TouchableOpacity
               style={styles.modalInput}
-              placeholder="YYYY-MM-DD"
-              value={applyToDate}
-              onChangeText={setApplyToDate}
-            />
+              onPress={() => setShowToPicker(true)}
+              activeOpacity={0.8}
+            >
+              <Text style={applyToDate ? styles.modalSelectValue : styles.modalSelectPlaceholder}>
+                {applyToDate || 'Select to date'}
+              </Text>
+            </TouchableOpacity>
+            {showToPicker && (
+              <DateTimePicker
+                value={toDateValue || new Date()}
+                mode="date"
+                display="default"
+                onChange={(_, date) => {
+                  setShowToPicker(false);
+                  if (date) {
+                    setToDateValue(date);
+                    setApplyToDate(date.toISOString().slice(0, 10));
+                  }
+                }}
+              />
+            )}
 
             <Text style={styles.modalLabel}>Reason</Text>
             <TextInput
@@ -388,14 +429,40 @@ const LeaveScreen = () => {
             />
 
             <TouchableOpacity
-              style={[styles.applyButton, submitting && { opacity: 0.7 }]}
-              onPress={() => {
-                console.log('Submit leave form', {
-                  type: applyLeaveType,
-                  from: applyFromDate,
-                  to: applyToDate,
-                  reason: applyReason,
-                });
+              style={[styles.applyButton, styles.modalApplyButton, submitting && { opacity: 0.7 }]}
+              onPress={async () => {
+                if (submitting) return;
+                if (!applyLeaveType || !applyFromDate || !applyToDate) {
+                  console.log('Leave apply: missing fields');
+                  return;
+                }
+                try {
+                  setSubmitting(true);
+                  const storedEmployee = (await AsyncStorage.getItem('employee_id')) || '';
+                  const fallbackUser = (await AsyncStorage.getItem('user_id')) || '';
+                  const employee = storedEmployee || fallbackUser;
+                  const res = await applyLeave({
+                    employee,
+                    leave_type: applyLeaveType,
+                    from_date: applyFromDate,
+                    to_date: applyToDate,
+                    reason: applyReason,
+                  });
+                  console.log('Apply leave response:', res);
+                  if (!res.ok) {
+                    setHistoryError(typeof res.message === 'string' ? res.message : 'Failed to apply leave');
+                    return;
+                  }
+                  // Optimistically refresh history list
+                  setApplyModalVisible(false);
+                  setApplyReason('');
+                  setApplyFromDate('');
+                  setApplyToDate('');
+                  setApplyLeaveType('');
+                  await refreshHistory();
+                } finally {
+                  setSubmitting(false);
+                }
               }}
               disabled={submitting}
             >
@@ -609,6 +676,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#007AFF',
     marginTop: 12,
+    marginHorizontal: 16,
     padding: 16,
     borderRadius: 12,
     elevation: 3,
@@ -622,6 +690,9 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+  },
+  modalApplyButton: {
+    marginHorizontal: 0,
   },
   requestCard: {
     backgroundColor: '#FFFFFF',
