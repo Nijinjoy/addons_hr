@@ -1,9 +1,12 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, StatusBar, Platform } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, StatusBar, Platform, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import LinearGradient from 'react-native-linear-gradient';
 import { DrawerNavigationProp } from '@react-navigation/drawer';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getProfileDetails } from '../services/profileService';
+import { ERP_URL_RESOURCE as ENV_URL_RESOURCE } from '../config/env';
 
 interface HeaderProps {
   screenName: string;
@@ -26,6 +29,56 @@ const Header: React.FC<HeaderProps> = ({
   onNotificationPress,
   onProfilePress,
 }) => {
+  const [avatar, setAvatar] = useState<string | null>(null);
+
+  const normalizeAvatar = (uri?: string | null) => {
+    if (!uri) return null;
+    let cleaned = uri.trim();
+    if (!cleaned) return null;
+    // prefix base if relative
+    if (cleaned.startsWith('/')) {
+      const base = (ENV_URL_RESOURCE || '').replace(/\/api\/resource\/?$/, '').replace(/\/$/, '');
+      cleaned = base ? `${base}${cleaned}` : cleaned;
+    }
+    // encode spaces
+    if (cleaned.includes(' ')) {
+      const parts = cleaned.split(' ');
+      cleaned = parts.map((p) => encodeURIComponent(p)).join('%20');
+    }
+    return cleaned;
+  };
+
+  useEffect(() => {
+    const loadAvatar = async () => {
+      try {
+        const cachedRaw = await AsyncStorage.getItem('user_image');
+        const cached = normalizeAvatar(cachedRaw);
+        if (cached) {
+          setAvatar(cached);
+          return;
+        }
+      } catch {
+        // ignore cache errors
+      }
+
+      try {
+        const res = await getProfileDetails();
+        if (res.ok && res.data?.image) {
+          const normalized = normalizeAvatar(res.data.image);
+          if (normalized) setAvatar(normalized);
+          try {
+            await AsyncStorage.setItem('user_image', normalized || res.data.image);
+          } catch {
+            // ignore cache write
+          }
+        }
+      } catch {
+        // ignore fetch errors
+      }
+    };
+    loadAvatar();
+  }, []);
+
   return (
     <LinearGradient
       colors={["#141D35", "#1D2B4C", "#14223E"]}
@@ -76,7 +129,11 @@ const Header: React.FC<HeaderProps> = ({
               }
               activeOpacity={0.7}
             >
-              <Ionicons name="person-circle-outline" size={28} color="#FFFFFF" />
+              {avatar ? (
+                <Image source={{ uri: avatar }} style={styles.avatar} />
+              ) : (
+                <Ionicons name="person-circle-outline" size={28} color="#FFFFFF" />
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -102,6 +159,11 @@ const styles = StyleSheet.create({
   screenName: { fontSize: 20, fontWeight: '600', color: '#FFFFFF' },
   rightSection: { flexDirection: 'row', alignItems: 'center' },
   iconButton: { padding: 4 },
+  avatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+  },
   badge: {
     position: 'absolute',
     top: -4,

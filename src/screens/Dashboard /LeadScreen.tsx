@@ -1,15 +1,16 @@
 import React, { useEffect, useState } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  ScrollView, 
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
   TouchableOpacity,
   Platform,
   StatusBar,
   ActivityIndicator,
   Linking,
   Alert,
+  TextInput,
 } from 'react-native';
 import Header from '../../components/Header';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -26,6 +27,7 @@ const LeadScreen = () => {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   
   const handleNotificationPress = () => {
     console.log('Notifications pressed');
@@ -100,9 +102,15 @@ const LeadScreen = () => {
   };
 
   // Filter leads based on active filters
+  const normalizedQuery = searchQuery.trim().toLowerCase();
+
   const filteredLeads = leads.filter(lead => {
-    if (activeStatusFilter === 'all') return true;
-    return (lead.status || '').toLowerCase() === activeStatusFilter;
+    const matchesStatus =
+      activeStatusFilter === 'all' ||
+      (lead.status || '').toLowerCase() === activeStatusFilter;
+    const title = (lead.company_name || lead.lead_name || lead.name || '').toLowerCase();
+    const matchesSearch = !normalizedQuery || title.includes(normalizedQuery);
+    return matchesStatus && matchesSearch;
   });
 
   return (
@@ -127,9 +135,19 @@ const LeadScreen = () => {
         <View style={styles.fixedSearchContainer}>
           <View style={styles.searchInput}>
             <Icon name="search" size={20} color="#9CA3AF" />
-            <Text style={styles.searchPlaceholder}>Search leads...</Text>
+            <TextInput
+              placeholder="Search leads..."
+              placeholderTextColor="#9CA3AF"
+              style={styles.searchText}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
           </View>
-          <TouchableOpacity style={styles.addLeadButton}>
+          <TouchableOpacity
+            style={styles.addLeadButton}
+            onPress={() => navigation.navigate('LeadCreate')}
+            activeOpacity={0.8}
+          >
             <Icon name="add" size={24} color="white" />
           </TouchableOpacity>
         </View>
@@ -387,6 +405,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     marginRight: 8,
+  },
+  searchText: {
+    marginLeft: 8,
+    fontSize: 14,
+    color: '#111827',
+    flex: 1,
   },
   searchPlaceholder: {
     marginLeft: 8,
