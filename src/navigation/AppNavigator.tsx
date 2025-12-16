@@ -6,6 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import SplashScreen from '../screens/SplashScreen';
 import AuthStack from './AuthStack';
 import DrawerNavigator from './DrawerNavigator';
+import LeaveScreen from '../screens/Dashboard /LeaveScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -39,6 +40,7 @@ const AppNavigator = () => {
       >
         <Stack.Screen name="Auth" component={AuthStack} />
         <Stack.Screen name="Dashboard" component={DrawerNavigator} />
+        <Stack.Screen name="Leaves" component={LeaveScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

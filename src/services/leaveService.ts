@@ -173,7 +173,7 @@ export const applyLeave = async (input: ApplyLeaveInput): Promise<ApplyLeaveResu
       payload.description = input.reason;
     }
 
-    const res = await fetch(`https://addonsajith.frappe.cloud/api/resource/Leave Application`, {
+    const res = await fetch(`${BASE_URL}/Leave Application`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

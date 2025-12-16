@@ -1,28 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Config from 'react-native-config';
+import { ERP_URL_METHOD, ERP_URL_RESOURCE, ERP_APIKEY, ERP_SECRET } from '../config/env';
 
-function pickEnv(...keys: string[]): string {
-  for (const k of keys) {
-    const v = (Config as any)?.[k];
-    if (typeof v === 'string' && v.length > 0) return v;
-  }
-  return '';
-}
-
-const BASE_URL = (pickEnv('ERP_URL_RESOURCE', 'ERP_URL') ||
-  'https://addonsajith.frappe.cloud/api/resource').replace(/\/$/, '');
-const deriveMethodFromResource = (resourceUrl: string): string => {
-  const clean = (resourceUrl || '').replace(/\/$/, '');
-  if (!clean) return '';
-  if (clean.endsWith('/api/resource')) return clean.replace(/\/api\/resource$/, '/api/method');
-  return `${clean}/api/method`;
-};
-
-const METHOD_URL = (pickEnv('ERP_URL_METHOD', 'ERP_METHOD_URL') ||
-  deriveMethodFromResource(BASE_URL) ||
-  'https://addonsajith.frappe.cloud/api/method').replace(/\/$/, '');
-const API_KEY = pickEnv('ERP_APIKEY', 'ERP_API_KEY');
-const API_SECRET = pickEnv('ERP_SECRET', 'ERP_API_SECRET');
+const BASE_URL = (ERP_URL_RESOURCE || '').replace(/\/$/, '');
+const METHOD_URL = (ERP_URL_METHOD || '').replace(/\/$/, '');
+const API_KEY = ERP_APIKEY || '';
+const API_SECRET = ERP_SECRET || '';
 
 async function authHeaders(): Promise<Record<string, string>> {
   const base: Record<string, string> = { 'Content-Type': 'application/json' };

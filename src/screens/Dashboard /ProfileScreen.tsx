@@ -16,6 +16,7 @@ type ProfileScreenProps = {
 
 type DetailKey = 'Employee Details' | 'Company Information' | 'Contact Information' | 'Salary Information';
 type DetailItem = { label: string; value: string };
+type QuickLink = { label: string; icon: keyof typeof Ionicons.glyphMap; onPress: () => void };
 
 const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack }) => {
   const navigation = useNavigation<any>();
@@ -32,11 +33,25 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack }) => {
     return name.trim() ? name.trim().charAt(0).toUpperCase() : '';
   }, [profile?.initial, profile?.fullName]);
 
-  const quickLinks: { label: DetailKey; icon: keyof typeof Ionicons.glyphMap }[] = [
-    { label: 'Employee Details', icon: 'person-outline' as const },
-    { label: 'Company Information', icon: 'briefcase-outline' as const },
-    { label: 'Contact Information', icon: 'document-text-outline' as const },
-    { label: 'Salary Information', icon: 'cash-outline' as const },
+  const quickLinks: QuickLink[] = [
+    { label: 'Employee Details', icon: 'person-outline', onPress: () => handleOpenSection('Employee Details') },
+    { label: 'Company Information', icon: 'briefcase-outline', onPress: () => handleOpenSection('Company Information') },
+    { label: 'Contact Information', icon: 'document-text-outline', onPress: () => handleOpenSection('Contact Information') },
+    { label: 'Salary Information', icon: 'cash-outline', onPress: () => handleOpenSection('Salary Information') },
+    {
+      label: 'Leaves',
+      icon: 'calendar-number-outline',
+      onPress: () => {
+        try {
+          navigation?.closeDrawer?.();
+        } catch {
+          // ignore
+        }
+        const parentNav = navigation.getParent?.();
+        const rootNav = parentNav?.getParent?.() || parentNav || navigation;
+        rootNav?.navigate?.('Leaves' as never);
+      },
+    },
   ];
 
   const detailMap = useMemo(
@@ -259,7 +274,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack }) => {
               key={item.label}
               style={[styles.row, index === quickLinks.length - 1 && styles.lastRow]}
               activeOpacity={0.8}
-              onPress={() => handleOpenSection(item.label)}
+              onPress={item.onPress}
             >
               <View style={styles.iconWrapper}>
                 <Ionicons name={item.icon} size={18} color="#6B7280" />

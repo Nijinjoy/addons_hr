@@ -4,9 +4,9 @@ import { View, Text, Platform } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import HomeScreen from '../screens/Dashboard /HomeScreen';
 import AttendanceScreen from '../screens/Dashboard /AttendanceScreen';
-import LeaveScreen from '../screens/Dashboard /LeaveScreen';
 import ExpenseScreen from '../screens/Dashboard /ExpenseScreen';
 import LeadStack from './LeadStack';
+import TimesheetScreen from '../screens/Dashboard /TimesheetScreen';
 
 const Tab = createBottomTabNavigator();
 
@@ -42,9 +42,9 @@ const DashboardTabs = () => {
         iconName = focused ? 'finger-print' : 'finger-print-outline';
         label = '🕑';
         break;
-      case 'Leaves':
-        iconName = focused ? 'calendar-number' : 'calendar-number-outline';
-        label = '📅';
+      case 'Timesheet':
+        iconName = focused ? 'time' : 'time-outline';
+        label = '⏱️';
         break;
       case 'Expense':
         iconName = 'wallet-outline';
@@ -112,9 +112,9 @@ const DashboardTabs = () => {
         options={{ tabBarLabel: 'Attendance' }}
       />
       <Tab.Screen 
-        name="Leaves" 
-        component={LeaveScreen}
-        options={{ tabBarLabel: 'Leaves' }}
+        name="Timesheet" 
+        component={TimesheetScreen}
+        options={{ tabBarLabel: 'Timesheet' }}
       />
       <Tab.Screen 
         name="Expense" 

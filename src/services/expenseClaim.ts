@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { resolveEmployeeIdForUser } from './leaves';
-import { ERP_URL_METHOD as ENV_URL_METHOD, ERP_URL_RESOURCE as ENV_URL_RESOURCE, ERP_APIKEY as ENV_APIKEY, ERP_SECRET as ENV_SECRET } from '../config/env';
+import { ERP_URL_METHOD, ERP_URL_RESOURCE, ERP_APIKEY, ERP_SECRET } from '../config/env';
 
 type ExpenseHistoryItem = {
   id: string;
@@ -37,30 +37,10 @@ type ApplyExpenseResult =
   | { ok: true; data: any }
   | { ok: false; message: string; status?: number; raw?: string };
 
-const pick = (...values: (string | undefined | null)[]): string => {
-  for (const v of values) {
-    if (typeof v === 'string' && v.trim().length > 0) return v.trim();
-  }
-  return '';
-};
-
-const BASE_URL = (ENV_URL_RESOURCE || process.env?.ERP_URL_RESOURCE || '').replace(/\/$/, '');
-
-const deriveMethodFromResource = (resourceUrl: string): string => {
-  const clean = (resourceUrl || '').replace(/\/$/, '');
-  if (!clean) return '';
-  if (clean.endsWith('/api/resource')) return clean.replace(/\/api\/resource$/, '/api/method');
-  return `${clean}/api/method`;
-};
-
-const METHOD_URL = (
-  ENV_URL_METHOD ||
-  process.env?.ERP_URL_METHOD ||
-  deriveMethodFromResource(BASE_URL)
-).replace(/\/$/, '');
-
-const API_KEY = pick(ENV_APIKEY, process.env?.ERP_APIKEY);
-const API_SECRET = pick(ENV_SECRET, process.env?.ERP_SECRET);
+const BASE_URL = (ERP_URL_RESOURCE || '').replace(/\/$/, '');
+const METHOD_URL = (ERP_URL_METHOD || '').replace(/\/$/, '');
+const API_KEY = ERP_APIKEY || '';
+const API_SECRET = ERP_SECRET || '';
 
 const authHeaders = async (): Promise<Record<string, string>> => {
   const base: Record<string, string> = { 'Content-Type': 'application/json' };

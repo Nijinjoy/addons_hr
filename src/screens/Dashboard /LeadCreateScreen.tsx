@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import Header from '../../components/Header';
 import { useNavigation } from '@react-navigation/native';
 import { launchImageLibrary, launchCamera, Asset } from 'react-native-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { getLeadSources, getAssociateDetails } from '../../services/leadService';
 
 const dropdownPlaceholder = 'Select';
 
@@ -38,6 +39,52 @@ const LeadCreateScreen = () => {
   const [whatsapp, setWhatsapp] = useState('');
   const [attachments, setAttachments] = useState<Asset[]>([]);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [sourceOptions, setSourceOptions] = useState<string[]>([]);
+  const [loadingSources, setLoadingSources] = useState(false);
+  const [associateOptions, setAssociateOptions] = useState<string[]>([]);
+  const [loadingAssociates, setLoadingAssociates] = useState(false);
+  const [openDropdown, setOpenDropdown] = useState('');
+
+  useEffect(() => {
+    let mounted = true;
+    const loadSources = async () => {
+      try {
+        setLoadingSources(true);
+        const res = await getLeadSources();
+        if (!mounted) return;
+        if (res.ok) {
+          setSourceOptions(res.data || []);
+        } else {
+          console.log('LeadCreateScreen source load failed:', res.message);
+        }
+      } catch (err: any) {
+        console.log('LeadCreateScreen source fetch error:', err?.message || err);
+      } finally {
+        if (mounted) setLoadingSources(false);
+      }
+    };
+    const loadAssociates = async () => {
+      try {
+        setLoadingAssociates(true);
+        const res = await getAssociateDetails();
+        if (!mounted) return;
+        if (res.ok) {
+          setAssociateOptions(res.data || []);
+        } else {
+          console.log('LeadCreateScreen associate load failed:', res.message);
+        }
+      } catch (err: any) {
+        console.log('LeadCreateScreen associate fetch error:', err?.message || err);
+      } finally {
+        if (mounted) setLoadingAssociates(false);
+      }
+    };
+    loadSources();
+    loadAssociates();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const pickImages = async () => {
     const result = await launchImageLibrary({ mediaType: 'photo', selectionLimit: 0 });
@@ -60,20 +107,60 @@ const LeadCreateScreen = () => {
     navigation.goBack();
   };
 
-  const renderDropdown = (label: string, value: string, setter: (v: string) => void) => (
-    <View style={styles.fieldBlock}>
-      <Text style={styles.label}>{label}</Text>
-      <TouchableOpacity
-        style={styles.selectBox}
-        onPress={() => Alert.alert(label, 'Hook up dropdown data', [{ text: 'OK' }])}
-        activeOpacity={0.8}
-      >
-        <Text style={value ? styles.selectValue : styles.selectPlaceholder}>
-          {value || dropdownPlaceholder}
-        </Text>
-      </TouchableOpacity>
-    </View>
-  );
+  const renderDropdown = (
+    label: string,
+    value: string,
+    setter: (v: string) => void,
+    options?: string[],
+    loading?: boolean
+  ) => {
+    const hasOptions = !!options?.length;
+    const isOpen = openDropdown === label;
+    const displayText = loading ? 'Loading...' : value || dropdownPlaceholder;
+
+    return (
+      <View style={styles.fieldBlock}>
+        <Text style={styles.label}>{label}</Text>
+        <TouchableOpacity
+          style={styles.selectBox}
+          onPress={() => {
+            if (loading) return;
+            if (hasOptions) {
+              setOpenDropdown((prev) => (prev === label ? '' : label));
+            } else {
+              Alert.alert(label, 'Hook up dropdown data', [{ text: 'OK' }]);
+            }
+          }}
+          activeOpacity={0.8}
+        >
+          <Text style={value ? styles.selectValue : styles.selectPlaceholder}>{displayText}</Text>
+        </TouchableOpacity>
+        {isOpen && hasOptions && (
+          <View style={styles.dropdownListContainer}>
+            <ScrollView style={styles.dropdownList} nestedScrollEnabled>
+              {options?.map((opt) => (
+                <TouchableOpacity
+                  key={opt}
+                  style={styles.dropdownItem}
+                  onPress={() => {
+                    setter(opt);
+                    setOpenDropdown('');
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.dropdownItemText}>{opt}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+        {loading && options && <Text style={styles.dropdownHint}>Loading options...</Text>}
+        {!loading && options && !options.length && (
+          <Text style={styles.dropdownHint}>No options available</Text>
+        )}
+      </View>
+    );
+  };
 
   const renderGenderToggle = () => (
     <View style={styles.fieldBlock}>
@@ -154,8 +241,8 @@ const LeadCreateScreen = () => {
         {renderInput('Full Name', fullName, setFullName, 'Full name')}
         {renderGenderToggle()}
         {renderInput('Job Title', jobTitle, setJobTitle, 'Job title')}
-        {renderDropdown('Source', source, setSource)}
-        {renderDropdown('Associate Details', associate, setAssociate)}
+        {renderDropdown('Source', source, setSource, sourceOptions, loadingSources)}
+        {renderDropdown('Associate Details', associate, setAssociate, associateOptions, loadingAssociates)}
         {renderInput('Building & Location', building, setBuilding, 'Building / Location')}
         {renderDropdown('Lead Owner', leadOwner, setLeadOwner)}
         {renderDropdown('Status', status, setStatus)}
@@ -322,6 +409,37 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '700',
+  },
+  dropdownListContainer: {
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 10,
+    backgroundColor: '#fff',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  dropdownList: {
+    maxHeight: 220,
+  },
+  dropdownItem: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  dropdownItemText: {
+    fontSize: 14,
+    color: '#111827',
+  },
+  dropdownHint: {
+    marginTop: 6,
+    fontSize: 12,
+    color: '#6B7280',
   },
 });
 

@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Config from 'react-native-config';
+import { ERP_URL_METHOD, ERP_URL_RESOURCE, ERP_APIKEY, ERP_SECRET } from '../config/env';
 
 type Lead = {
   name: string;
@@ -30,35 +30,18 @@ type LeadResult =
   | { ok: true; data: Lead[] }
   | { ok: false; message: string; status?: number; raw?: string };
 
-const pick = (...values: (string | undefined | null)[]): string => {
-  for (const v of values) {
-    if (typeof v === 'string' && v.trim().length > 0) return v.trim();
-  }
-  return '';
-};
+type LeadSourceResult =
+  | { ok: true; data: string[] }
+  | { ok: false; message: string };
 
-const BASE_URL = (
-  pick(Config.ERP_URL_RESOURCE, process.env?.ERP_URL_RESOURCE) ||
-  'https://addonsajith.frappe.cloud/api/resource'
-).replace(/\/$/, '');
+type AssociateDetailsResult =
+  | { ok: true; data: string[] }
+  | { ok: false; message: string };
 
-const deriveMethodFromResource = (resourceUrl: string): string => {
-  const clean = (resourceUrl || '').replace(/\/$/, '');
-  if (!clean) return '';
-  if (clean.endsWith('/api/resource')) {
-    return clean.replace(/\/api\/resource$/, '/api/method');
-  }
-  return `${clean}/api/method`;
-};
-
-const METHOD_URL = (
-  pick(Config.ERP_URL_METHOD, process.env?.ERP_URL_METHOD) ||
-  deriveMethodFromResource(BASE_URL) ||
-  'https://addonsajith.frappe.cloud/api/method'
-).replace(/\/$/, '');
-
-const API_KEY = pick(Config.ERP_APIKEY, process.env?.ERP_APIKEY);
-const API_SECRET = pick(Config.ERP_SECRET, process.env?.ERP_SECRET);
+const BASE_URL = (ERP_URL_RESOURCE || '').replace(/\/$/, '');
+const METHOD_URL = (ERP_URL_METHOD || '').replace(/\/$/, '');
+const API_KEY = ERP_APIKEY || '';
+const API_SECRET = ERP_SECRET || '';
 
 const authHeaders = async (): Promise<Record<string, string>> => {
   const base: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -210,6 +193,140 @@ export const getLeads = async (limit: number = 50): Promise<LeadResult> => {
   } catch (error: any) {
     const message = error?.message || 'Unexpected error while fetching leads';
     console.log('Leads fetch error:', message);
+    return { ok: false, message };
+  }
+};
+
+const normalizeLeadSources = (rows: any[]): string[] => {
+  const deduped = new Set<string>();
+  (rows || []).forEach((row) => {
+    const name =
+      (typeof row?.name === 'string' && row.name.trim()) ||
+      (typeof row?.source_name === 'string' && row.source_name.trim()) ||
+      '';
+    if (name) deduped.add(name);
+  });
+  return Array.from(deduped);
+};
+
+const fetchLeadSources = async (limit: number = 100): Promise<string[]> => {
+  const doc = 'Lead Source';
+  try {
+    const url = buildQuery(`${BASE_URL}/${encodeURIComponent(doc)}`, {
+      fields: JSON.stringify(['name', 'source_name']),
+      order_by: 'modified desc',
+      limit_page_length: limit,
+    });
+    const res = await requestJSON<{ data?: any[] }>(url, {
+      method: 'GET',
+      headers: await authHeaders(),
+    });
+    return normalizeLeadSources(res?.data ?? []);
+  } catch (err1: any) {
+    console.warn('fetchLeadSources resource failed', err1?.message || err1);
+  }
+
+  try {
+    const url = buildQuery(`${METHOD_URL}/frappe.client.get_list`, {
+      doctype: doc,
+      fields: JSON.stringify(['name', 'source_name']),
+      order_by: 'modified desc',
+      limit_page_length: limit,
+    });
+    const res = await requestJSON<{ message?: any[] }>(url, {
+      method: 'GET',
+      headers: await authHeaders(),
+    });
+    return normalizeLeadSources(res?.message ?? []);
+  } catch (err2: any) {
+    console.error('fetchLeadSources method failed', err2?.message || err2);
+    return [];
+  }
+};
+
+export const getLeadSources = async (limit: number = 100): Promise<LeadSourceResult> => {
+  try {
+    const sid = await AsyncStorage.getItem('sid');
+    if (!sid) {
+      return { ok: false, message: 'No active session. Please log in.' };
+    }
+    const data = await fetchLeadSources(limit);
+    return { ok: true, data };
+  } catch (error: any) {
+    const message = error?.message || 'Unexpected error while fetching lead sources';
+    console.log('Lead sources fetch error:', message);
+    return { ok: false, message };
+  }
+};
+
+const normalizeAssociateDetails = (rows: any[]): string[] => {
+  const deduped = new Set<string>();
+  (rows || []).forEach((row) => {
+    const name =
+      (typeof row?.name === 'string' && row.name.trim()) ||
+      (typeof row?.associate_name === 'string' && row.associate_name.trim()) ||
+      (typeof row?.associate_details === 'string' && row.associate_details.trim()) ||
+      '';
+    if (name) deduped.add(name);
+  });
+  return Array.from(deduped);
+};
+
+const fetchAssociateDetailsFromDoc = async (doc: string, limit: number): Promise<string[]> => {
+  try {
+    const url = buildQuery(`${BASE_URL}/${encodeURIComponent(doc)}`, {
+      fields: JSON.stringify(['name', 'associate_name', 'associate_details']),
+      order_by: 'modified desc',
+      limit_page_length: limit,
+    });
+    const res = await requestJSON<{ data?: any[] }>(url, {
+      method: 'GET',
+      headers: await authHeaders(),
+    });
+    return normalizeAssociateDetails(res?.data ?? []);
+  } catch (err1: any) {
+    console.warn(`fetchAssociateDetails resource failed for ${doc}`, err1?.message || err1);
+  }
+
+  try {
+    const url = buildQuery(`${METHOD_URL}/frappe.client.get_list`, {
+      doctype: doc,
+      fields: JSON.stringify(['name', 'associate_name', 'associate_details']),
+      order_by: 'modified desc',
+      limit_page_length: limit,
+    });
+    const res = await requestJSON<{ message?: any[] }>(url, {
+      method: 'GET',
+      headers: await authHeaders(),
+    });
+    return normalizeAssociateDetails(res?.message ?? []);
+  } catch (err2: any) {
+    console.error(`fetchAssociateDetails method failed for ${doc}`, err2?.message || err2);
+    return [];
+  }
+};
+
+export const getAssociateDetails = async (
+  limit: number = 100
+): Promise<AssociateDetailsResult> => {
+  try {
+    const sid = await AsyncStorage.getItem('sid');
+    if (!sid) {
+      return { ok: false, message: 'No active session. Please log in.' };
+    }
+    const docCandidates = ['Associate Details', 'Associate'];
+    for (const doc of docCandidates) {
+      const data = await fetchAssociateDetailsFromDoc(doc, limit);
+      if (data.length) return { ok: true, data };
+    }
+
+    // Fallback: derive from existing leads if no dedicated doctype exists
+    const leads = await fetchLeads(limit);
+    const data = normalizeAssociateDetails(leads || []);
+    return { ok: true, data };
+  } catch (error: any) {
+    const message = error?.message || 'Unexpected error while fetching associate details';
+    console.log('Associate details fetch error:', message);
     return { ok: false, message };
   }
 };
