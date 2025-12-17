@@ -19,7 +19,6 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { checkIn } from '../../services/attendanceService';
 import { addonserp } from '../../assets/images';
-import Geolocation from 'react-native-geolocation-service';
 
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -34,12 +33,15 @@ const HomeScreen: React.FC = () => {
   const requestLocationPermission = async (): Promise<boolean> => {
     if (Platform.OS !== 'android') {
       try {
-        const res = await Geolocation.requestAuthorization('whenInUse');
-        return res === 'granted' || res === 'prompt';
+        const geo = (navigator as any)?.geolocation;
+        if (geo?.requestAuthorization) {
+          const res = await geo.requestAuthorization();
+          return res !== 'denied';
+        }
       } catch {
-        // if requestAuthorization is unavailable, fall back to proceeding and letting system prompt
-        return true;
+        // ignore and let the system handle
       }
+      return true;
     }
 
     try {
@@ -68,7 +70,15 @@ const HomeScreen: React.FC = () => {
 
   const getLocation = (): Promise<{ latitude?: number; longitude?: number }> =>
     new Promise((resolve, reject) => {
-      Geolocation.getCurrentPosition(
+      const geo =
+        (navigator as any)?.geolocation ||
+        // Some setups expose Geolocation on global instead of navigator
+        (global as any)?.Geolocation;
+      if (!geo?.getCurrentPosition) {
+        reject(new Error('Geolocation is not available in this app build'));
+        return;
+      }
+      geo.getCurrentPosition(
         (pos: any) => {
           const { latitude, longitude } = pos?.coords || {};
           console.log('Got location:', latitude, longitude);

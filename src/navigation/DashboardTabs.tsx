@@ -7,6 +7,7 @@ import AttendanceScreen from '../screens/Dashboard /AttendanceScreen';
 import ExpenseScreen from '../screens/Dashboard /ExpenseScreen';
 import LeadStack from './LeadStack';
 import TimesheetScreen from '../screens/Dashboard /TimesheetScreen';
+import HRMDashboard from '../screens/Dashboard /HRMDashboard';
 
 const Tab = createBottomTabNavigator();
 
@@ -38,21 +39,21 @@ const DashboardTabs = () => {
         iconName = 'home-outline';
         label = '🏠';
         break;
-      case 'Attendance':
-        iconName = focused ? 'finger-print' : 'finger-print-outline';
-        label = '🕑';
+      case 'HRM':
+        iconName = focused ? 'people' : 'people-outline';
+        label = '👥';
         break;
-      case 'Timesheet':
-        iconName = focused ? 'time' : 'time-outline';
-        label = '⏱️';
+      case 'CRM':
+        iconName = focused ? 'briefcase' : 'briefcase-outline';
+        label = '💼';
         break;
-      case 'Expense':
+      case 'Accounts':
         iconName = 'wallet-outline';
         label = '💰';
         break;
-      case 'Leads':
-        iconName = 'people-outline';
-        label = '👥';
+      case 'More':
+        iconName = focused ? 'ellipsis-horizontal' : 'ellipsis-horizontal-outline';
+        label = '⋯';
         break;
     }
 
@@ -107,24 +108,24 @@ const DashboardTabs = () => {
         options={{ tabBarLabel: 'Home' }}
       />
       <Tab.Screen 
-        name="Attendance" 
-        component={AttendanceScreen}
-        options={{ tabBarLabel: 'Attendance' }}
+        name="HRM" 
+        component={HRMDashboard}
+        options={{ tabBarLabel: 'HRM' }}
       />
       <Tab.Screen 
-        name="Timesheet" 
-        component={TimesheetScreen}
-        options={{ tabBarLabel: 'Timesheet' }}
-      />
-      <Tab.Screen 
-        name="Expense" 
-        component={ExpenseScreen}
-        options={{ tabBarLabel: 'Expense' }}
-      />
-      <Tab.Screen 
-        name="Leads" 
+        name="CRM" 
         component={LeadStack}
-        options={{ tabBarLabel: 'Leads' }}
+        options={{ tabBarLabel: 'CRM' }}
+      />
+      <Tab.Screen 
+        name="Accounts" 
+        component={ExpenseScreen}
+        options={{ tabBarLabel: 'Accounts' }}
+      />
+      <Tab.Screen 
+        name="More" 
+        component={TimesheetScreen}
+        options={{ tabBarLabel: 'More' }}
       />
     </Tab.Navigator>
   );
