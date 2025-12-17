@@ -19,9 +19,10 @@ import Button from '../components/Button';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { validateLogin, validateCompanyUrl } from '../utils/validation/authValidation';
-import { login as authLogin } from '../services/authService';
+import { login as authLogin } from '../services/api/auth.service';
 import { resolveEmployeeIdForUser } from '../services/leaves';
 import { checkIn } from '../services/attendanceService';
+import { saveSession } from '../services/storage/secureStorage';
 const logo = require('../assets/images/logo/logo.png');
 
 type AuthStackParamList = {
@@ -58,6 +59,8 @@ const LoginScreen = ({ navigation }: Props) => {
     setCompanyUrlError('');
 
     const urlError = validateCompanyUrl(companyUrl);
+    console.log("url;====>",urlError);
+    
     if (urlError) {
       setCompanyUrlError(urlError);
       return;
@@ -76,31 +79,39 @@ const LoginScreen = ({ navigation }: Props) => {
 
     try {
       setLoading(true);
-      const response = await authLogin(email, password, companyUrl);
-      if (!response.ok) {
-        const message = response.message || 'Unable to login. Please check your credentials and try again.';
-        setLoginError(message);
-        Alert.alert('Login Failed', message);
-        return;
-      }
+      const authRes = await authLogin(companyUrl, email, password);
+      console.log('Login response user:====>', authRes);
 
-      const cookies = response.cookies || {};
+      // Persist session (AsyncStorage + secure storage)
       const toStore: [string, string][] = [];
-      if (cookies.sid) toStore.push(['sid', cookies.sid]);
-      if (cookies.full_name) toStore.push(['full_name', cookies.full_name]);
-      if (cookies.user_id) toStore.push(['user_id', safeDecode(cookies.user_id)]);
-      if (cookies.user_image) toStore.push(['user_image', cookies.user_image]);
-
-      if (toStore.length) {
-        try {
-          await AsyncStorage.multiSet(toStore);
-        } catch (storageError) {
-          console.log('Error storing login cookies:', storageError);
-        }
+      const user = authRes?.user || {};
+      if (user?.name) toStore.push(['user_id', safeDecode(user.name)]);
+      if (user?.full_name) toStore.push(['full_name', safeDecode(user.full_name)]);
+      if (user?.user_image) toStore.push(['user_image', user.user_image]);
+      toStore.push(['user_email', email]);
+      if (authRes?.cookies?.sid) toStore.push(['sid', authRes.cookies.sid]);
+      if (authRes?.roles) toStore.push(['roles', JSON.stringify(authRes.roles)]);
+      try {
+        if (toStore.length) await AsyncStorage.multiSet(toStore);
+      } catch {
+        // ignore storage errors
+      }
+      try {
+        await saveSession({
+          sid: authRes?.cookies?.sid || '',
+          user_id: user?.name || '',
+          user_email: email,
+          full_name: user?.full_name || '',
+          roles: authRes?.roles || [],
+          companyUrl: companyUrl.trim(),
+        });
+      } catch (err) {
+        console.log('Failed to persist secure session:', err);
       }
 
+      // Resolve and cache employee id
       try {
-        const userKey = safeDecode(cookies.user_id || email);
+        const userKey = safeDecode(user?.name || email);
         const employeeId = await resolveEmployeeIdForUser(userKey);
         if (employeeId) {
           const employeePairs: [string, string][] = [
@@ -113,23 +124,24 @@ const LoginScreen = ({ navigation }: Props) => {
         console.log('Failed to resolve employee id after login:', err);
       }
 
-      try {
-        const employeeId = (await AsyncStorage.getItem('employee_id')) || '';
-        if (employeeId) {
-          const checkInRes = await checkIn(employeeId, 'IN');
-          await AsyncStorage.setItem('last_checkin_response', JSON.stringify(checkInRes));
-        }
-      } catch (checkErr: any) {
-        console.log('Immediate check-in after login failed:', checkErr?.message || checkErr);
-      }
-
-      navigation.getParent()?.reset({
-        index: 0,
-        routes: [{ name: 'Dashboard' as never }],
+      // Navigate to dashboard from root navigator
+      // Reset from root navigator to Dashboard
+      // Navigate to root dashboard stack
+      const rootNav = navigation.getParent?.();
+      if (rootNav?.navigate) rootNav.navigate('Dashboard' as never);
+      else navigation.navigate('Dashboard' as never);
+    } catch (error: any) {
+      console.log('Login error:', {
+        message: error?.message,
+        status: error?.response?.status,
+        data: error?.response?.data,
       });
-    } catch (error) {
-      console.log('Login error:', error);
-      Alert.alert('Error', 'Something went wrong. Please try again.');
+      const message =
+        error?.response?.data?.message ||
+        error?.message ||
+        'Unable to login. Please check your credentials and try again.';
+      setLoginError(message);
+      Alert.alert('Login Failed', message);
     } finally {
       setLoading(false);
     }

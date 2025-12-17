@@ -3,6 +3,8 @@ import { View } from 'react-native';
 import { createDrawerNavigator } from '@react-navigation/drawer';
 import DashboardTabs from './DashboardTabs';
 import ProfileScreen from '../screens/Dashboard /ProfileScreen';
+import AttendanceScreen from '../screens/Dashboard /AttendanceScreen';
+import LeadStack from './LeadStack';
 
 const Drawer = createDrawerNavigator();
 
@@ -27,6 +29,16 @@ const DrawerNavigator = () => {
       drawerContent={(props) => <DrawerContent {...props} />}
     >
       <Drawer.Screen name="DashboardTabs" component={DashboardTabs} />
+      <Drawer.Screen
+        name="Attendance"
+        component={AttendanceScreen}
+        options={{ drawerItemStyle: { display: 'none' } }}
+      />
+      <Drawer.Screen
+        name="Leads"
+        component={LeadStack}
+        options={{ drawerItemStyle: { display: 'none' } }}
+      />
     </Drawer.Navigator>
   );
 };

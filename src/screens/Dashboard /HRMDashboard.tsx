@@ -1,19 +1,54 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import Header from '../../components/Header';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
+const ACTIONS = [
+  {
+    key: 'attendance',
+    label: 'Attendance',
+    sub: 'Log & review presence',
+    icon: <MaterialCommunityIcons name="calendar-check" size={26} color="#0D1B2A" />,
+    route: 'Attendance',
+    style: 'accentBlue',
+  },
+  {
+    key: 'timesheet',
+    label: 'Timesheet',
+    sub: 'Capture today’s work',
+    icon: <Ionicons name="time-outline" size={24} color="#0D1B2A" />,
+    route: 'Timesheet',
+    style: 'accentTeal',
+  },
+  {
+    key: 'tasks',
+    label: 'Tasks',
+    sub: 'My list & team board',
+    icon: <Ionicons name="checkbox-outline" size={24} color="#0D1B2A" />,
+    route: 'Timesheet',
+    style: 'accentOrange',
+  },
+  {
+    key: 'leaves',
+    label: 'Leaves',
+    sub: 'Balance & apply',
+    icon: <Ionicons name="leaf-outline" size={24} color="#0D1B2A" />,
+    route: 'Leaves',
+    style: 'accentGreen',
+  },
+] as const;
+
 const HRMDashboard = () => {
   const navigation = useNavigation();
-  
   const handleNavigate = (route: string) => {
-    try {
-      navigation.navigate(route as never);
-    } catch (err) {
-      console.log('Navigation error:', err);
+    const parent = navigation.getParent?.();
+    if (parent?.navigate) {
+      parent.navigate(route as never);
+      return;
     }
+    navigation.navigate(route as never);
   };
 
   return (
@@ -26,80 +61,39 @@ const HRMDashboard = () => {
         onNotificationPress={() => console.log('Notifications pressed')}
         onProfilePress={() => navigation.getParent()?.openDrawer?.()}
       />
+
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Text style={styles.sectionHeading}>Attendance</Text>
-        <TouchableOpacity style={[styles.wideCard, styles.attendanceCard]} onPress={() => handleNavigate('Attendance')}>
-          <View style={styles.wideCardLeft}>
-            <MaterialCommunityIcons name="calendar-clock" size={30} color="#0D1B2A" />
-            <View>
-              <Text style={styles.cardTitle}>Attendance Overview</Text>
-              <Text style={styles.cardSubtitle}>Today • Present • Hours logged: 0h</Text>
-            </View>
-          </View>
-          <View style={styles.rowEnd}>
-            <Text style={styles.linkText}>View</Text>
-            <Ionicons name="chevron-forward" size={18} color="#0D1B2A" />
-          </View>
-        </TouchableOpacity>
-
-        <Text style={styles.sectionHeading}>TimeSheet</Text>
-        <TouchableOpacity style={styles.wideCard} onPress={() => handleNavigate('Timesheet')}>
-          <View style={styles.wideCardLeft}>
-            <Ionicons name="time-outline" size={26} color="#0D1B2A" />
-            <View>
-              <Text style={styles.cardTitle}>Fill Timesheet</Text>
-              <Text style={styles.cardSubtitle}>Capture today’s work and billables</Text>
-            </View>
-          </View>
-          <View style={styles.rowEnd}>
-            <Text style={styles.linkText}>Go</Text>
-            <Ionicons name="chevron-forward" size={20} color="#0D1B2A" />
-          </View>
-        </TouchableOpacity>
-
-        <Text style={styles.sectionHeading}>Tasks</Text>
-        <View style={styles.row}>
-          <TouchableOpacity style={[styles.card, styles.cardOutlined]} onPress={() => handleNavigate('Timesheet')}>
-            <View style={styles.cardTop}>
-              <Ionicons name="checkbox-outline" size={24} color="#0D1B2A" />
-              <Text style={styles.statusBadge}>5 Open</Text>
-            </View>
-            <Text style={styles.cardTitle}>My Tasks</Text>
-            <Text style={styles.cardSubtitle}>Prioritized for today</Text>
-            <View style={styles.rowEnd}>
-              <Text style={styles.linkText}>View</Text>
-              <Ionicons name="chevron-forward" size={18} color="#0D1B2A" />
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={[styles.card, styles.cardOutlined]} onPress={() => handleNavigate('Timesheet')}>
-            <View style={styles.cardTop}>
-              <Ionicons name="git-branch-outline" size={24} color="#007AFF" />
-              <Text style={[styles.statusBadge, styles.badgeMuted]}>Team</Text>
-            </View>
-            <Text style={styles.cardTitle}>Team Tasks</Text>
-            <Text style={styles.cardSubtitle}>Monitor blockers & status</Text>
-            <View style={styles.rowEnd}>
-              <Text style={styles.linkText}>View</Text>
-              <Ionicons name="chevron-forward" size={18} color="#0D1B2A" />
-            </View>
-          </TouchableOpacity>
+        <View style={styles.hero}>
+          <Text style={styles.heroLabel}>HR Hub</Text>
+          <Text style={styles.heroTitle}>Everything you need, fast.</Text>
+          <Text style={styles.heroSub}>Tap a card to continue</Text>
         </View>
 
-        <Text style={styles.sectionHeading}>Leaves</Text>
-        <TouchableOpacity style={styles.wideCard} onPress={() => handleNavigate('Leaves')}>
-          <View style={styles.wideCardLeft}>
-            <Ionicons name="leaf-outline" size={26} color="#0D1B2A" />
-            <View>
-              <Text style={styles.cardTitle}>Balance Overview</Text>
-              <Text style={styles.cardSubtitle}>Casual: 6 • Sick: 4 • Earned: 10</Text>
-            </View>
-          </View>
-          <View style={styles.rowEnd}>
-            <Text style={styles.linkText}>Apply</Text>
-            <Ionicons name="chevron-forward" size={18} color="#0D1B2A" />
-          </View>
-        </TouchableOpacity>
+        <Text style={styles.sectionHeading}>Quick actions</Text>
+        <View style={styles.grid}>
+          {ACTIONS.map(({ key, label, sub, icon, route, style }) => (
+            <Pressable
+              key={key}
+              onPress={() => handleNavigate(route)}
+              android_ripple={{ color: '#CBD5E1' }}
+              style={({ pressed }) => [
+                styles.card,
+                styles[style],
+                pressed && styles.cardPressed,
+              ]}
+            >
+              <View style={styles.cardIconText}>
+                {icon}
+                <View style={styles.cardText}>
+                  <Text style={styles.cardTitle}>{label}</Text>
+                  <Text style={styles.cardSubtitle}>{sub}</Text>
+                </View>
+              </View>
+              <Ionicons name="arrow-forward" size={18} color="#0D1B2A" />
+            </Pressable>
+          ))}
+        </View>
+        <View style={styles.spacer} />
       </ScrollView>
     </View>
   );
@@ -107,99 +101,52 @@ const HRMDashboard = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'white' },
-  content: {
+  content: { padding: 16, gap: 20, flexGrow: 1, paddingBottom: 40 },
+  hero: {
+    backgroundColor: '#0F172A',
+    borderRadius: 16,
     padding: 16,
-    gap: 14,
   },
+  heroLabel: { color: '#A5B4FC', fontWeight: '700', fontSize: 12, letterSpacing: 1 },
+  heroTitle: { color: '#FFFFFF', fontWeight: '800', fontSize: 20, marginTop: 6 },
+  heroSub: { color: '#E2E8F0', fontSize: 13, marginTop: 4 },
   sectionHeading: {
     fontSize: 18,
     fontWeight: '700',
     color: '#0D1B2A',
-    marginTop: 6,
+    marginTop: 8,
   },
-  row: {
-    flexDirection: 'row',
-    gap: 12,
-  },
+  grid: { gap: 14, flexGrow: 1, justifyContent: 'space-evenly' },
   card: {
-    flex: 1,
-    borderRadius: 16,
-    padding: 14,
-    backgroundColor: '#fff',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    minHeight: 110,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#E5E7EB',
     shadowColor: '#000',
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.04,
     shadowOffset: { width: 0, height: 3 },
     shadowRadius: 6,
     elevation: 2,
-  },
-  gradientPrimary: {
-    backgroundColor: '#B7E1FF',
-    borderColor: '#9CCCF2',
-  },
-  cardOutlined: {
-    backgroundColor: '#fff',
-  },
-  cardTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  statusBadge: {
-    backgroundColor: '#D1FADF',
-    color: '#0F5132',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 10,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  badgeMuted: {
-    backgroundColor: '#E5E7EB',
-    color: '#111827',
-  },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#0D1B2A',
-    marginTop: 12,
-  },
-  cardSubtitle: {
-    fontSize: 13,
-    color: '#4B5563',
-    marginTop: 4,
-  },
-  wideCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderRadius: 16,
-    padding: 14,
-    backgroundColor: '#F5F7FB',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  wideCardLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
     gap: 12,
   },
-  attendanceCard: {
-    backgroundColor: '#E8F1FF',
-    borderColor: '#D6E4FF',
+  cardPressed: {
+    transform: [{ scale: 0.98 }],
+    shadowOpacity: 0.02,
   },
-  linkText: {
-    color: '#007AFF',
-    fontWeight: '700',
-    fontSize: 14,
-  },
-  rowEnd: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 10,
-  },
+  cardIconText: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
+  cardText: { flex: 1 },
+  cardTitle: { fontSize: 16, fontWeight: '700', color: '#0D1B2A' },
+  cardSubtitle: { fontSize: 13, color: '#4B5563', marginTop: 2 },
+  accentBlue: { backgroundColor: '#E0F2FE', borderColor: '#BFDBFE' },
+  accentTeal: { backgroundColor: '#D1FAE5', borderColor: '#A7F3D0' },
+  accentOrange: { backgroundColor: '#FFEDD5', borderColor: '#FED7AA' },
+  accentGreen: { backgroundColor: '#ECFDF3', borderColor: '#D1FADF' },
+  spacer: { flex: 1 },
 });
 
 export default HRMDashboard;

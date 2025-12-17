@@ -3,9 +3,8 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { View, Text, Platform } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import HomeScreen from '../screens/Dashboard /HomeScreen';
-import AttendanceScreen from '../screens/Dashboard /AttendanceScreen';
-import ExpenseScreen from '../screens/Dashboard /ExpenseScreen';
-import LeadStack from './LeadStack';
+import AccountDashboard from '../screens/Dashboard /AccountDashboard';
+import CRMDashboard from '../screens/Dashboard /CRMDashboard';
 import TimesheetScreen from '../screens/Dashboard /TimesheetScreen';
 import HRMDashboard from '../screens/Dashboard /HRMDashboard';
 
@@ -114,12 +113,12 @@ const DashboardTabs = () => {
       />
       <Tab.Screen 
         name="CRM" 
-        component={LeadStack}
+        component={CRMDashboard}
         options={{ tabBarLabel: 'CRM' }}
       />
       <Tab.Screen 
         name="Accounts" 
-        component={ExpenseScreen}
+        component={AccountDashboard}
         options={{ tabBarLabel: 'Accounts' }}
       />
       <Tab.Screen 

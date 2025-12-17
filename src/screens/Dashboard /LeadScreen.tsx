@@ -1,139 +1,132 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
-  Text,
   StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Platform,
-  StatusBar,
-  ActivityIndicator,
-  Linking,
-  Alert,
   TextInput,
+  TouchableOpacity,
+  Text,
+  ScrollView,
+  ActivityIndicator,
+  Alert,
+  Linking,
 } from 'react-native';
-import Header from '../../components/Header';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { getLeads, Lead } from '../../services/leadService';
 import { useNavigation } from '@react-navigation/native';
-import { LeadStackParamList } from '../../navigation/LeadStack';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import Header from '../../components/Header';
+import { getLeads } from '../../services/api/leads.service';
 
 const LeadScreen = () => {
-  const insets = useSafeAreaInsets();
-  const navigation = useNavigation<NativeStackNavigationProp<LeadStackParamList>>();
-  const [activeStatusFilter, setActiveStatusFilter] = useState('all');
-  const [leads, setLeads] = useState<Lead[]>([]);
+  const navigation = useNavigation<any>();
+  const [leads, setLeads] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  
-  const handleNotificationPress = () => {
-    console.log('Notifications pressed');
-  };
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [openMenuId, setOpenMenuId] = useState<string | number | null>(null);
 
-  const handleProfilePress = () => {
-    navigation.getParent()?.openDrawer?.();
-  };
+  const statusOptions = useMemo(() => {
+    const set = new Set<string>();
+    leads.forEach((lead) => {
+      const s = (lead.status || '').trim().toLowerCase();
+      if (s) set.add(s);
+    });
+    const options = Array.from(set).sort((a, b) => a.localeCompare(b));
+    return ['all', ...options];
+  }, [leads]);
+
+  const filteredLeads = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return leads.filter((lead) => {
+      const title = (lead.company_name || lead.lead_name || lead.name || '').toLowerCase();
+      const status = (lead.status || '').trim().toLowerCase();
+      if (q && !title.includes(q) && !status.includes(q)) return false;
+      if (statusFilter !== 'all' && status !== statusFilter) return false;
+      return true;
+    });
+  }, [leads, searchQuery, statusFilter]);
 
   useEffect(() => {
-    const fetchLeadsData = async () => {
+    const loadLeads = async () => {
       try {
         setLoading(true);
         setError('');
-        const res = await getLeads(100);
-        if (!res.ok) {
-          setError(typeof res.message === 'string' ? res.message : 'Failed to load leads');
-          return;
-        }
-        setLeads(res.data || []);
+        const list = await getLeads(undefined, 50);
+        setLeads(Array.isArray(list) ? list : []);
       } catch (err: any) {
-        console.log('LeadScreen fetch error:', err?.message || err);
+        console.log('Lead fetch error:', err?.message || err);
         setError('Failed to load leads');
       } finally {
         setLoading(false);
       }
     };
-    fetchLeadsData();
+    loadLeads();
   }, []);
 
-  // Status filter tabs
-  const statusFilterTabs = [
-    { id: 'all', label: 'All', color: '#6B7280' },
-    { id: 'qualified', label: 'Qualified', color: '#10B981' },
-    { id: 'proposal', label: 'Proposal', color: '#3B82F6' },
-    { id: 'contacted', label: 'Contacted', color: '#F59E0B' },
-    { id: 'converted', label: 'Converted', color: '#8B5CF6' },
-    { id: 'lost', label: 'Lost', color: '#EF4444' },
-  ];
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'Qualified': return '#10B981';
-      case 'Proposal': return '#3B82F6';
-      case 'Contacted': return '#F59E0B';
-      case 'Converted': return '#8B5CF6';
-      case 'Lost': return '#EF4444';
-      default: return '#6B7280';
+  const handleCall = async (phone?: string | null) => {
+    const raw = (phone || '').trim();
+    const sanitized = raw.replace(/[^\d+]/g, '');
+    if (!sanitized) {
+      Alert.alert('Call', 'No phone number available for this lead.');
+      return;
+    }
+    const telUrl = `tel:${sanitized}`;
+    const telPromptUrl = `telprompt:${sanitized}`;
+    try {
+      const canTel = await Linking.canOpenURL(telUrl);
+      if (canTel) {
+        await Linking.openURL(telUrl);
+        return;
+      }
+      const canPrompt = await Linking.canOpenURL(telPromptUrl);
+      if (canPrompt) {
+        await Linking.openURL(telPromptUrl);
+        return;
+      }
+      throw new Error('No dialer available');
+    } catch {
+      Alert.alert('Call', 'Unable to open the dialer. Please try on a physical device.');
     }
   };
 
-  const getStatusBgColor = (status) => {
-    switch (status) {
-      case 'Qualified': return '#D1FAE5';
-      case 'Proposal': return '#DBEAFE';
-      case 'Contacted': return '#FEF3C7';
-      case 'Converted': return '#F5F3FF';
-      case 'Lost': return '#FEE2E2';
-      default: return '#F3F4F6';
+  const handleEmail = async (email?: string | null) => {
+    const addr = (email || '').trim();
+    if (!addr) {
+      Alert.alert('Email', 'No email address available for this lead.');
+      return;
+    }
+    const url = `mailto:${encodeURIComponent(addr)}`;
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (!supported) throw new Error('Cannot open mail app');
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert('Email', 'Unable to open the email app.');
     }
   };
 
-  const getSourceIcon = (source) => {
-    switch (source) {
-      case 'Website': return 'language';
-      case 'Referral': return 'group';
-      case 'Social Media': return 'share';
-      case 'Email': return 'email';
-      case 'Call': return 'call';
-      default: return 'source';
-    }
+  const handleMore = (lead: any, id: string | number) => {
+    setOpenMenuId((prev) => (prev === id ? null : id));
   };
 
-  // Filter leads based on active filters
-  const normalizedQuery = searchQuery.trim().toLowerCase();
-
-  const filteredLeads = leads.filter(lead => {
-    const matchesStatus =
-      activeStatusFilter === 'all' ||
-      (lead.status || '').toLowerCase() === activeStatusFilter;
-    const title = (lead.company_name || lead.lead_name || lead.name || '').toLowerCase();
-    const matchesSearch = !normalizedQuery || title.includes(normalizedQuery);
-    return matchesStatus && matchesSearch;
-  });
+  const handleMenuAction = (type: 'task' | 'event', lead: any) => {
+    setOpenMenuId(null);
+    const target = type === 'task' ? 'TaskCreate' : 'EventCreate';
+    navigation.navigate(target, { lead });
+  };
 
   return (
     <View style={styles.container}>
-      <StatusBar 
-        barStyle="dark-content"
-        backgroundColor="white"
-        translucent={Platform.OS === 'android'}
-      />
-      
       <Header
         screenName="Leads"
+        showBack
         navigation={navigation as any}
-        onNotificationPress={handleNotificationPress}
-        onProfilePress={handleProfilePress}
-        notificationCount={2}
+        notificationCount={0}
+        onBackPress={() => navigation.goBack()}
+        onNotificationPress={() => console.log('Notifications pressed')}
+        onProfilePress={() => navigation.getParent()?.openDrawer?.()}
       />
-
-      {/* White background container below header */}
-      <View style={styles.whiteContainer}>
-        {/* Fixed Search/Filter Bar with Add Button */}
-        <View style={styles.fixedSearchContainer}>
-          <View style={styles.searchInput}>
+      <View style={styles.searchRow}>
+        <View style={styles.searchInput}>
             <Icon name="search" size={20} color="#9CA3AF" />
             <TextInput
               placeholder="Search leads..."
@@ -143,257 +136,133 @@ const LeadScreen = () => {
               onChangeText={setSearchQuery}
             />
           </View>
-          <TouchableOpacity
-            style={styles.addLeadButton}
-            onPress={() => navigation.navigate('LeadCreate')}
-            activeOpacity={0.8}
-          >
+          <TouchableOpacity style={styles.addButton} onPress={() => console.log('Add lead')}>
             <Icon name="add" size={24} color="white" />
           </TouchableOpacity>
-        </View>
+      </View>
+      <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
+        {loading && (
+          <View style={styles.loaderRow}>
+            <ActivityIndicator color="#3B82F6" />
+            <Text style={styles.loaderText}>Loading leads...</Text>
+          </View>
+        )}
+        {!!error && !loading && <Text style={styles.errorText}>{error}</Text>}
 
-        {/* Fixed Status Filter Tabs */}
-        <View style={styles.fixedStatusFilterContainer}>
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.statusFilterContent}
-          >
-            {statusFilterTabs.map((tab) => (
-              <TouchableOpacity 
-                key={tab.id}
-                style={[
-                  styles.statusFilterTab,
-                  activeStatusFilter === tab.id && [
-                    styles.activeStatusFilterTab,
-                    { backgroundColor: `${tab.color}15` }
-                  ]
-                ]}
-                onPress={() => setActiveStatusFilter(tab.id)}
+        <View style={styles.filterRow}>
+          {statusOptions.map((opt) => {
+            const active = statusFilter === opt;
+            return (
+              <TouchableOpacity
+                key={opt}
+                onPress={() => setStatusFilter(opt)}
+                style={[styles.filterPill, active && styles.filterPillActive]}
               >
-                {tab.id !== 'all' && (
-                  <View style={[
-                    styles.statusDot,
-                    { backgroundColor: tab.color }
-                  ]} />
-                )}
-                <Text style={[
-                  styles.statusFilterTabText,
-                  activeStatusFilter === tab.id && [
-                    styles.activeStatusFilterTabText,
-                    { color: tab.color }
-                  ]
-                ]}>
-                  {tab.label}
+                <Text style={[styles.filterText, active && styles.filterTextActive]}>
+                  {opt === 'all'
+                    ? 'All'
+                    : opt
+                        .split(' ')
+                        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+                        .join(' ')}
                 </Text>
               </TouchableOpacity>
-            ))}
-          </ScrollView>
+            );
+          })}
         </View>
 
-        {/* Scrollable Content Area */}
-        <ScrollView 
-          style={styles.scrollView}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={[
-            styles.scrollContent,
-            {
-              paddingBottom: insets.bottom > 0 ? insets.bottom + 16 : 16,
-              // Add padding top to account for fixed headers
-              paddingTop: 0,
-            }
-          ]}
-        >
-          {/* Leads List - Or Empty State */}
-          <View style={styles.leadsList}>
-            {loading && (
-              <View style={styles.loaderRow}>
-                <ActivityIndicator size="small" color="#3B82F6" />
-                <Text style={styles.loaderText}>Loading leads...</Text>
-              </View>
-            )}
-
-            {!!error && !loading && (
-              <View style={styles.errorCard}>
-                <Text style={styles.errorText}>{error}</Text>
-              </View>
-            )}
-
-            {!loading && !error && filteredLeads.length > 0 ? (
-              filteredLeads.map((lead) => (
-                <View key={lead.id} style={styles.leadCard}>
-                  {/* Company Header */}
-                  <View style={styles.companyHeader}>
-                    <View style={styles.companyInfo}>
-                      <Text style={styles.companyName}>{lead.company_name || lead.lead_name || lead.name}</Text>
-                      <Text style={styles.contactName}>{lead.lead_name || lead.company_name || '-'}</Text>
-                    </View>
-                    <View style={styles.headerActions}>
-                      <TouchableOpacity style={styles.starButton}>
-                        <Icon name="star-border" size={22} color="#F59E0B" />
+        {!loading &&
+          !error &&
+          filteredLeads.map((lead, idx) => {
+            const cardId = lead.name || idx;
+            const showMenu = openMenuId === cardId;
+            return (
+              <View key={cardId} style={styles.leadCard}>
+                <View style={styles.cardTop}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.leadTitle}>{lead.company_name || lead.lead_name || lead.name}</Text>
+                    <Text style={styles.leadSub}>{lead.lead_name || lead.company_name || '-'}</Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => handleMore(lead, cardId)}
+                    style={styles.moreBtn}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Icon name="more-vert" size={22} color="#6B7280" />
+                  </TouchableOpacity>
+                  {showMenu && (
+                    <View style={styles.menu}>
+                      <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuAction('task', lead)}>
+                        <Text style={styles.menuItemText}>New Task</Text>
                       </TouchableOpacity>
-                      <TouchableOpacity style={styles.moreButton}>
-                        <Icon name="more-vert" size={24} color="#6B7280" />
+                      <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuAction('event', lead)}>
+                        <Text style={styles.menuItemText}>New Event</Text>
                       </TouchableOpacity>
                     </View>
-                  </View>
-
-                  {/* Status and Amount Row */}
-                  <View style={styles.statusRow}>
-                    <View style={[
-                      styles.statusBadge,
-                      { backgroundColor: getStatusBgColor(lead.status) }
-                    ]}>
-                      <Text style={[
-                        styles.statusText,
-                        { color: getStatusColor(lead.status) }
-                      ]}>
-                        {lead.status || 'Open'}
-                      </Text>
-                    </View>
-                    
-                    <View style={styles.amountContainer}>
-                      <Text style={styles.amountText}>{lead.source || 'N/A'}</Text>
-                      <View style={styles.sourceBadge}>
-                        <Icon 
-                          name={getSourceIcon(lead.source)} 
-                          size={14} 
-                          color="#6B7280" 
-                          style={styles.sourceIcon}
-                        />
-                        <Text style={styles.sourceText}>{lead.source || 'N/A'}</Text>
-                      </View>
-                    </View>
-                  </View>
-
-                  {/* Divider */}
-                  <View style={styles.divider} />
-
-                  {/* Description */}
-                        <Text style={styles.descriptionText}>
-                          {lead.description || lead.company_name || lead.lead_name || 'Lead'}
-                        </Text>
-
-                  {/* Contact Info */}
-                  <View style={styles.contactInfo}>
-                    {/* Email Row */}
-                    <View style={styles.contactRow}>
-                      <View style={styles.checkboxContainer}>
-                        <Icon name="check-box" size={20} color="#10B981" />
-                      </View>
-                      <View style={styles.contactDetails}>
-                        <Text style={styles.emailText}>{lead.email_id || 'N/A'}</Text>
-                        <Text style={styles.phoneText}>{lead.phone || lead.mobile_no || 'N/A'}</Text>
-                      </View>
-                    </View>
-
-                    {/* Location Row */}
-                    <View style={styles.contactRow}>
-                      <View style={styles.checkboxContainer}>
-                        <Icon name="check-box" size={20} color="#10B981" />
-                      </View>
-                      <View style={styles.contactDetails}>
-                        <Text style={styles.locationText}>{lead.company_name || '-'}</Text>
-                        <Text style={styles.addedText}>Added: {lead.creation ? new Date(lead.creation).toLocaleDateString() : '-'}</Text>
-                      </View>
-                    </View>
-                  </View>
-
-                  {/* Actions */}
-                  <View style={styles.actionButtons}>
-                    <TouchableOpacity style={styles.callButton} onPress={() => {
-                      const num = (lead.phone || lead.mobile_no || '').trim();
-                      if (!num) {
-                        Alert.alert('Call', 'No phone number available for this lead.');
-                        return;
-                      }
-                      const url = `tel:${num.replace(/[^\d+]/g, '')}`;
-                      Linking.openURL(url).catch(() => Alert.alert('Call', 'Unable to open the dialer.'));
-                    }}>
-                      <Icon name="call" size={18} color="#3B82F6" />
-                      <Text style={styles.callButtonText}>Call</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.emailButton} onPress={() => {
-                      const addr = (lead.email_id || '').trim();
-                      if (!addr) {
-                        Alert.alert('Email', 'No email address available for this lead.');
-                        return;
-                      }
-                      const url = `mailto:${addr}`;
-                      Linking.openURL(url).catch(() => Alert.alert('Email', 'Unable to open the email app.'));
-                    }}>
-                      <Icon name="email" size={18} color="#8B5CF6" />
-                      <Text style={styles.emailButtonText}>Email</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.viewButton}
-                      onPress={() => navigation.navigate('LeadDetail', { lead })}
-                    >
-                      <Text style={styles.viewButtonText}>View Details</Text>
-                      <Icon name="chevron-right" size={18} color="#6B7280" />
-                    </TouchableOpacity>
+                  )}
+                  <View
+                    style={[
+                      styles.statusChip,
+                      { backgroundColor: '#E0F2FE' },
+                    ]}
+                  >
+                    <Text style={styles.statusChipText}>{lead.status || 'Open'}</Text>
                   </View>
                 </View>
-              ))
-            ) : (
-              // Empty state when no leads
-              <View style={styles.emptyState}>
-                <View style={styles.emptyIconContainer}>
-                  <Icon name="search-off" size={60} color="#D1D5DB" />
+
+                <View style={styles.cardMeta}>
+                  <View style={styles.metaRow}>
+                    <Icon name="email" size={16} color="#6B7280" />
+                    <Text style={styles.metaText}>{lead.email_id || 'No email'}</Text>
+                  </View>
+                  <View style={styles.metaRow}>
+                    <Icon name="call" size={16} color="#6B7280" />
+                    <Text style={styles.metaText}>{lead.phone || lead.mobile_no || 'No phone'}</Text>
+                  </View>
+                  <View style={styles.metaRow}>
+                    <Icon name="event" size={16} color="#6B7280" />
+                    <Text style={styles.metaText}>
+                      {lead.creation ? new Date(lead.creation).toLocaleDateString() : 'No date'}
+                    </Text>
+                  </View>
                 </View>
-                <Text style={styles.emptyStateTitle}>
-                  No leads found
-                </Text>
-                <Text style={styles.emptyStateText}>
-                  {activeStatusFilter === 'all' 
-                    ? "You don't have any leads yet." 
-                    : `No ${activeStatusFilter} leads found.`}
-                </Text>
-                <TouchableOpacity style={styles.emptyStateButton}>
-                  <Icon name="add" size={20} color="white" />
-                  <Text style={styles.emptyStateButtonText}>Add New Lead</Text>
-                </TouchableOpacity>
+
+                <View style={styles.cardActions}>
+                  <TouchableOpacity
+                    style={[styles.actionBtn, styles.callBtn]}
+                    onPress={() => handleCall(lead.mobile_no || lead.phone || '')}
+                  >
+                    <Icon name="call" size={16} color="#2563EB" />
+                    <Text style={[styles.actionBtnText, { color: '#2563EB' }]}>Call</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.actionBtn, styles.emailBtn]}
+                    onPress={() => handleEmail(lead.email_id || '')}
+                  >
+                    <Icon name="email" size={16} color="#7C3AED" />
+                    <Text style={[styles.actionBtnText, { color: '#7C3AED' }]}>Email</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.viewBtn}>
+                    <Text style={styles.viewBtnText}>View</Text>
+                    <Icon name="chevron-right" size={18} color="#6B7280" />
+                  </TouchableOpacity>
+                </View>
               </View>
-            )}
-          </View>
-        </ScrollView>
-      </View>
+            );
+          })}
+      </ScrollView>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    backgroundColor: 'white'
-  },
-  whiteContainer: {
-    flex: 1,
-    backgroundColor: 'white',
-  },
-  // Fixed headers at the top
-  fixedSearchContainer: {
+  container: { flex: 1, backgroundColor: 'white' },
+  body: { flexGrow: 1, backgroundColor: 'white', padding: 12, gap: 10 },
+  searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: 'white',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  fixedStatusFilterContainer: {
-    backgroundColor: 'white',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-    height: 56, // Fixed height
-  },
-  // Scrollable content area
-  scrollView: {
-    flex: 1,
-    backgroundColor: 'white',
-  },
-  scrollContent: {
-    flexGrow: 1,
+    padding: 12,
+    gap: 8,
     backgroundColor: 'white',
   },
   searchInput: {
@@ -403,8 +272,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F3F4F6',
     borderRadius: 8,
     paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginRight: 8,
+    height: 44,
   },
   searchText: {
     marginLeft: 8,
@@ -412,297 +280,104 @@ const styles = StyleSheet.create({
     color: '#111827',
     flex: 1,
   },
-  searchPlaceholder: {
-    marginLeft: 8,
-    fontSize: 14,
-    color: '#9CA3AF',
-  },
-  addLeadButton: {
-    backgroundColor: '#3B82F6',
+  addButton: {
     width: 44,
     height: 44,
     borderRadius: 8,
+    backgroundColor: '#3B82F6',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 8,
   },
-  // Status Filter Tabs Styles
-  statusFilterContent: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+  loaderRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12 },
+  loaderText: { color: '#4B5563', fontSize: 14 },
+  errorText: { color: '#DC2626', paddingVertical: 8 },
+  filterRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+    paddingHorizontal: 4,
+    marginBottom: 8,
   },
-  statusFilterTab: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
+  filterPill: {
+    paddingHorizontal: 10,
     paddingVertical: 6,
-    marginRight: 8,
-    borderRadius: 20,
+    borderRadius: 12,
     backgroundColor: '#F3F4F6',
   },
-  activeStatusFilterTab: {
+  filterPillActive: {
+    backgroundColor: '#DBEAFE',
     borderWidth: 1,
+    borderColor: '#BFDBFE',
   },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 6,
-  },
-  statusFilterTabText: {
-    fontSize: 14,
-    color: '#6B7280',
-    fontWeight: '500',
-  },
-  activeStatusFilterTabText: {
-    fontWeight: '600',
-  },
-  leadsList: {
-    padding: 12,
-    backgroundColor: 'white',
-    flex: 1,
-  },
+  filterText: { color: '#4B5563', fontWeight: '600', fontSize: 13 },
+  filterTextActive: { color: '#1D4ED8' },
   leadCard: {
-    backgroundColor: 'white',
-    borderRadius: 10,
-    padding: 10,
-    marginBottom: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 1.5,
-    elevation: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 14,
     borderWidth: 1,
     borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowOffset: { width: 0, height: 3 },
+    shadowRadius: 6,
+    elevation: 2,
+    gap: 10,
+    position: 'relative',
   },
-  // Empty State Styles
-  emptyState: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 60,
+  leadTitle: { fontSize: 16, fontWeight: '700', color: '#0D1B2A' },
+  leadSub: { fontSize: 13, color: '#4B5563', marginTop: 4 },
+  cardTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  statusChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
   },
-  emptyIconContainer: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: '#F3F4F6',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 20,
-  },
-  emptyStateTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#111827',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  emptyStateText: {
-    fontSize: 14,
-    color: '#6B7280',
-    textAlign: 'center',
-    marginBottom: 24,
-    paddingHorizontal: 40,
-  },
-  emptyStateButton: {
+  statusChipText: { fontSize: 12, fontWeight: '700', color: '#0D1B2A' },
+  cardMeta: { gap: 6 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  metaText: { fontSize: 13, color: '#4B5563' },
+  cardActions: { flexDirection: 'row', gap: 8, marginTop: 6, alignItems: 'center' },
+  actionBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#3B82F6',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+    gap: 6,
+    backgroundColor: '#EEF2FF',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
     borderRadius: 8,
   },
-  emptyStateButtonText: {
-    color: 'white',
-    fontSize: 14,
-    fontWeight: '500',
-    marginLeft: 8,
+  actionBtnText: { fontSize: 12, fontWeight: '700' },
+  callBtn: { backgroundColor: '#EFF6FF' },
+  emailBtn: { backgroundColor: '#F5F3FF' },
+  viewBtn: { marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 4 },
+  viewBtnText: { color: '#6B7280', fontSize: 12, fontWeight: '700' },
+  moreBtn: {
+    paddingHorizontal: 4,
   },
-  loaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  menu: {
+    position: 'absolute',
+    top: 34,
+    right: 8,
+    backgroundColor: '#111827',
+    borderRadius: 8,
+    paddingVertical: 6,
+    width: 140,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 8,
+    elevation: 6,
+    zIndex: 10,
+  },
+  menuItem: {
+    paddingHorizontal: 12,
     paddingVertical: 10,
   },
-  loaderText: {
+  menuItemText: {
+    color: '#F9FAFB',
     fontSize: 14,
-    color: '#4B5563',
-  },
-  errorCard: {
-    backgroundColor: '#FFF1F2',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#FECACA',
-  },
-  errorText: {
-    color: '#B91C1C',
-    fontSize: 14,
-  },
-  companyHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 12,
-  },
-  companyInfo: {
-    flex: 1,
-  },
-  companyName: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 2,
-  },
-  contactName: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  starButton: {
-    padding: 4,
-    marginRight: 4,
-  },
-  moreButton: {
-    padding: 4,
-  },
-  statusRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
-  },
-  statusText: {
-    fontSize: 12,
     fontWeight: '600',
-  },
-  amountContainer: {
-    alignItems: 'flex-end',
-  },
-  amountText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 2,
-  },
-  sourceBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F3F4F6',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 8,
-  },
-  sourceIcon: {
-    marginRight: 4,
-  },
-  sourceText: {
-    fontSize: 12,
-    color: '#6B7280',
-  },
-  divider: {
-    height: 1,
-    backgroundColor: '#E5E7EB',
-    marginVertical: 8,
-  },
-  descriptionText: {
-    fontSize: 14,
-    color: '#374151',
-    marginBottom: 10,
-    lineHeight: 20,
-  },
-  contactInfo: {
-    marginBottom: 10,
-  },
-  contactRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 8,
-  },
-  checkboxContainer: {
-    width: 24,
-    marginRight: 12,
-  },
-  contactDetails: {
-    flex: 1,
-  },
-  emailText: {
-    fontSize: 14,
-    color: '#111827',
-    fontWeight: '500',
-    marginBottom: 2,
-  },
-  phoneText: {
-    fontSize: 12,
-    color: '#6B7280',
-  },
-  locationText: {
-    fontSize: 14,
-    color: '#111827',
-    fontWeight: '500',
-    marginBottom: 2,
-  },
-  addedText: {
-    fontSize: 12,
-    color: '#6B7280',
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  callButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#EFF6FF',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 6,
-    marginRight: 6,
-  },
-  callButtonText: {
-    color: '#3B82F6',
-    fontSize: 12,
-    fontWeight: '500',
-    marginLeft: 4,
-  },
-  emailButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F5F3FF',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 6,
-    marginRight: 6,
-  },
-  emailButtonText: {
-    color: '#8B5CF6',
-    fontSize: 12,
-    fontWeight: '500',
-    marginLeft: 4,
-  },
-  viewButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginLeft: 'auto',
-  },
-  viewButtonText: {
-    color: '#6B7280',
-    fontSize: 12,
-    fontWeight: '500',
-    marginRight: 2,
   },
 });
 

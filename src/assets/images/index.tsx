@@ -3,6 +3,6 @@ import microsoft from '../images/microsoft/microsoft.png'
 import back from '../images/back/back.png'
 import expense from '../images/expense/expense.png'
 import profile from '../images/profile.jpeg'
-import addonserp from '../images/addonserp/addonserp.jpeg'
+import addonserp from '../images/addonserp/addonserp.png'
 
 export { logo, microsoft, back, expense, profile ,addonserp}
