@@ -5,6 +5,7 @@ import {
   fetchLeaveHistory,
   LeaveHistoryItem,
 } from './leaves';
+import { getResourceUrl } from './urlService';
 
 type LeaveBalanceParams = {
   employee: string;
@@ -161,6 +162,8 @@ export const applyLeave = async (input: ApplyLeaveInput): Promise<ApplyLeaveResu
   try {
     const sid = await AsyncStorage.getItem('sid');
     if (!sid) return { ok: false, message: 'No active session. Please log in.' };
+    const baseResource = (await getResourceUrl()) || '';
+    if (!baseResource) return { ok: false, message: 'ERP base URL not configured.' };
 
     const payload: Record<string, any> = {
       employee: rawEmployee,
@@ -173,7 +176,7 @@ export const applyLeave = async (input: ApplyLeaveInput): Promise<ApplyLeaveResu
       payload.description = input.reason;
     }
 
-    const res = await fetch(`${BASE_URL}/Leave Application`, {
+    const res = await fetch(`${baseResource}/Leave Application`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

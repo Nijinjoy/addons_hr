@@ -18,19 +18,28 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { checkIn } from '../../services/attendanceService';
+import { addonserp } from '../../assets/images';
+import Geolocation from 'react-native-geolocation-service';
 
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const [checkInLoading, setCheckInLoading] = useState(false);
   const [lastCheckInText, setLastCheckInText] = useState('Last check-in was at 04:42 pm on 3 Dec');
+  const [lastLocation, setLastLocation] = useState<{ latitude?: number; longitude?: number }>({});
 
   const handleNotificationPress = () => {
     console.log('Notification pressed');
   };
   const requestLocationPermission = async (): Promise<boolean> => {
     if (Platform.OS !== 'android') {
-      return true;
+      try {
+        const res = await Geolocation.requestAuthorization('whenInUse');
+        return res === 'granted' || res === 'prompt';
+      } catch {
+        // if requestAuthorization is unavailable, fall back to proceeding and letting system prompt
+        return true;
+      }
     }
 
     try {
@@ -57,26 +66,28 @@ const HomeScreen: React.FC = () => {
     }
   };
 
-  const getLocation = (): Promise<{ latitude?: number; longitude?: number }> => {
-    return new Promise((resolve) => {
-      if (!navigator?.geolocation) {
-        resolve({});
-        return;
-      }
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const { latitude, longitude } = pos.coords || {};
+  const getLocation = (): Promise<{ latitude?: number; longitude?: number }> =>
+    new Promise((resolve, reject) => {
+      Geolocation.getCurrentPosition(
+        (pos: any) => {
+          const { latitude, longitude } = pos?.coords || {};
           console.log('Got location:', latitude, longitude);
           resolve({ latitude, longitude });
         },
-        (err) => {
+        (err: any) => {
           console.log('getCurrentPosition error:', err);
-          resolve({});
+          const message =
+            err?.message ||
+            (err?.code === 1
+              ? 'Location permission denied'
+              : err?.code === 2
+              ? 'Location unavailable. Please turn on GPS.'
+              : 'Unable to fetch your location');
+          reject(new Error(message));
         },
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
+        { enableHighAccuracy: true, timeout: 20000, maximumAge: 60000 }
       );
     });
-  };
 
   const handleCheckIn = async () => {
     if (checkInLoading) return;
@@ -104,6 +115,7 @@ const HomeScreen: React.FC = () => {
         Alert.alert('Location error', 'Unable to fetch your location. Please try again with GPS enabled.');
         return;
       }
+      setLastLocation(coords);
       const res = await checkIn(emp, 'IN', coords);
       console.log('HomeScreen check-in response:', res);
       if (!res.ok) {
@@ -111,10 +123,26 @@ const HomeScreen: React.FC = () => {
         return;
       }
       const nowText = new Date().toLocaleString();
-      setLastCheckInText(`Checked in at ${nowText}`);
+      const locText =
+        coords.latitude != null && coords.longitude != null
+          ? ` (lat: ${coords.latitude.toFixed(5)}, lon: ${coords.longitude.toFixed(5)})`
+          : '';
+      setLastCheckInText(`Checked in at ${nowText}${locText}`);
       Alert.alert('Check In', 'Checked in successfully.');
     } catch (err: any) {
-      Alert.alert('Check In', err?.message || 'Failed to check in');
+      const msg = err?.message || 'Failed to check in';
+      if (String(msg).toLowerCase().includes('location')) {
+        Alert.alert(
+          'Location error',
+          `${msg}. Please ensure GPS is on and allow location permission.`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Open Settings', onPress: () => Linking.openSettings() },
+          ]
+        );
+        return;
+      }
+      Alert.alert('Check In', msg);
     } finally {
       setCheckInLoading(false);
     }
@@ -185,10 +213,10 @@ const HomeScreen: React.FC = () => {
         translucent={Platform.OS === 'android'}
       />
       <Header 
-        screenName="ADDON-S ERP"
         navigation={navigation}
         notificationCount={5}
         useGradient={true}
+        brandLogo={addonserp}
       />
 
       {/* White background container below header */}

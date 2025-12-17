@@ -6,7 +6,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import { DrawerNavigationProp } from '@react-navigation/drawer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getProfileDetails } from '../services/profileService';
-import { ERP_URL_RESOURCE as ENV_URL_RESOURCE } from '../config/env';
+import { getMethodUrl, getResourceUrl } from '../services/urlService';
 
 interface HeaderProps {
   screenName: string;
@@ -17,6 +17,8 @@ interface HeaderProps {
   onBackPress?: () => void;
   onNotificationPress?: () => void;
   onProfilePress?: () => void;
+  brandLogo?: any;
+  brandTitle?: string;
 }
 
 const Header: React.FC<HeaderProps> = ({
@@ -28,31 +30,61 @@ const Header: React.FC<HeaderProps> = ({
   onBackPress,
   onNotificationPress,
   onProfilePress,
+  brandLogo,
+  brandTitle = '',
 }) => {
   const [avatar, setAvatar] = useState<string | null>(null);
 
-  const normalizeAvatar = (uri?: string | null) => {
-    if (!uri) return null;
-    let cleaned = uri.trim();
-    if (!cleaned) return null;
-    // prefix base if relative
-    if (cleaned.startsWith('/')) {
-      const base = (ENV_URL_RESOURCE || '').replace(/\/api\/resource\/?$/, '').replace(/\/$/, '');
-      cleaned = base ? `${base}${cleaned}` : cleaned;
+  const resolveSiteBase = async () => {
+    try {
+      const stored = (await AsyncStorage.getItem('company_url')) || '';
+      const candidates = [stored, await getResourceUrl(), await getMethodUrl()].filter(Boolean) as string[];
+      for (const c of candidates) {
+        const trimmed = c.replace(/\/+$/, '');
+        if (!trimmed) continue;
+        if (trimmed.endsWith('/api/resource')) return trimmed.replace(/\/api\/resource$/, '');
+        if (trimmed.endsWith('/api/method')) return trimmed.replace(/\/api\/method$/, '');
+        return trimmed;
+      }
+    } catch {
+      // ignore and fall through
     }
-    // encode spaces
-    if (cleaned.includes(' ')) {
-      const parts = cleaned.split(' ');
-      cleaned = parts.map((p) => encodeURIComponent(p)).join('%20');
-    }
-    return cleaned;
+    return '';
   };
 
   useEffect(() => {
     const loadAvatar = async () => {
+      const siteBase = await resolveSiteBase();
+      const normalizeAvatar = (uri?: string | null) => {
+        if (!uri) return null;
+        let cleaned = uri.trim().replace(/^"+|"+$/g, '');
+        if (!cleaned) return null;
+        if (cleaned.startsWith('//')) cleaned = `https:${cleaned}`;
+        const hasScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(cleaned);
+        if (cleaned.startsWith('/') && siteBase) {
+          cleaned = `${siteBase}${cleaned}`;
+        } else if (!hasScheme && siteBase) {
+          cleaned = `${siteBase}/${cleaned.replace(/^\/+/, '')}`;
+        } else if (!hasScheme && !siteBase && cleaned.startsWith('/')) {
+          // leave absolute path to let RN try with bundled origin if any, but prefer to prepend https later if base becomes available
+          cleaned = `https://${cleaned.replace(/^\/+/, '')}`;
+        }
+        // encode spaces but keep URL structure
+        if (cleaned.includes(' ')) cleaned = encodeURI(cleaned);
+        return cleaned;
+      };
+
       try {
         const cachedRaw = await AsyncStorage.getItem('user_image');
-        const cached = normalizeAvatar(cachedRaw);
+        let cached = normalizeAvatar(cachedRaw);
+        if (cached && cached.includes('/private/') && !cached.includes('sid=')) {
+          try {
+            const sid = await AsyncStorage.getItem('sid');
+            if (sid) cached += (cached.includes('?') ? '&' : '?') + `sid=${sid}`;
+          } catch {
+            // ignore sid fetch errors
+          }
+        }
         if (cached) {
           setAvatar(cached);
           return;
@@ -64,8 +96,18 @@ const Header: React.FC<HeaderProps> = ({
       try {
         const res = await getProfileDetails();
         if (res.ok && res.data?.image) {
-          const normalized = normalizeAvatar(res.data.image);
+          let normalized = normalizeAvatar(res.data.image);
+          // If private file, append sid for access
+          if (normalized && normalized.includes('/private/') && !normalized.includes('sid=')) {
+            try {
+              const sid = await AsyncStorage.getItem('sid');
+              if (sid) normalized += (normalized.includes('?') ? '&' : '?') + `sid=${sid}`;
+            } catch {
+              // ignore sid fetch errors
+            }
+          }
           if (normalized) setAvatar(normalized);
+          else if (res.data.image) setAvatar(res.data.image);
           try {
             await AsyncStorage.setItem('user_image', normalized || res.data.image);
           } catch {
@@ -98,7 +140,14 @@ const Header: React.FC<HeaderProps> = ({
                 <Ionicons name="chevron-back" size={22} color="#FFFFFF" />
               </TouchableOpacity>
             ) : null}
-            <Text style={styles.screenName}>{screenName}</Text>
+            {brandLogo ? (
+              <View style={styles.brandRow}>
+                <Image source={brandLogo} style={styles.brandLogo} resizeMode='contain' />
+                <Text style={styles.brandTitle}>{brandTitle || screenName}</Text>
+              </View>
+            ) : (
+              <Text style={styles.screenName}>{screenName}</Text>
+            )}
           </View>
 
           <View style={styles.rightSection}>
@@ -157,6 +206,9 @@ const styles = StyleSheet.create({
   leftSection: { flex: 1, flexDirection: 'row', alignItems: 'center' },
   backButton: { marginRight: 8 },
   screenName: { fontSize: 20, fontWeight: '600', color: '#FFFFFF' },
+  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  brandLogo: { width: 56, height: 56, borderRadius: 12, marginVertical: -8 },
+  brandTitle: { fontSize: 20, fontWeight: '700', color: '#FFFFFF' },
   rightSection: { flexDirection: 'row', alignItems: 'center' },
   iconButton: { padding: 4 },
   avatar: {

@@ -1,16 +1,16 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ERP_URL_METHOD, ERP_URL_RESOURCE, ERP_APIKEY, ERP_SECRET } from '../config/env';
+import { getApiKeySecret, getMethodUrl, getResourceUrl } from './urlService';
 
-const BASE_URL = (ERP_URL_RESOURCE || '').replace(/\/$/, '');
-const METHOD_URL = (ERP_URL_METHOD || '').replace(/\/$/, '');
-const API_KEY = ERP_APIKEY || '';
-const API_SECRET = ERP_SECRET || '';
+const getBases = async () => {
+  const baseResource = (await getResourceUrl()) || '';
+  const baseMethod = (await getMethodUrl()) || '';
+  return { baseResource, baseMethod };
+};
 
 async function authHeaders(): Promise<Record<string, string>> {
   const base: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (API_KEY && API_SECRET) {
-    base.Authorization = `token ${API_KEY}:${API_SECRET}`;
-  }
+  const { apiKey, apiSecret } = getApiKeySecret();
+  if (apiKey && apiSecret) base.Authorization = `token ${apiKey}:${apiSecret}`;
   try {
     const sid = await AsyncStorage.getItem('sid');
     if (sid) base.Cookie = `sid=${sid}`;
@@ -54,6 +54,7 @@ function buildQuery(url: string, params: Record<string, string | number | undefi
 export async function resolveEmployeeIdForUser(userId: string): Promise<string | null> {
   const user = decodeURIComponent(String(userId || '').trim());
   if (!user) return null;
+  const { baseResource, baseMethod } = await getBases();
 
   const cacheKey = `employee_id_for_${encodeURIComponent(user)}`;
   const persistEmployeeId = async (empId: string) => {
@@ -69,10 +70,10 @@ export async function resolveEmployeeIdForUser(userId: string): Promise<string |
 
   // Prefer method endpoint (same host as login, works with sid)
   try {
-    if (!METHOD_URL) throw new Error('METHOD_URL not configured');
+    if (!baseMethod) throw new Error('Method URL not configured');
     // Method attempt 1: get_list
     try {
-      const url = buildQuery(`${METHOD_URL}/frappe.client.get_list`, {
+      const url = buildQuery(`${baseMethod}/frappe.client.get_list`, {
         doctype: 'Employee',
         fields: JSON.stringify(['name', 'user_id']),
         filters: JSON.stringify([['user_id', '=', user]]),
@@ -95,7 +96,7 @@ export async function resolveEmployeeIdForUser(userId: string): Promise<string |
 
     // Method attempt 2: get_value (single value fetch)
     try {
-      const url = `${METHOD_URL}/frappe.client.get_value`;
+      const url = `${baseMethod}/frappe.client.get_value`;
       const body = {
         doctype: 'Employee',
         fieldname: 'name',
@@ -120,7 +121,8 @@ export async function resolveEmployeeIdForUser(userId: string): Promise<string |
   }
 
   const tryResource = async (filters: any) => {
-    const url = buildQuery(`${BASE_URL}/Employee`, {
+    if (!baseResource) throw new Error('Resource URL not configured');
+    const url = buildQuery(`${baseResource}/Employee`, {
       filters: JSON.stringify(filters),
       fields: JSON.stringify(['name', 'user_id']),
       limit_page_length: 10,
@@ -201,10 +203,12 @@ function normalizeAllocations(rows: any[]): LeaveAllocation[] {
 export async function fetchLeaveAllocations(employeeId: string): Promise<LeaveAllocation[]> {
   const id = String(employeeId || '').trim();
   if (!id) return [];
+  const { baseResource, baseMethod } = await getBases();
 
   // Attempt 1: Resource endpoint with explicit fields/filters
   try {
-    const url = buildQuery(`${BASE_URL}/Leave%20Allocation`, {
+    if (!baseResource) throw new Error('Resource URL not configured');
+    const url = buildQuery(`${baseResource}/Leave%20Allocation`, {
       filters: JSON.stringify([['employee', '=', id]]),
       fields: JSON.stringify([
         'name',
@@ -228,7 +232,8 @@ export async function fetchLeaveAllocations(employeeId: string): Promise<LeaveAl
 
   // Attempt 2: Simplified resource filter shape (some servers accept object)
   try {
-    const url = buildQuery(`${BASE_URL}/Leave%20Allocation`, {
+    if (!baseResource) throw new Error('Resource URL not configured');
+    const url = buildQuery(`${baseResource}/Leave%20Allocation`, {
       filters: JSON.stringify({ employee: id }),
       limit_page_length: 500,
     });
@@ -243,8 +248,8 @@ export async function fetchLeaveAllocations(employeeId: string): Promise<LeaveAl
 
   // Attempt 3: Method endpoint frappe.client.get_list
   try {
-    if (!METHOD_URL) throw new Error('METHOD_URL not configured');
-    const url = buildQuery(`${METHOD_URL}/frappe.client.get_list`, {
+    if (!baseMethod) throw new Error('Method URL not configured');
+    const url = buildQuery(`${baseMethod}/frappe.client.get_list`, {
       doctype: 'Leave Allocation',
       fields: JSON.stringify([
         'name',
@@ -273,11 +278,13 @@ export async function fetchLeaveAllocations(employeeId: string): Promise<LeaveAl
 export async function fetchLeaveUsage(employeeId: string): Promise<Record<string, number>> {
   const id = String(employeeId || '').trim();
   if (!id) return {};
+  const { baseResource, baseMethod } = await getBases();
   const acc: Record<string, number> = {};
 
   // Attempt 1: Resource endpoint
   try {
-    const url = buildQuery(`${BASE_URL}/Leave%20Application`, {
+    if (!baseResource) throw new Error('Resource URL not configured');
+    const url = buildQuery(`${baseResource}/Leave%20Application`, {
       filters: JSON.stringify([
         ['employee', '=', id],
         ['status', '=', 'Approved'],
@@ -300,8 +307,8 @@ export async function fetchLeaveUsage(employeeId: string): Promise<Record<string
 
   // Attempt 2: Method get_list
   try {
-    if (!METHOD_URL) throw new Error('METHOD_URL not configured');
-    const url = buildQuery(`${METHOD_URL}/frappe.client.get_list`, {
+    if (!baseMethod) throw new Error('Method URL not configured');
+    const url = buildQuery(`${baseMethod}/frappe.client.get_list`, {
       doctype: 'Leave Application',
       fields: JSON.stringify(['leave_type', 'total_leave_days', 'status', 'employee']),
       filters: JSON.stringify([
@@ -384,10 +391,12 @@ export type LeaveHistoryItem = {
 export async function fetchLeaveHistory(employeeId: string, limit: number = 50): Promise<LeaveHistoryItem[]> {
   const id = String(employeeId || '').trim();
   if (!id) return [];
+  const { baseResource, baseMethod } = await getBases();
 
   // Attempt 1: Resource endpoint
   try {
-    const url = buildQuery(`${BASE_URL}/Leave%20Application`, {
+    if (!baseResource) throw new Error('Resource URL not configured');
+    const url = buildQuery(`${baseResource}/Leave%20Application`, {
       filters: JSON.stringify([['employee', '=', id]]),
       fields: JSON.stringify([
         'name',
@@ -409,8 +418,8 @@ export async function fetchLeaveHistory(employeeId: string, limit: number = 50):
 
   // Attempt 2: Method endpoint
   try {
-    if (!METHOD_URL) throw new Error('METHOD_URL not configured');
-    const url = buildQuery(`${METHOD_URL}/frappe.client.get_list`, {
+    if (!baseMethod) throw new Error('Method URL not configured');
+    const url = buildQuery(`${baseMethod}/frappe.client.get_list`, {
       doctype: 'Leave Application',
       fields: JSON.stringify([
         'name',
@@ -452,10 +461,12 @@ export async function applyLeave(input: ApplyLeaveInput): Promise<any> {
   };
   if (input.description) payload.description = input.description;
   if (input.company) payload.company = input.company;
+  const { baseResource, baseMethod } = await getBases();
 
   // Try resource endpoint first
   try {
-    const res = await requestJSON(`${BASE_URL}/Leave%20Application`, {
+    if (!baseResource) throw new Error('Resource URL not configured');
+    const res = await requestJSON(`${baseResource}/Leave%20Application`, {
       method: 'POST',
       headers: await authHeaders(),
       body: JSON.stringify(payload),
@@ -467,9 +478,9 @@ export async function applyLeave(input: ApplyLeaveInput): Promise<any> {
 
   // Fallback: method endpoint
   try {
-    if (!METHOD_URL) throw new Error('METHOD_URL not configured');
+    if (!baseMethod) throw new Error('Method URL not configured');
     const doc = { doctype: 'Leave Application', ...payload };
-    const res2 = await requestJSON(`${METHOD_URL}/frappe.client.insert`, {
+    const res2 = await requestJSON(`${baseMethod}/frappe.client.insert`, {
       method: 'POST',
       headers: await authHeaders(),
       body: JSON.stringify({ doc }),

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -18,7 +18,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import Button from '../components/Button';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { validateLogin } from '../utils/validation/authValidation';
+import { validateLogin, validateCompanyUrl } from '../utils/validation/authValidation';
 import { login as authLogin } from '../services/authService';
 import { resolveEmployeeIdForUser } from '../services/leaves';
 import { checkIn } from '../services/attendanceService';
@@ -40,10 +40,35 @@ const LoginScreen = ({ navigation }: Props) => {
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [loginError, setLoginError] = useState('');
+  const [companyUrl, setCompanyUrl] = useState('');
+  const [companyUrlError, setCompanyUrlError] = useState('');
+  const scrollRef = React.useRef<ScrollView | null>(null);
+  const formOffsetY = React.useRef(0);
+  const safeDecode = (value: string) => {
+    try {
+      return decodeURIComponent(value);
+    } catch {
+      return value;
+    }
+  };
 
   const handleLogin = async () => {
     if (loading) return;
     setLoginError('');
+    setCompanyUrlError('');
+
+    const urlError = validateCompanyUrl(companyUrl);
+    if (urlError) {
+      setCompanyUrlError(urlError);
+      return;
+    }
+
+    try {
+      await AsyncStorage.setItem('company_url', companyUrl.trim());
+    } catch {
+      // ignore storage errors
+    }
+
     const errors = validateLogin(email, password);
     setEmailError(errors.email);
     setPasswordError(errors.password);
@@ -51,69 +76,57 @@ const LoginScreen = ({ navigation }: Props) => {
 
     try {
       setLoading(true);
-      console.log('LoginScreen: attempting login with email', email);
-      const response = await authLogin(email, password);
-      console.log('LoginScreen response:', response);
-
+      const response = await authLogin(email, password, companyUrl);
       if (!response.ok) {
         const message = response.message || 'Unable to login. Please check your credentials and try again.';
         setLoginError(message);
         Alert.alert('Login Failed', message);
-      } else {
-        const cookies = response.cookies || {};
-        const toStore: [string, string][] = [];
-        if (cookies.sid) toStore.push(['sid', cookies.sid]);
-        if (cookies.full_name) toStore.push(['full_name', cookies.full_name]);
-        if (cookies.user_id) toStore.push(['user_id', decodeURIComponent(cookies.user_id)]);
-        if (cookies.user_image) toStore.push(['user_image', cookies.user_image]);
-
-        if (toStore.length) {
-          try {
-            await AsyncStorage.multiSet(toStore);
-            console.log('Stored login cookies:', toStore.map(([k, v]) => ({ key: k, length: v.length })));
-          } catch (storageError) {
-            console.log('Error storing login cookies:', storageError);
-          }
-        }
-
-        // Resolve and store the Employee ID linked to this user for downstream APIs
-        try {
-          const userKey = decodeURIComponent(cookies.user_id || email);
-          const employeeId = await resolveEmployeeIdForUser(userKey);
-          if (employeeId) {
-            const employeePairs: [string, string][] = [
-              ['employee_id', employeeId],
-              [`employee_id_for_${encodeURIComponent(userKey)}`, employeeId],
-            ];
-            await AsyncStorage.multiSet(employeePairs);
-            console.log('Stored employee id:', employeePairs);
-          } else {
-            console.log('No employee id resolved for user:', userKey);
-          }
-        } catch (err) {
-          console.log('Failed to resolve employee id after login:', err);
-        }
-
-        // Attempt an immediate check-in log (for diagnostics) and store the response
-        try {
-          const employeeId = (await AsyncStorage.getItem('employee_id')) || '';
-          if (employeeId) {
-            const checkInRes = await checkIn(employeeId, 'IN');
-            console.log('Login check-in response:', checkInRes);
-            await AsyncStorage.setItem('last_checkin_response', JSON.stringify(checkInRes));
-          } else {
-            console.log('No employee id available for immediate check-in after login');
-          }
-        } catch (checkErr: any) {
-          console.log('Immediate check-in after login failed:', checkErr?.message || checkErr);
-        }
-
-        // Reset to root dashboard after login
-        navigation.getParent()?.reset({
-          index: 0,
-          routes: [{ name: 'Dashboard' as never }],
-        });
+        return;
       }
+
+      const cookies = response.cookies || {};
+      const toStore: [string, string][] = [];
+      if (cookies.sid) toStore.push(['sid', cookies.sid]);
+      if (cookies.full_name) toStore.push(['full_name', cookies.full_name]);
+      if (cookies.user_id) toStore.push(['user_id', safeDecode(cookies.user_id)]);
+      if (cookies.user_image) toStore.push(['user_image', cookies.user_image]);
+
+      if (toStore.length) {
+        try {
+          await AsyncStorage.multiSet(toStore);
+        } catch (storageError) {
+          console.log('Error storing login cookies:', storageError);
+        }
+      }
+
+      try {
+        const userKey = safeDecode(cookies.user_id || email);
+        const employeeId = await resolveEmployeeIdForUser(userKey);
+        if (employeeId) {
+          const employeePairs: [string, string][] = [
+            ['employee_id', employeeId],
+            [`employee_id_for_${encodeURIComponent(userKey)}`, employeeId],
+          ];
+          await AsyncStorage.multiSet(employeePairs);
+        }
+      } catch (err) {
+        console.log('Failed to resolve employee id after login:', err);
+      }
+
+      try {
+        const employeeId = (await AsyncStorage.getItem('employee_id')) || '';
+        if (employeeId) {
+          const checkInRes = await checkIn(employeeId, 'IN');
+          await AsyncStorage.setItem('last_checkin_response', JSON.stringify(checkInRes));
+        }
+      } catch (checkErr: any) {
+        console.log('Immediate check-in after login failed:', checkErr?.message || checkErr);
+      }
+
+      navigation.getParent()?.reset({
+        index: 0,
+        routes: [{ name: 'Dashboard' as never }],
+      });
     } catch (error) {
       console.log('Login error:', error);
       Alert.alert('Error', 'Something went wrong. Please try again.');
@@ -122,9 +135,26 @@ const LoginScreen = ({ navigation }: Props) => {
     }
   };
 
+  const scrollToForm = () => {
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({ y: formOffsetY.current, animated: true });
+    });
+  };
+
+  const scrollToTop = () => {
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
+    });
+  };
+
   const handleRegister = () => {
     navigation.navigate('Register');
   };
+
+  useEffect(() => {
+    const hideSub = Keyboard.addListener('keyboardDidHide', scrollToTop);
+    return () => hideSub.remove();
+  }, []);
 
   return (
     <LinearGradient
@@ -135,24 +165,49 @@ const LoginScreen = ({ navigation }: Props) => {
     >
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.select({ ios: 64, android: 0 })}
       >
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <ScrollView
             style={styles.scroll}
             contentContainerStyle={styles.scrollContent}
             bounces={false}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            ref={scrollRef}
           >
             <View style={styles.content}>
               <View style={styles.header}>
                 <View style={styles.logoWrapper}>
                   <Image source={logo} style={styles.logo} resizeMode="cover" />
                 </View>
-                <Text style={styles.companyName}>ADDONS HR</Text>
+                <Text style={styles.companyName}>ADDON-S ERP</Text>
                 <Text style={styles.pageSubtitle}>Sign in to your account</Text>
               </View>
 
-              <View style={styles.formContainer}>
+              <View
+                style={styles.formContainer}
+                onLayout={(e) => {
+                  formOffsetY.current = e.nativeEvent.layout.y;
+                }}
+              >
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Company URL</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="https://yourcompany.com"
+                    placeholderTextColor="#888"
+                    value={companyUrl}
+                    onChangeText={setCompanyUrl}
+                    autoCapitalize="none"
+                    keyboardType="url"
+                    onFocus={scrollToForm}
+                    onBlur={scrollToTop}
+                  />
+                  {!!companyUrlError && <Text style={styles.errorText}>{companyUrlError}</Text>}
+                </View>
+
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>Email</Text>
                 <TextInput
@@ -163,7 +218,11 @@ const LoginScreen = ({ navigation }: Props) => {
                   onChangeText={setEmail}
                   keyboardType="email-address"
                   autoCapitalize="none"
-                  onFocus={() => setEmailError('')}
+                  onFocus={() => {
+                    setEmailError('');
+                    scrollToForm();
+                  }}
+                  onBlur={scrollToTop}
                 />
                 {!!emailError && <Text style={styles.errorText}>{emailError}</Text>}
               </View>
@@ -178,7 +237,11 @@ const LoginScreen = ({ navigation }: Props) => {
                       value={password}
                       onChangeText={setPassword}
                       secureTextEntry={!passwordVisible}
-                      onFocus={() => setPasswordError('')}
+                      onFocus={() => {
+                        setPasswordError('');
+                        scrollToForm();
+                      }}
+                      onBlur={scrollToTop}
                     />
                     <TouchableOpacity
                       style={styles.eyeButton}
@@ -222,11 +285,11 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   scrollContent: {
     flexGrow: 1,
+    minHeight: '100%',
   },
   content: {
-    flex: 1,
+    flexGrow: 1,
     justifyContent: 'space-between',
-    paddingBottom: 0,
   },
   header: {
     alignItems: 'center',
@@ -246,8 +309,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   logo: { width: 100, height: 100, borderRadius: 50 },
-  companyName: { color: '#fff', fontSize: 26, fontWeight: '700', marginTop: 16 },
-  pageSubtitle: { color: '#E5E7EB', fontSize: 16, fontWeight: '500', marginTop: 6 },
+  companyName: { color: '#fff', fontSize: 26, fontWeight: '700', marginTop: 8 },
+  pageSubtitle: { color: '#E5E7EB', fontSize: 15, fontWeight: '500', marginTop: 4 },
 
   formContainer: {
     backgroundColor: '#fff',
@@ -255,6 +318,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 20,
     padding: 24,
     width: '100%',
+    flexGrow: 0,
   },
   inputGroup: { marginBottom: 16 },
   label: { fontSize: 14, color: '#1D2B4C', marginBottom: 6, fontWeight: '500' },

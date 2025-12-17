@@ -1,18 +1,20 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ERP_URL_METHOD, ERP_URL_RESOURCE, ERP_APIKEY, ERP_SECRET } from '../config/env';
+import { getMethodUrl, getResourceUrl, getApiKeySecret } from './urlService';
 
 type AttendanceResult =
   | { ok: true; data: any }
   | { ok: false; message: string; status?: number; raw?: string };
 
-const BASE_URL = (ERP_URL_RESOURCE || '').replace(/\/$/, '');
-const METHOD_URL = (ERP_URL_METHOD || '').replace(/\/$/, '');
-const API_KEY = ERP_APIKEY || '';
-const API_SECRET = ERP_SECRET || '';
+const getBases = async () => {
+  const baseResource = (await getResourceUrl()) || '';
+  const baseMethod = (await getMethodUrl()) || '';
+  return { baseResource, baseMethod };
+};
 
 const authHeaders = async (): Promise<Record<string, string>> => {
   const base: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (API_KEY && API_SECRET) base.Authorization = `token ${API_KEY}:${API_SECRET}`;
+  const { apiKey, apiSecret } = getApiKeySecret();
+  if (apiKey && apiSecret) base.Authorization = `token ${apiKey}:${apiSecret}`;
   try {
     const sid = await AsyncStorage.getItem('sid');
     if (sid) base.Cookie = `sid=${sid}`;
@@ -44,8 +46,6 @@ const requestJSON = async <T = any>(url: string, options: RequestInit): Promise<
   return (json as T) ?? (text as unknown as T);
 };
 
-const buildUrl = (path: string) => `${METHOD_URL}/${path.replace(/^\//, '')}`;
-
 // Format as YYYY-MM-DD HH:mm:ss (naive, no timezone) to avoid offset-aware comparisons on server
 const formatLocalTimestamp = (d: Date) => {
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -65,7 +65,10 @@ const formatLocalTimestamp = (d: Date) => {
 };
 
 const tryMethod = async (path: string, payload: Record<string, any>) => {
-  return requestJSON<{ message?: any }>(buildUrl(path), {
+  const { baseMethod } = await getBases();
+  if (!baseMethod) throw new Error('ERP base URL not configured');
+  const url = `${baseMethod}/` + path.replace(/^\//, '');
+  return requestJSON<{ message?: any }>(url, {
     method: 'POST',
     headers: await authHeaders(),
     body: JSON.stringify(payload),
@@ -119,7 +122,9 @@ export const checkIn = async (
       longitude: payload.longitude,
     };
     console.log('checkIn resource payload:', body);
-    const resResource = await requestJSON<{ data?: any }>(`${BASE_URL}/Employee%20Checkin`, {
+    const { baseResource } = await getBases();
+    if (!baseResource) throw new Error('ERP base URL not configured');
+    const resResource = await requestJSON<{ data?: any }>(`${baseResource}/Employee%20Checkin`, {
       method: 'POST',
       headers: await authHeaders(),
       body: JSON.stringify(body),

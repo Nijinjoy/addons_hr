@@ -6,10 +6,6 @@ export const validateEmail = (email: string): string => {
   const emailRegex = /^[^\s@]+@[a-zA-Z0-9-]+\.[a-zA-Z]{2,}$/;
   if (!emailRegex.test(email.trim())) return 'Invalid email id';
 
-  // Check domain
-  const domain = email.split('@')[1];
-  if (domain.toLowerCase() !== 'addon-s.com') return 'Email must be @addon-s.com';
-
   return '';
 };
 
@@ -27,4 +23,18 @@ export const validateLogin = (email: string, password: string) => {
     email: validateEmail(email),
     password: validatePassword(password),
   };
+};
+
+export const validateCompanyUrl = (url: string): string => {
+  const trimmed = url.trim();
+  if (!trimmed) return 'Company URL is required';
+  try {
+    const parsed = new URL(trimmed);
+    if (!parsed.protocol.startsWith('http')) {
+      return 'Company URL must start with http or https';
+    }
+  } catch {
+    return 'Invalid company URL';
+  }
+  return '';
 };

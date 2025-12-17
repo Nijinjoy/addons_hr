@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { resolveEmployeeIdForUser } from './leaves';
-import { ERP_URL_METHOD, ERP_URL_RESOURCE, ERP_APIKEY, ERP_SECRET } from '../config/env';
+import { getApiKeySecret, getMethodUrl, getResourceUrl } from './urlService';
 
 type ExpenseHistoryItem = {
   id: string;
@@ -37,14 +37,16 @@ type ApplyExpenseResult =
   | { ok: true; data: any }
   | { ok: false; message: string; status?: number; raw?: string };
 
-const BASE_URL = (ERP_URL_RESOURCE || '').replace(/\/$/, '');
-const METHOD_URL = (ERP_URL_METHOD || '').replace(/\/$/, '');
-const API_KEY = ERP_APIKEY || '';
-const API_SECRET = ERP_SECRET || '';
+const getBases = async () => {
+  const baseResource = (await getResourceUrl()) || '';
+  const baseMethod = (await getMethodUrl()) || '';
+  return { baseResource, baseMethod };
+};
 
 const authHeaders = async (): Promise<Record<string, string>> => {
   const base: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (API_KEY && API_SECRET) base.Authorization = `token ${API_KEY}:${API_SECRET}`;
+  const { apiKey, apiSecret } = getApiKeySecret();
+  if (apiKey && apiSecret) base.Authorization = `token ${apiKey}:${apiSecret}`;
   try {
     const sid = await AsyncStorage.getItem('sid');
     if (sid) base.Cookie = `sid=${sid}`;
@@ -113,11 +115,13 @@ const normalizeClaims = (rows: any[]): ExpenseHistoryItem[] => {
   });
 };
 
-const fetchExpenseDetail = async (name: string): Promise<any | null> => {
+const fetchExpenseDetail = async (name: string, baseMethod?: string): Promise<any | null> => {
   const trimmed = String(name || '').trim();
   if (!trimmed) return null;
+  const methodBase = baseMethod || (await getMethodUrl()) || '';
+  if (!methodBase) return null;
   try {
-    const res = await requestJSON<{ message?: any }>(`${METHOD_URL}/frappe.client.get`, {
+    const res = await requestJSON<{ message?: any }>(`${methodBase}/frappe.client.get`, {
       method: 'POST',
       headers: await authHeaders(),
       body: JSON.stringify({ doctype: 'Expense Claim', name: trimmed }),
@@ -135,10 +139,12 @@ export const fetchExpenseHistory = async (
 ): Promise<ExpenseHistoryItem[]> => {
   const id = String(employeeId || '').trim();
   if (!id) return [];
+  const { baseResource, baseMethod } = await getBases();
 
   // Attempt 1: Resource endpoint
   try {
-    const url = buildQuery(`${BASE_URL}/Expense%20Claim`, {
+    if (!baseResource) throw new Error('Resource base not configured');
+    const url = buildQuery(`${baseResource}/Expense%20Claim`, {
       filters: JSON.stringify([['employee', '=', id]]),
       fields: JSON.stringify([
         'name',
@@ -163,7 +169,7 @@ export const fetchExpenseHistory = async (
     // Enrich missing expenseType/description with detail fetch (limit to 10 to avoid overfetch)
     const missing = items.filter((i) => !i.expenseType).slice(0, 10);
     for (const m of missing) {
-      const detail = await fetchExpenseDetail(m.id);
+      const detail = await fetchExpenseDetail(m.id, baseMethod);
       if (detail) {
         const child = Array.isArray(detail.expenses) && detail.expenses.length ? detail.expenses[0] : null;
         const expenseType = (child && (child.expense_type || child.expense)) || detail.expense_type || m.expenseType;
@@ -183,7 +189,8 @@ export const fetchExpenseHistory = async (
 
   // Attempt 2: Method endpoint
   try {
-    const url = buildQuery(`${METHOD_URL}/frappe.client.get_list`, {
+    if (!baseMethod) throw new Error('Method base not configured');
+    const url = buildQuery(`${baseMethod}/frappe.client.get_list`, {
       doctype: 'Expense Claim',
       fields: JSON.stringify([
         'name',
@@ -208,7 +215,7 @@ export const fetchExpenseHistory = async (
 
     const missing = items.filter((i) => !i.expenseType).slice(0, 10);
     for (const m of missing) {
-      const detail = await fetchExpenseDetail(m.id);
+      const detail = await fetchExpenseDetail(m.id, baseMethod);
       if (detail) {
         const child = Array.isArray(detail.expenses) && detail.expenses.length ? detail.expenses[0] : null;
         const expenseType = (child && (child.expense_type || child.expense)) || detail.expense_type || m.expenseType;
@@ -295,6 +302,7 @@ export const applyExpenseClaim = async (input: ApplyExpenseInput): Promise<Apply
   try {
     const sid = await AsyncStorage.getItem('sid');
     if (!sid) return { ok: false, message: 'No active session. Please log in.' };
+    const { baseResource, baseMethod } = await getBases();
 
     const payload: Record<string, any> = {
       employee,
@@ -314,7 +322,8 @@ export const applyExpenseClaim = async (input: ApplyExpenseInput): Promise<Apply
 
     // Attempt resource POST
     try {
-      const res = await requestJSON(`${BASE_URL}/Expense%20Claim`, {
+      if (!baseResource) throw new Error('Resource base not configured');
+      const res = await requestJSON(`${baseResource}/Expense%20Claim`, {
         method: 'POST',
         headers: await authHeaders(),
         body: JSON.stringify(payload),
@@ -326,8 +335,9 @@ export const applyExpenseClaim = async (input: ApplyExpenseInput): Promise<Apply
 
     // Fallback to method insert
     try {
+      if (!baseMethod) throw new Error('Method base not configured');
       const doc = { doctype: 'Expense Claim', ...payload };
-      const res2 = await requestJSON(`${METHOD_URL}/frappe.client.insert`, {
+      const res2 = await requestJSON(`${baseMethod}/frappe.client.insert`, {
         method: 'POST',
         headers: await authHeaders(),
         body: JSON.stringify({ doc }),
@@ -347,6 +357,7 @@ export const getExpenseTypes = async (): Promise<ExpenseTypeResult> => {
   try {
     const sid = await AsyncStorage.getItem('sid');
     if (!sid) return { ok: false, message: 'No active session. Please log in.' };
+    const { baseResource, baseMethod } = await getBases();
 
     const saveCache = async (items: string[]) => {
       try {
@@ -370,9 +381,9 @@ export const getExpenseTypes = async (): Promise<ExpenseTypeResult> => {
     };
 
     // Try resource: Expense Claim Type
-    if (BASE_URL) {
+    if (baseResource) {
       try {
-        const url = buildQuery(`${BASE_URL}/Expense%20Claim%20Type`, {
+        const url = buildQuery(`${baseResource}/Expense%20Claim%20Type`, {
           fields: JSON.stringify(['name']),
           limit_page_length: 200,
         });
@@ -392,7 +403,8 @@ export const getExpenseTypes = async (): Promise<ExpenseTypeResult> => {
 
     // Fallback to method
     try {
-      const url = buildQuery(`${METHOD_URL}/frappe.client.get_list`, {
+      if (!baseMethod) throw new Error('Method base not configured');
+      const url = buildQuery(`${baseMethod}/frappe.client.get_list`, {
         doctype: 'Expense Claim Type',
         fields: JSON.stringify(['name']),
         limit_page_length: 200,
@@ -407,7 +419,7 @@ export const getExpenseTypes = async (): Promise<ExpenseTypeResult> => {
     } catch (err2: any) {
       console.warn('getExpenseTypes method GET failed, retrying with POST', err2?.message || err2);
       try {
-        const resPost = await requestJSON<{ message?: any[] }>(`${METHOD_URL}/frappe.client.get_list`, {
+        const resPost = await requestJSON<{ message?: any[] }>(`${baseMethod}/frappe.client.get_list`, {
           method: 'POST',
           headers: await authHeaders(),
           body: JSON.stringify({

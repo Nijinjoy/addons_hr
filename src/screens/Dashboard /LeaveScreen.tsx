@@ -192,6 +192,8 @@ const LeaveScreen = () => {
     <View style={styles.container}>
       <Header
         screenName="Leaves & Holidays"
+        showBack
+        onBackPress={() => navigation.goBack()}
         onNotificationPress={handleNotificationPress}
         onProfilePress={() => navigation.getParent()?.openDrawer?.()}
         notificationCount={3}

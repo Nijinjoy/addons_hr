@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ERP_URL_METHOD, ERP_URL_RESOURCE, ERP_APIKEY, ERP_SECRET } from '../config/env';
+import { getApiKeySecret, getMethodUrl, getResourceUrl } from './urlService';
 
 type Lead = {
   name: string;
@@ -38,14 +38,16 @@ type AssociateDetailsResult =
   | { ok: true; data: string[] }
   | { ok: false; message: string };
 
-const BASE_URL = (ERP_URL_RESOURCE || '').replace(/\/$/, '');
-const METHOD_URL = (ERP_URL_METHOD || '').replace(/\/$/, '');
-const API_KEY = ERP_APIKEY || '';
-const API_SECRET = ERP_SECRET || '';
+const getBases = async () => {
+  const baseResource = (await getResourceUrl()) || '';
+  const baseMethod = (await getMethodUrl()) || '';
+  return { baseResource, baseMethod };
+};
 
 const authHeaders = async (): Promise<Record<string, string>> => {
   const base: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (API_KEY && API_SECRET) base.Authorization = `token ${API_KEY}:${API_SECRET}`;
+  const { apiKey, apiSecret } = getApiKeySecret();
+  if (apiKey && apiSecret) base.Authorization = `token ${apiKey}:${apiSecret}`;
   try {
     const sid = await AsyncStorage.getItem('sid');
     if (sid) base.Cookie = `sid=${sid}`;
@@ -113,9 +115,11 @@ const normalizeLeads = (rows: any[]): Lead[] => {
 };
 
 export const fetchLeads = async (limit: number = 50): Promise<Lead[]> => {
+  const { baseResource, baseMethod } = await getBases();
   // Try resource
   try {
-    const url = buildQuery(`${BASE_URL}/Lead`, {
+    if (!baseResource) throw new Error('Resource base not configured');
+    const url = buildQuery(`${baseResource}/Lead`, {
       fields: JSON.stringify([
         'name',
         'lead_name',
@@ -141,7 +145,8 @@ export const fetchLeads = async (limit: number = 50): Promise<Lead[]> => {
 
   // Fallback to method
   try {
-    const url = buildQuery(`${METHOD_URL}/frappe.client.get_list`, {
+    if (!baseMethod) throw new Error('Method base not configured');
+    const url = buildQuery(`${baseMethod}/frappe.client.get_list`, {
       doctype: 'Lead',
       fields: JSON.stringify([
         'name',
@@ -211,8 +216,10 @@ const normalizeLeadSources = (rows: any[]): string[] => {
 
 const fetchLeadSources = async (limit: number = 100): Promise<string[]> => {
   const doc = 'Lead Source';
+  const { baseResource, baseMethod } = await getBases();
   try {
-    const url = buildQuery(`${BASE_URL}/${encodeURIComponent(doc)}`, {
+    if (!baseResource) throw new Error('Resource base not configured');
+    const url = buildQuery(`${baseResource}/${encodeURIComponent(doc)}`, {
       fields: JSON.stringify(['name', 'source_name']),
       order_by: 'modified desc',
       limit_page_length: limit,
@@ -227,7 +234,8 @@ const fetchLeadSources = async (limit: number = 100): Promise<string[]> => {
   }
 
   try {
-    const url = buildQuery(`${METHOD_URL}/frappe.client.get_list`, {
+    if (!baseMethod) throw new Error('Method base not configured');
+    const url = buildQuery(`${baseMethod}/frappe.client.get_list`, {
       doctype: doc,
       fields: JSON.stringify(['name', 'source_name']),
       order_by: 'modified desc',
@@ -273,8 +281,10 @@ const normalizeAssociateDetails = (rows: any[]): string[] => {
 };
 
 const fetchAssociateDetailsFromDoc = async (doc: string, limit: number): Promise<string[]> => {
+  const { baseResource, baseMethod } = await getBases();
   try {
-    const url = buildQuery(`${BASE_URL}/${encodeURIComponent(doc)}`, {
+    if (!baseResource) throw new Error('Resource base not configured');
+    const url = buildQuery(`${baseResource}/${encodeURIComponent(doc)}`, {
       fields: JSON.stringify(['name', 'associate_name', 'associate_details']),
       order_by: 'modified desc',
       limit_page_length: limit,
@@ -289,7 +299,8 @@ const fetchAssociateDetailsFromDoc = async (doc: string, limit: number): Promise
   }
 
   try {
-    const url = buildQuery(`${METHOD_URL}/frappe.client.get_list`, {
+    if (!baseMethod) throw new Error('Method base not configured');
+    const url = buildQuery(`${baseMethod}/frappe.client.get_list`, {
       doctype: doc,
       fields: JSON.stringify(['name', 'associate_name', 'associate_details']),
       order_by: 'modified desc',

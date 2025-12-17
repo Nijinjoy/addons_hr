@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ERP_URL_METHOD, ERP_URL_RESOURCE, ERP_APIKEY, ERP_SECRET } from '../config/env';
+import { getApiKeySecret, getMethodUrl, getResourceUrl } from './urlService';
 
 type Timesheet = {
   name: string;
@@ -65,14 +65,16 @@ const formatLocalDateTime = (iso?: string): string => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 };
 
-const BASE_URL = (ERP_URL_RESOURCE || '').replace(/\/$/, '');
-const METHOD_URL = (ERP_URL_METHOD || '').replace(/\/$/, '');
-const API_KEY = ERP_APIKEY || '';
-const API_SECRET = ERP_SECRET || '';
+const getBases = async () => {
+  const baseResource = (await getResourceUrl()) || '';
+  const baseMethod = (await getMethodUrl()) || '';
+  return { baseResource, baseMethod };
+};
 
 const authHeaders = async (): Promise<Record<string, string>> => {
   const base: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (API_KEY && API_SECRET) base.Authorization = `token ${API_KEY}:${API_SECRET}`;
+  const { apiKey, apiSecret } = getApiKeySecret();
+  if (apiKey && apiSecret) base.Authorization = `token ${apiKey}:${apiSecret}`;
   try {
     const sid = await AsyncStorage.getItem('sid');
     if (sid) base.Cookie = `sid=${sid}`;
@@ -132,10 +134,12 @@ const fetchTimesheets = async (params: TimesheetListParams): Promise<Timesheet[]
   if (employee) {
     filters.push(['employee', '=', employee]);
   }
+  const { baseResource, baseMethod } = await getBases();
 
   // Try resource API
   try {
-    const url = buildQuery(`${BASE_URL}/Timesheet`, {
+    if (!baseResource) throw new Error('Resource base not configured');
+    const url = buildQuery(`${baseResource}/Timesheet`, {
       fields: JSON.stringify([
         'name',
         'employee',
@@ -162,7 +166,8 @@ const fetchTimesheets = async (params: TimesheetListParams): Promise<Timesheet[]
 
   // Fallback to method API
   try {
-    const url = buildQuery(`${METHOD_URL}/frappe.client.get_list`, {
+    if (!baseMethod) throw new Error('Method base not configured');
+    const url = buildQuery(`${baseMethod}/frappe.client.get_list`, {
       doctype: 'Timesheet',
       fields: JSON.stringify([
         'name',
@@ -219,10 +224,12 @@ export const getCustomers = async (limit: number = 500): Promise<CustomerResult>
   try {
     const sid = await AsyncStorage.getItem('sid');
     if (!sid) return { ok: false, message: 'No active session. Please log in.' };
+    const { baseResource, baseMethod } = await getBases();
 
     // Resource API
     try {
-      const url = buildQuery(`${BASE_URL}/Customer`, {
+      if (!baseResource) throw new Error('Resource base not configured');
+      const url = buildQuery(`${baseResource}/Customer`, {
         fields: JSON.stringify(['name', 'customer_name']),
         order_by: 'modified desc',
         limit_page_length: limit,
@@ -239,7 +246,8 @@ export const getCustomers = async (limit: number = 500): Promise<CustomerResult>
 
     // Method API
     try {
-      const url = buildQuery(`${METHOD_URL}/frappe.client.get_list`, {
+      if (!baseMethod) throw new Error('Method base not configured');
+      const url = buildQuery(`${baseMethod}/frappe.client.get_list`, {
         doctype: 'Customer',
         fields: JSON.stringify(['name', 'customer_name']),
         order_by: 'modified desc',
@@ -275,10 +283,12 @@ export const getActivityTypes = async (limit: number = 200): Promise<ActivityTyp
   try {
     const sid = await AsyncStorage.getItem('sid');
     if (!sid) return { ok: false, message: 'No active session. Please log in.' };
+    const { baseResource, baseMethod } = await getBases();
 
     // Resource API
     try {
-      const url = buildQuery(`${BASE_URL}/Activity%20Type`, {
+      if (!baseResource) throw new Error('Resource base not configured');
+      const url = buildQuery(`${baseResource}/Activity%20Type`, {
         fields: JSON.stringify(['name', 'activity_type']),
         order_by: 'modified desc',
         limit_page_length: limit,
@@ -295,7 +305,8 @@ export const getActivityTypes = async (limit: number = 200): Promise<ActivityTyp
 
     // Method API
     try {
-      const url = buildQuery(`${METHOD_URL}/frappe.client.get_list`, {
+      if (!baseMethod) throw new Error('Method base not configured');
+      const url = buildQuery(`${baseMethod}/frappe.client.get_list`, {
         doctype: 'Activity Type',
         fields: JSON.stringify(['name', 'activity_type']),
         order_by: 'modified desc',
@@ -331,10 +342,12 @@ export const getProjects = async (limit: number = 200): Promise<ProjectResult> =
   try {
     const sid = await AsyncStorage.getItem('sid');
     if (!sid) return { ok: false, message: 'No active session. Please log in.' };
+    const { baseResource, baseMethod } = await getBases();
 
     // Resource API
     try {
-      const url = buildQuery(`${BASE_URL}/Project`, {
+      if (!baseResource) throw new Error('Resource base not configured');
+      const url = buildQuery(`${baseResource}/Project`, {
         fields: JSON.stringify(['name', 'project_name']),
         order_by: 'modified desc',
         limit_page_length: limit,
@@ -351,7 +364,8 @@ export const getProjects = async (limit: number = 200): Promise<ProjectResult> =
 
     // Method API
     try {
-      const url = buildQuery(`${METHOD_URL}/frappe.client.get_list`, {
+      if (!baseMethod) throw new Error('Method base not configured');
+      const url = buildQuery(`${baseMethod}/frappe.client.get_list`, {
         doctype: 'Project',
         fields: JSON.stringify(['name', 'project_name']),
         order_by: 'modified desc',
@@ -387,10 +401,12 @@ export const getTasks = async (limit: number = 200): Promise<TaskResult> => {
   try {
     const sid = await AsyncStorage.getItem('sid');
     if (!sid) return { ok: false, message: 'No active session. Please log in.' };
+    const { baseResource, baseMethod } = await getBases();
 
     // Resource API
     try {
-      const url = buildQuery(`${BASE_URL}/Task`, {
+      if (!baseResource) throw new Error('Resource base not configured');
+      const url = buildQuery(`${baseResource}/Task`, {
         fields: JSON.stringify(['name', 'subject']),
         order_by: 'modified desc',
         limit_page_length: limit,
@@ -407,7 +423,8 @@ export const getTasks = async (limit: number = 200): Promise<TaskResult> => {
 
     // Method API
     try {
-      const url = buildQuery(`${METHOD_URL}/frappe.client.get_list`, {
+      if (!baseMethod) throw new Error('Method base not configured');
+      const url = buildQuery(`${baseMethod}/frappe.client.get_list`, {
         doctype: 'Task',
         fields: JSON.stringify(['name', 'subject']),
         order_by: 'modified desc',
@@ -434,6 +451,7 @@ export const createTimesheet = async (input: CreateTimesheetInput): Promise<Crea
   try {
     const sid = await AsyncStorage.getItem('sid');
     if (!sid) return { ok: false, message: 'No active session. Please log in.' };
+    const { baseResource, baseMethod } = await getBases();
 
     const from = formatLocalDateTime(input.from_time);
     const to = formatLocalDateTime(input.to_time);
@@ -457,7 +475,8 @@ export const createTimesheet = async (input: CreateTimesheetInput): Promise<Crea
     const tryInsert = async (doc: Record<string, any>): Promise<CreateTimesheetResult> => {
       // Resource insert
       try {
-        const res = await requestJSON<{ data?: any }>(`${BASE_URL}/Timesheet`, {
+        if (!baseResource) throw new Error('Resource base not configured');
+        const res = await requestJSON<{ data?: any }>(`${baseResource}/Timesheet`, {
           method: 'POST',
           headers: await authHeaders(),
           body: JSON.stringify(doc),
@@ -465,17 +484,18 @@ export const createTimesheet = async (input: CreateTimesheetInput): Promise<Crea
         return { ok: true, data: (res as any)?.data ?? res };
       } catch (err1: any) {
         const msg = err1?.message || '';
-    console.warn('createTimesheet resource failed', msg);
-    if (typeof msg === 'string' && msg.toLowerCase().includes('task')) {
-      return { ok: false, message: msg };
-    }
-    }
+        console.warn('createTimesheet resource failed', msg);
+        if (typeof msg === 'string' && msg.toLowerCase().includes('task')) {
+          return { ok: false, message: msg };
+        }
+      }
 
-    // Method insert
-    try {
-      const res = await requestJSON<{ message?: any }>(`${METHOD_URL}/frappe.client.insert`, {
-        method: 'POST',
-        headers: await authHeaders(),
+      // Method insert
+      try {
+        if (!baseMethod) throw new Error('Method base not configured');
+        const res = await requestJSON<{ message?: any }>(`${baseMethod}/frappe.client.insert`, {
+          method: 'POST',
+          headers: await authHeaders(),
         body: JSON.stringify(doc),
       });
       const message: any = (res as any)?.message ?? res;
@@ -522,21 +542,27 @@ export const submitTimesheet = async (name: string, doc?: any): Promise<SubmitTi
     if (!sid) return { ok: false, message: 'No active session. Please log in.' };
     const cleaned = String(name || '').trim();
     if (!cleaned) return { ok: false, message: 'Timesheet name is required to submit.' };
+    const { baseResource, baseMethod } = await getBases();
 
     try {
       let docToSubmit = doc;
       if (!docToSubmit) {
         // Try resource fetch
         try {
-          const resDoc = await requestJSON<{ data?: any }>(`${BASE_URL}/Timesheet/${encodeURIComponent(cleaned)}`, {
+          if (!baseResource) throw new Error('Resource base not configured');
+          const resDoc = await requestJSON<{ data?: any }>(
+            `${baseResource}/Timesheet/${encodeURIComponent(cleaned)}`,
+            {
             method: 'GET',
             headers: await authHeaders(),
-          });
+            }
+          );
           docToSubmit = (resDoc as any)?.data ?? resDoc;
         } catch (errRes: any) {
           // fallback to method get
           try {
-            const resGet = await requestJSON<{ message?: any }>(`${METHOD_URL}/frappe.client.get`, {
+            if (!baseMethod) throw new Error('Method base not configured');
+            const resGet = await requestJSON<{ message?: any }>(`${baseMethod}/frappe.client.get`, {
               method: 'POST',
               headers: await authHeaders(),
               body: JSON.stringify({ doctype: 'Timesheet', name: cleaned }),
@@ -548,7 +574,8 @@ export const submitTimesheet = async (name: string, doc?: any): Promise<SubmitTi
         }
       }
 
-      const res = await requestJSON<{ message?: any }>(`${METHOD_URL}/runserverobj`, {
+      if (!baseMethod) throw new Error('Method base not configured');
+      const res = await requestJSON<{ message?: any }>(`${baseMethod}/runserverobj`, {
         method: 'POST',
         headers: await authHeaders(),
         body: JSON.stringify({

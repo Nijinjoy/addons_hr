@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { resolveEmployeeIdForUser } from './leaves';
-import { ERP_URL_METHOD, ERP_URL_RESOURCE, ERP_APIKEY, ERP_SECRET } from '../config/env';
+import { getApiKeySecret, getMethodUrl, getResourceUrl } from './urlService';
 
 type ProfileData = {
   fullName?: string;
@@ -21,21 +21,25 @@ type ProfileResult =
 
 type FileUpload = { uri: string; name?: string; type?: string };
 
-const BASE_URL = (ERP_URL_RESOURCE || '').replace(/\/$/, '');
-
-const siteBase = () => {
-  if (!BASE_URL) return '';
-  if (BASE_URL.endsWith('/api/resource')) return BASE_URL.replace(/\/api\/resource$/, '');
-  return BASE_URL;
+const getBases = async () => {
+  const baseResource = (await getResourceUrl()) || '';
+  const baseMethod = (await getMethodUrl()) || '';
+  return { baseResource, baseMethod };
 };
 
-const METHOD_URL = (ERP_URL_METHOD || '').replace(/\/$/, '');
-const API_KEY = ERP_APIKEY || '';
-const API_SECRET = ERP_SECRET || '';
+const siteBase = async () => {
+  const { baseResource, baseMethod } = await getBases();
+  const base = baseResource || baseMethod;
+  if (!base) return '';
+  if (base.endsWith('/api/resource')) return base.replace(/\/api\/resource$/, '');
+  if (base.endsWith('/api/method')) return base.replace(/\/api\/method$/, '');
+  return base;
+};
 
 const authHeaders = async (): Promise<Record<string, string>> => {
   const base: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (API_KEY && API_SECRET) base.Authorization = `token ${API_KEY}:${API_SECRET}`;
+  const { apiKey, apiSecret } = getApiKeySecret();
+  if (apiKey && apiSecret) base.Authorization = `token ${apiKey}:${apiSecret}`;
   try {
     const sid = await AsyncStorage.getItem('sid');
     if (sid) base.Cookie = `sid=${sid}`;
@@ -76,6 +80,7 @@ const buildQuery = (url: string, params: Record<string, string | number | undefi
 };
 
 const fetchEmployeeProfile = async (employeeId: string): Promise<Partial<ProfileData>> => {
+  const { baseResource, baseMethod } = await getBases();
   const fields = [
     'name',
     'employee_name',
@@ -90,9 +95,9 @@ const fetchEmployeeProfile = async (employeeId: string): Promise<Partial<Profile
   ];
 
   // Try resource doc fetch
-  if (BASE_URL) {
+  if (baseResource) {
     try {
-      const url = buildQuery(`${BASE_URL}/Employee/${encodeURIComponent(employeeId)}`, {
+      const url = buildQuery(`${baseResource}/Employee/${encodeURIComponent(employeeId)}`, {
         fields: JSON.stringify(fields),
       });
       const res = await requestJSON<{ data?: any }>(url, {
@@ -118,7 +123,8 @@ const fetchEmployeeProfile = async (employeeId: string): Promise<Partial<Profile
 
   // Fallback method get
   try {
-    const res = await requestJSON<{ message?: any }>(`${METHOD_URL}/frappe.client.get`, {
+    if (!baseMethod) throw new Error('Method base not configured');
+    const res = await requestJSON<{ message?: any }>(`${baseMethod}/frappe.client.get`, {
       method: 'POST',
       headers: await authHeaders(),
       body: JSON.stringify({
@@ -149,9 +155,11 @@ const fetchUserProfile = async (userId: string): Promise<Partial<ProfileData>> =
   if (!userId) return {};
   const fields = ['name', 'full_name', 'email', 'user_image'];
 
-  if (BASE_URL) {
+  const { baseResource, baseMethod } = await getBases();
+
+  if (baseResource) {
     try {
-      const url = buildQuery(`${BASE_URL}/User/${encodeURIComponent(userId)}`, {
+      const url = buildQuery(`${baseResource}/User/${encodeURIComponent(userId)}`, {
         fields: JSON.stringify(fields),
       });
       const res = await requestJSON<{ data?: any }>(url, {
@@ -171,7 +179,8 @@ const fetchUserProfile = async (userId: string): Promise<Partial<ProfileData>> =
   }
 
   try {
-    const res = await requestJSON<{ message?: any }>(`${METHOD_URL}/frappe.client.get`, {
+    if (!baseMethod) throw new Error('Method base not configured');
+    const res = await requestJSON<{ message?: any }>(`${baseMethod}/frappe.client.get`, {
       method: 'POST',
       headers: await authHeaders(),
       body: JSON.stringify({
@@ -243,7 +252,7 @@ export const getProfileDetails = async (): Promise<ProfileResult> => {
 
     // Normalize image to absolute URL if relative
     if (data.image && data.image.startsWith('/')) {
-      const base = siteBase();
+      const base = await siteBase();
       data.image = base ? `${base}${data.image}` : data.image;
     }
 
@@ -260,7 +269,10 @@ export const setUserImage = async (imageUrl: string): Promise<ProfileResult> => 
     const userId = (await AsyncStorage.getItem('user_id')) || '';
     if (!userId) return { ok: false, message: 'User id not found. Please log in.' };
 
-    const res = await requestJSON<{ message?: any }>(`${METHOD_URL}/frappe.client.set_value`, {
+    const { baseMethod } = await getBases();
+    if (!baseMethod) return { ok: false, message: 'ERP base URL not configured.' };
+
+    const res = await requestJSON<{ message?: any }>(`${baseMethod}/frappe.client.set_value`, {
       method: 'POST',
       headers: await authHeaders(),
       body: JSON.stringify({
@@ -298,6 +310,8 @@ export const uploadProfileImage = async (file: FileUpload): Promise<ProfileResul
     if (!userId) return { ok: false, message: 'User id not found. Please log in.' };
     const sid = await AsyncStorage.getItem('sid');
     if (!sid) return { ok: false, message: 'No active session. Please log in.' };
+    const { baseMethod } = await getBases();
+    if (!baseMethod) return { ok: false, message: 'ERP base URL not configured.' };
 
     const form = new FormData();
     form.append('file', {
@@ -307,7 +321,7 @@ export const uploadProfileImage = async (file: FileUpload): Promise<ProfileResul
     } as any);
     form.append('is_private', '0');
 
-    const res = await fetch(`${METHOD_URL}/upload_file`, {
+    const res = await fetch(`${baseMethod}/upload_file`, {
       method: 'POST',
       headers: {
         Cookie: `sid=${sid}`,
@@ -325,9 +339,10 @@ export const uploadProfileImage = async (file: FileUpload): Promise<ProfileResul
       const msg = json?.message || json?.exception || raw || 'Upload failed';
       return { ok: false, message: msg, status: res.status, raw };
     }
-    const fileUrl = json?.message?.file_url || json?.message?.file?.file_url || json?.message?.file || json?.file_url;
-    const absoluteUrl =
-      fileUrl && fileUrl.startsWith('/') && siteBase() ? `${siteBase()}${fileUrl}` : fileUrl;
+    const fileUrl =
+      json?.message?.file_url || json?.message?.file?.file_url || json?.message?.file || json?.file_url;
+    const site = fileUrl && fileUrl.startsWith('/') ? await siteBase() : '';
+    const absoluteUrl = site ? `${site}${fileUrl}` : fileUrl;
 
     if (!fileUrl) {
       return { ok: false, message: 'Upload succeeded but no file URL returned' };

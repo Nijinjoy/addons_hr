@@ -1,10 +1,11 @@
-import { ERP_URL_RESOURCE } from '../config/env';
-
-const BASE_URL = (ERP_URL_RESOURCE || '').replace(/\/$/, '');
+import { getResourceUrl } from './urlService';
 
 export const getEmployeeProfile = async (employeeID: string) => {
   try {
-    const response = await fetch(`${BASE_URL}/Employee/${employeeID}`, {
+    const baseResource = (await getResourceUrl()) || '';
+    if (!baseResource) throw new Error('ERP base URL not configured');
+
+    const response = await fetch(`${baseResource}/Employee/${employeeID}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',

@@ -1,9 +1,19 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ERP_URL_METHOD } from '../config/env';
+import { getMethodUrl } from './urlService';
 
 type LoginResult =
   | { ok: true; data: any; cookies?: Record<string, string> }
   | { ok: false; status?: number; message: string; raw?: string; cookies?: Record<string, string> };
+
+const normalizeMethodBase = (base?: string): string => {
+  const trimmed = (base || '').trim();
+  if (!trimmed) return '';
+  if (trimmed.endsWith('/api/method')) return trimmed;
+  if (trimmed.endsWith('/api/resource')) return trimmed.replace(/\/api\/resource$/, '/api/method');
+  if (trimmed.endsWith('/api')) return `${trimmed}/method`;
+  if (trimmed.endsWith('/api/')) return `${trimmed}method`;
+  return `${trimmed.replace(/\/+$/, '')}/api/method`;
+};
 
 const parseServerMessages = (payload: any): string | undefined => {
   try {
@@ -18,27 +28,40 @@ const parseServerMessages = (payload: any): string | undefined => {
   return undefined;
 };
 
-export const login = async (username: string, password: string): Promise<LoginResult> => {
+const extractCookies = (setCookieHeader: string): Record<string, string> => {
+  const result: Record<string, string> = {};
+  if (!setCookieHeader) return result;
+
+  const regex = /(?:^|,)\s*([^=;]+)=([^;]+)/g;
+  let match;
+  while ((match = regex.exec(setCookieHeader)) !== null) {
+    const key = match[1]?.trim();
+    const value = match[2]?.trim();
+    if (key && value) result[key] = value;
+  }
+  return result;
+};
+
+export const login = async (username: string, password: string, companyUrl?: string): Promise<LoginResult> => {
   try {
-    const url = `${ERP_URL_METHOD}/login`;
-    console.log('Calling ERPNext login API at:', url);
-    console.log('Login payload (sanitized):', { username, pwdLength: password?.length || 0 });
+    const methodBase = companyUrl?.trim() || (await getMethodUrl());
+    if (!methodBase) {
+      const message = 'ERP method URL is not configured. Please provide a company URL.';
+      console.error(message);
+      return { ok: false, message };
+    }
+
+    const normalizedBase = normalizeMethodBase(methodBase);
+    const url = `${normalizedBase}/login`;
 
     const response = await fetch(url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ usr: username, pwd: password }),
     });
 
     const rawText = await response.text();
-    console.log('ERPNext login raw response text:', rawText);
-    console.log('ERPNext login response status:', response.status);
-    console.log('ERPNext login response headers:', Object.fromEntries(response.headers.entries?.() || []));
-
-    const setCookieHeader = response.headers?.get?.('set-cookie') || '';
-    const cookies = extractCookies(setCookieHeader);
+    const cookies = extractCookies(response.headers?.get?.('set-cookie') || '');
 
     let parsed: any = null;
     try {
@@ -49,7 +72,6 @@ export const login = async (username: string, password: string): Promise<LoginRe
 
     if (!response.ok) {
       const serverMessage = parseServerMessages(parsed);
-      console.error('ERPNext login failed with status:', response.status);
       return {
         ok: false,
         status: response.status,
@@ -59,39 +81,25 @@ export const login = async (username: string, password: string): Promise<LoginRe
       };
     }
 
-    console.log('ERPNext login response JSON:', parsed);
-    return { ok: true, data: parsed, cookies };
+    return { ok: true, data: parsed ?? rawText, cookies };
   } catch (error: any) {
-    console.error('ERPNext login API error:', error.message || error);
-    return { ok: false, message: error.message || 'Unexpected error' };
+    console.error('ERP login error:', error?.message || error);
+    return { ok: false, message: error?.message || 'Unexpected error' };
   }
-};
-
-const extractCookies = (setCookieHeader: string): Record<string, string> => {
-  const result: Record<string, string> = {};
-  if (!setCookieHeader) return result;
-
-  const regex = /(?:^|,)\s*([^=;]+)=([^;]+)/g;
-  let match;
-  while ((match = regex.exec(setCookieHeader)) !== null) {
-    const key = match[1]?.trim();
-    const value = match[2]?.trim();
-    if (key && value) {
-      result[key] = value;
-    }
-  }
-  return result;
 };
 
 export const logout = async (): Promise<{ ok: boolean; message?: string }> => {
   try {
     try {
-      await fetch(`${ERP_URL_METHOD}/logout`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
+      const base = normalizeMethodBase(await getMethodUrl());
+      if (base) {
+        await fetch(`${base}/logout`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
     } catch (err: any) {
-      console.warn('logout API call failed (continuing with local logout):', err?.message || err);
+      console.warn('logout API call failed (continuing with local cleanup):', err?.message || err);
     }
 
     try {

@@ -27,7 +27,7 @@ export default function SplashScreen() {
 
       {/* Centered title + accent */}
       <View style={styles.centerContent}>
-        <Text style={styles.appName}>ADDON-S HR</Text>
+        <Text style={styles.appName}>ADDON-S ERP</Text>
         <View style={styles.accent} />
         <Text style={styles.subtitle}>Employee Management System</Text>
       </View>
