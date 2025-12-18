@@ -6,6 +6,7 @@ import HomeScreen from '../screens/Dashboard /HomeScreen';
 import AccountDashboard from '../screens/Dashboard /AccountDashboard';
 import CRMDashboard from '../screens/Dashboard /CRMDashboard';
 import TimesheetScreen from '../screens/Dashboard /TimesheetScreen';
+import MoreScreen from '../screens/Dashboard /MoreScreen';
 import HRMDashboard from '../screens/Dashboard /HRMDashboard';
 
 const Tab = createBottomTabNavigator();
@@ -123,7 +124,7 @@ const DashboardTabs = () => {
       />
       <Tab.Screen 
         name="More" 
-        component={TimesheetScreen}
+        component={MoreScreen}
         options={{ tabBarLabel: 'More' }}
       />
     </Tab.Navigator>

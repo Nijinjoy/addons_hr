@@ -19,7 +19,7 @@ const ACTIONS = [
     label: 'Timesheet',
     sub: 'Capture today’s work',
     icon: <Ionicons name="time-outline" size={24} color="#0D1B2A" />,
-    route: 'Timesheet',
+    route: 'TimesheetScreen',
     style: 'accentTeal',
   },
   {
@@ -27,7 +27,7 @@ const ACTIONS = [
     label: 'Tasks',
     sub: 'My list & team board',
     icon: <Ionicons name="checkbox-outline" size={24} color="#0D1B2A" />,
-    route: 'Timesheet',
+    route: 'TaskList',
     style: 'accentOrange',
   },
   {

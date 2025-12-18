@@ -13,7 +13,7 @@ import {
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
 import Header from '../../components/Header';
-import { getLeaveBalance, getLeaveHistory, applyLeave } from '../../services/leaveService';
+import { getLeaveBalance, getLeaveApplications, applyLeave } from '../../services/api/leave.service';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
@@ -103,6 +103,7 @@ const LeaveScreen = () => {
       try {
         setLoadingBalance(true);
         setBalanceError('');
+        const companyUrl = (await AsyncStorage.getItem('company_url')) || '';
         const storedEmployee = (await AsyncStorage.getItem('employee_id')) || '';
         const fallbackUser = (await AsyncStorage.getItem('user_id')) || '';
         const employee = storedEmployee || fallbackUser;
@@ -110,14 +111,9 @@ const LeaveScreen = () => {
           setBalanceError('Employee id not found. Please log in again.');
           return;
         }
-        const res = await getLeaveBalance({ employee });
+        const res = await getLeaveBalance(companyUrl, employee);
         console.log('LeaveScreen balance response:', res);
-        if (!res.ok) {
-          setBalanceError(typeof res.message === 'string' ? res.message : 'Failed to load leave balance');
-          return;
-        }
-
-        const summary = (res.data || []) as { leave_type: string; allocated: number; used: number; available: number }[];
+        const summary = (res || []) as { leave_type: string; allocated: number; used: number; available: number }[];
 
         const mapped: LeaveBalance[] = summary.map((item: any, idx: number) => {
           const total = Number(item.allocated || 0);
@@ -150,6 +146,7 @@ const LeaveScreen = () => {
     try {
       setLoadingHistory(true);
       setHistoryError('');
+      const companyUrl = (await AsyncStorage.getItem('company_url')) || '';
       const storedEmployee = (await AsyncStorage.getItem('employee_id')) || '';
       const fallbackUser = (await AsyncStorage.getItem('user_id')) || '';
       const employee = storedEmployee || fallbackUser;
@@ -157,14 +154,10 @@ const LeaveScreen = () => {
         setHistoryError('Employee id not found. Please log in again.');
         return;
       }
-      const res = await getLeaveHistory({ employee, limit: 50 });
+      const res = await getLeaveApplications(companyUrl, employee, 50);
       console.log('LeaveScreen history response:', res);
-      if (!res.ok) {
-        setHistoryError(typeof res.message === 'string' ? res.message : 'Failed to load leave history');
-        return;
-      }
 
-      const mapped: LeaveHistoryItem[] = (res.data || []).map((item, idx) => ({
+      const mapped: LeaveHistoryItem[] = (res || []).map((item, idx) => ({
         id: item.id || item.name || String(idx),
         type: item.type || item.leave_type || 'Leave',
         startDate: item.startDate || item.from_date || '',
@@ -443,21 +436,19 @@ const LeaveScreen = () => {
                 }
                 try {
                   setSubmitting(true);
+                  const companyUrl = (await AsyncStorage.getItem('company_url')) || '';
                   const storedEmployee = (await AsyncStorage.getItem('employee_id')) || '';
                   const fallbackUser = (await AsyncStorage.getItem('user_id')) || '';
                   const employee = storedEmployee || fallbackUser;
-                  const res = await applyLeave({
+                  await applyLeave({
+                    companyUrl,
                     employee,
                     leave_type: applyLeaveType,
                     from_date: applyFromDate,
                     to_date: applyToDate,
-                    reason: applyReason,
+                    description: applyReason,
                   });
-                  console.log('Apply leave response:', res);
-                  if (!res.ok) {
-                    setHistoryError(typeof res.message === 'string' ? res.message : 'Failed to apply leave');
-                    return;
-                  }
+                  console.log('Apply leave response: success');
                   // Optimistically refresh history list
                   setApplyModalVisible(false);
                   setApplyReason('');
@@ -465,6 +456,10 @@ const LeaveScreen = () => {
                   setApplyToDate('');
                   setApplyLeaveType('');
                   await refreshHistory();
+                } catch (err: any) {
+                  const msg = err?.message || 'Failed to apply leave';
+                  setHistoryError(msg);
+                  console.log('Apply leave error:', msg);
                 } finally {
                   setSubmitting(false);
                 }

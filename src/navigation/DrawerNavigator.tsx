@@ -5,6 +5,9 @@ import DashboardTabs from './DashboardTabs';
 import ProfileScreen from '../screens/Dashboard /ProfileScreen';
 import AttendanceScreen from '../screens/Dashboard /AttendanceScreen';
 import LeadStack from './LeadStack';
+import TaskListScreen from '../screens/Dashboard /TaskListScreen';
+import TaskCreateNewScreen from '../screens/Dashboard /TaskCreateNewScreen';
+import TimesheetScreen from '../screens/Dashboard /TimesheetScreen';
 
 const Drawer = createDrawerNavigator();
 
@@ -32,6 +35,21 @@ const DrawerNavigator = () => {
       <Drawer.Screen
         name="Attendance"
         component={AttendanceScreen}
+        options={{ drawerItemStyle: { display: 'none' } }}
+      />
+      <Drawer.Screen
+        name="TaskList"
+        component={TaskListScreen}
+        options={{ drawerItemStyle: { display: 'none' } }}
+      />
+      <Drawer.Screen
+        name="TaskCreateNew"
+        component={TaskCreateNewScreen}
+        options={{ drawerItemStyle: { display: 'none' } }}
+      />
+      <Drawer.Screen
+        name="TimesheetScreen"
+        component={TimesheetScreen}
         options={{ drawerItemStyle: { display: 'none' } }}
       />
       <Drawer.Screen

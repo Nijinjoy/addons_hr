@@ -10,7 +10,9 @@ import {
   Alert,
   PermissionsAndroid,
   Linking,
+  NativeModules,
 } from 'react-native';
+import Geolocation from '@react-native-community/geolocation';
 import { useNavigation } from '@react-navigation/native';
 import Header from '../../components/Header';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -31,13 +33,19 @@ const HomeScreen: React.FC = () => {
     console.log('Notification pressed');
   };
   const requestLocationPermission = async (): Promise<boolean> => {
+    const hasNativeGeo = !!(NativeModules as any)?.RNCGeolocation;
+
     if (Platform.OS !== 'android') {
+      if (!hasNativeGeo) {
+        Alert.alert(
+          'Location unavailable',
+          'Geolocation is not linked in this iOS build. Please run pod install and rebuild.'
+        );
+        return false;
+      }
       try {
-        const geo = (navigator as any)?.geolocation;
-        if (geo?.requestAuthorization) {
-          const res = await geo.requestAuthorization();
-          return res !== 'denied';
-        }
+        const res = await Geolocation.requestAuthorization?.('whenInUse');
+        if (res && typeof res === 'string') return res !== 'denied' && res !== 'restricted';
       } catch {
         // ignore and let the system handle
       }
@@ -70,12 +78,14 @@ const HomeScreen: React.FC = () => {
 
   const getLocation = (): Promise<{ latitude?: number; longitude?: number }> =>
     new Promise((resolve, reject) => {
-      const geo =
-        (navigator as any)?.geolocation ||
-        // Some setups expose Geolocation on global instead of navigator
-        (global as any)?.Geolocation;
-      if (!geo?.getCurrentPosition) {
-        reject(new Error('Geolocation is not available in this app build'));
+      const hasNativeGeo = !!(NativeModules as any)?.RNCGeolocation;
+      const geo = Geolocation as any;
+      if (!hasNativeGeo || !geo?.getCurrentPosition) {
+        reject(
+          new Error(
+            'Geolocation module missing. Please install pods and rebuild the iOS app to enable location.'
+          )
+        );
         return;
       }
       geo.getCurrentPosition(

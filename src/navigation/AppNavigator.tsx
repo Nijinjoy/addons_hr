@@ -42,7 +42,7 @@ const AppNavigator = () => {
         {hasSession ? (
           <>
             <Stack.Screen name="Dashboard" component={DrawerNavigator} />
-            {/* <Stack.Screen name="Leaves" component={LeaveScreen} /> */}
+            <Stack.Screen name="Leaves" component={LeaveScreen} />
             <Stack.Screen name="Auth" component={AuthStack} />
           </>
         ) : (
