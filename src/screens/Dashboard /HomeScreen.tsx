@@ -25,9 +25,8 @@ import { addonserp } from '../../assets/images';
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
-  const [checkInLoading, setCheckInLoading] = useState(false);
-  const [lastCheckInText, setLastCheckInText] = useState('Last check-in was at 04:42 pm on 3 Dec');
-  const [lastLocation, setLastLocation] = useState<{ latitude?: number; longitude?: number }>({});
+  const [lastCheckInText] = useState('Welcome back!');
+  const [lastLocation] = useState<{ latitude?: number; longitude?: number }>({});
 
   const handleNotificationPress = () => {
     console.log('Notification pressed');
@@ -110,62 +109,7 @@ const HomeScreen: React.FC = () => {
     });
 
   const handleCheckIn = async () => {
-    if (checkInLoading) return;
-    try {
-      setCheckInLoading(true);
-      const emp = (await AsyncStorage.getItem('employee_id')) || (await AsyncStorage.getItem('user_id')) || '';
-      if (!emp) {
-        Alert.alert('Check In', 'Employee id not found. Please log in again.');
-        return;
-      }
-      const hasPerm = await requestLocationPermission();
-      if (!hasPerm) {
-        Alert.alert(
-          'Permission needed',
-          'Location permission is required to record your check-in.',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Open Settings', onPress: () => Linking.openSettings() },
-          ],
-        );
-        return;
-      }
-      const coords = await getLocation();
-      if (coords.latitude == null || coords.longitude == null) {
-        Alert.alert('Location error', 'Unable to fetch your location. Please try again with GPS enabled.');
-        return;
-      }
-      setLastLocation(coords);
-      const res = await checkIn(emp, 'IN', coords);
-      console.log('HomeScreen check-in response:', res);
-      if (!res.ok) {
-        Alert.alert('Check In', res.message || 'Failed to check in');
-        return;
-      }
-      const nowText = new Date().toLocaleString();
-      const locText =
-        coords.latitude != null && coords.longitude != null
-          ? ` (lat: ${coords.latitude.toFixed(5)}, lon: ${coords.longitude.toFixed(5)})`
-          : '';
-      setLastCheckInText(`Checked in at ${nowText}${locText}`);
-      Alert.alert('Check In', 'Checked in successfully.');
-    } catch (err: any) {
-      const msg = err?.message || 'Failed to check in';
-      if (String(msg).toLowerCase().includes('location')) {
-        Alert.alert(
-          'Location error',
-          `${msg}. Please ensure GPS is on and allow location permission.`,
-          [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Open Settings', onPress: () => Linking.openSettings() },
-          ]
-        );
-        return;
-      }
-      Alert.alert('Check In', msg);
-    } finally {
-      setCheckInLoading(false);
-    }
+    Alert.alert('Attendance', 'Check-in is available from the Attendance tab.');
   };
 
   // Quick links data
@@ -230,7 +174,7 @@ const HomeScreen: React.FC = () => {
       <StatusBar 
         barStyle="dark-content"
         backgroundColor="white" // Changed to white
-        translucent={Platform.OS === 'android'}
+        translucent={false}
       />
       <Header 
         navigation={navigation}
@@ -249,6 +193,8 @@ const HomeScreen: React.FC = () => {
             }
           ]}
           showsVerticalScrollIndicator={false}
+          bounces={false}
+          contentInsetAdjustmentBehavior="never"
           contentContainerStyle={[
             styles.scrollContent,
             {
@@ -258,26 +204,15 @@ const HomeScreen: React.FC = () => {
         >
           {/* Welcome Section */}
           <View style={styles.welcomeSection}>
-            <Text style={styles.welcomeText}>Hey, Nijin Joy</Text>
-            <View style={styles.checkInCard}>
-              <View style={styles.checkInHeader}>
-                <View style={styles.checkInStatus}>
-                  <View style={[styles.statusDot, styles.activeDot]} />
-                  <Text style={styles.checkInStatusText}>Checked In</Text>
-                </View>
-                <TouchableOpacity style={styles.checkOutButton} onPress={handleCheckIn} disabled={checkInLoading}>
-                  <Text style={styles.checkOutButtonText}>{checkInLoading ? 'Checking...' : 'Check In'}</Text>
-                </TouchableOpacity>
-              </View>
-              
-              <View style={styles.lastCheckInInfo}>
-                <Icon name="access-time" size={16} color="#666" />
-                <Text style={styles.lastCheckInText}>{lastCheckInText}</Text>
-              </View>
-              
-              <TouchableOpacity style={styles.viewListButton}>
-                <Text style={styles.viewListText}>View List</Text>
-                <Icon name="chevron-right" size={16} color="#2E8B57" />
+            <View style={styles.heroCard}>
+              <Text style={styles.heroTitle}>Welcome back</Text>
+              <Text style={styles.heroSubtitle}>Quick actions to get you started.</Text>
+              <TouchableOpacity
+                style={styles.heroButton}
+                onPress={() => navigation.navigate('Attendance' as never)}
+              >
+                <Text style={styles.heroButtonText}>Open Attendance</Text>
+                <Icon name="chevron-right" size={18} color="#0F172A" />
               </TouchableOpacity>
             </View>
           </View>
@@ -343,81 +278,30 @@ const styles = StyleSheet.create({
     color: '#333',
     marginBottom: 20,
   },
-  checkInCard: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 16,
+  heroCard: {
+    backgroundColor: '#0F172A',
+    borderRadius: 16,
+    padding: 18,
+    gap: 10,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    shadowOffset: { width: 0, height: 8 },
+    shadowRadius: 16,
+    elevation: 6,
   },
-  checkInHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  checkInStatus: {
+  heroTitle: { color: '#FFFFFF', fontWeight: '800', fontSize: 22 },
+  heroSubtitle: { color: '#E2E8F0', fontSize: 13, lineHeight: 18 },
+  heroButton: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 8,
-  },
-  activeDot: {
-    backgroundColor: '#4CAF50',
-  },
-  checkInStatusText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-  },
-  checkOutButton: {
-    backgroundColor: '#22C55E',
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    borderRadius: 6,
-  },
-  checkOutButtonText: {
-    color: 'white',
-    fontWeight: '600',
-    fontSize: 14,
-  },
-  lastCheckInInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-    backgroundColor: '#F8F9FA',
-    padding: 12,
-    borderRadius: 8,
-  },
-  lastCheckInText: {
-    fontSize: 14,
-    color: '#666',
-    marginLeft: 8,
-  },
-  viewListButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: '#FACC15',
+    paddingHorizontal: 14,
     paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: '#2E8B57',
-    borderRadius: 8,
+    borderRadius: 12,
+    gap: 8,
   },
-  viewListText: {
-    fontSize: 14,
-    color: '#2E8B57',
-    fontWeight: '600',
-    marginRight: 4,
-  },
+  heroButtonText: { color: '#0F172A', fontWeight: '800', fontSize: 14 },
   quickLinksSection: {
     marginBottom: 24,
   },

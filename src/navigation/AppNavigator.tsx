@@ -38,7 +38,10 @@ const AppNavigator = () => {
 
   return (
     <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName={initialRoute}>
+      <Stack.Navigator
+        screenOptions={{ headerShown: false, animation: 'fade' }}
+        initialRouteName={initialRoute}
+      >
         {hasSession ? (
           <>
             <Stack.Screen name="Dashboard" component={DrawerNavigator} />

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Linking,
   PermissionsAndroid,
   NativeModules,
+  ActivityIndicator,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Geolocation from '@react-native-community/geolocation';
@@ -17,61 +18,44 @@ import Header from '../../components/Header';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useNavigation } from '@react-navigation/native';
-import { checkIn as checkInApi, checkOut as checkOutApi } from '../../services/api/attendance.service';
+import {
+  checkIn as checkInApi,
+  checkOut as checkOutApi,
+} from '../../services/api/attendance.service';
+import { getAttendanceLogs } from '../../services/attendanceService';
+
+type HistoryEntry = {
+  id: string;
+  date: string;
+  checkIn?: string;
+  checkOut?: string;
+  totalHours?: string;
+  hoursValue?: number;
+  status?: string;
+  shift?: string;
+  location?: string;
+};
 
 const AttendanceScreen = () => {
   const navigation = useNavigation();
   const statusStorageKey = 'attendance_status';
   const locationStorageKey = 'attendance_last_location';
   const coordsStorageKey = 'attendance_last_coords';
+
   const [isCheckedIn, setIsCheckedIn] = useState(false);
-  const [lastEvent, setLastEvent] = useState('No check-in recorded yet');
   const [loading, setLoading] = useState(false);
+  const [lastEvent, setLastEvent] = useState('No check-in recorded yet');
   const [lastLocation, setLastLocation] = useState('Location not captured yet');
   const [lastCoords, setLastCoords] = useState('Coords not captured');
-  const [history, setHistory] = useState<
-    {
-      id: string;
-      date: string;
-      checkIn?: string;
-      checkOut?: string;
-      totalHours?: string;
-      location?: string;
-    }[]
-  >([
-    {
-      id: 'h1',
-      date: 'Oct 14, 2025',
-      checkIn: '9:00 AM',
-      checkOut: '6:00 PM',
-      totalHours: '9h 0m',
-      location: 'Office',
-    },
-    {
-      id: 'h2',
-      date: 'Oct 13, 2025',
-      checkIn: '8:55 AM',
-      checkOut: '5:58 PM',
-      totalHours: '9h 3m',
-      location: 'Office',
-    },
-    {
-      id: 'h3',
-      date: 'Oct 12, 2025',
-      checkIn: '9:02 AM',
-      checkOut: '6:05 PM',
-      totalHours: '9h 3m',
-      location: 'Office',
-    },
-    {
-      id: 'h4',
-      date: 'Oct 11, 2025',
-      checkIn: '9:00 AM',
-      checkOut: '6:00 PM',
-      totalHours: '9h 0m',
-      location: 'Office',
-    },
-  ]);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [now, setNow] = useState(new Date());
+  const [lastCheckInLabel, setLastCheckInLabel] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const requestLocationPermission = async (): Promise<boolean> => {
     const hasNativeGeo = !!(NativeModules as any)?.RNCGeolocation;
@@ -152,25 +136,273 @@ const AttendanceScreen = () => {
       );
     });
 
-  useEffect(() => {
-    const loadStatus = async () => {
-      try {
-        const savedStatus = await AsyncStorage.getItem(statusStorageKey);
-        const savedLocation = await AsyncStorage.getItem(locationStorageKey);
-        const savedCoords = await AsyncStorage.getItem(coordsStorageKey);
-        if (savedStatus) {
-          const isIn = savedStatus === 'IN';
-          setIsCheckedIn(isIn);
-          setLastEvent(`Last status: ${isIn ? 'Checked In' : 'Checked Out'}`);
-        }
-        if (savedLocation) setLastLocation(savedLocation);
-        if (savedCoords) setLastCoords(savedCoords);
-      } catch (err) {
-        console.log('Failed to load attendance status:', err);
+  const looksLikeCoords = (val?: string) =>
+    typeof val === 'string' && /^\s*-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?\s*$/.test(val);
+
+  const reverseGeocodeLabel = async (coords?: { latitude?: number; longitude?: number }) => {
+    if (!coords?.latitude && !coords?.longitude) return undefined;
+    const { latitude, longitude } = coords;
+    if (latitude == null || longitude == null) return undefined;
+    try {
+      const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${encodeURIComponent(
+        latitude
+      )}&longitude=${encodeURIComponent(longitude)}&localityLanguage=en`;
+      const res = await fetch(url);
+      if (!res.ok) return undefined;
+      const data: any = await res.json();
+      const parts = [data.city, data.locality, data.principalSubdivision, data.countryName]
+        .map((p) => (p || '').trim())
+        .filter(Boolean);
+      const place = parts.join(', ');
+      return place || data?.localityInfo?.informative?.[0]?.name || undefined;
+    } catch (err) {
+      console.log('reverseGeocodeLabel failed:', err);
+      return undefined;
+    }
+  };
+
+  const loadStatus = async () => {
+    try {
+      const savedStatus = await AsyncStorage.getItem(statusStorageKey);
+      const savedLocation = await AsyncStorage.getItem(locationStorageKey);
+      const savedCoords = await AsyncStorage.getItem(coordsStorageKey);
+      if (savedStatus) {
+        const isIn = savedStatus === 'IN';
+        setIsCheckedIn(isIn);
+        setLastEvent(`Last status: ${isIn ? 'Checked In' : 'Checked Out'}`);
       }
-    };
+      if (savedLocation) setLastLocation(savedLocation);
+      if (savedCoords) setLastCoords(savedCoords);
+    } catch (err) {
+      console.log('Failed to load attendance status:', err);
+    }
+  };
+
+  useEffect(() => {
     loadStatus();
   }, []);
+
+  const fetchHistory = async () => {
+    try {
+      setHistoryLoading(true);
+      const emp =
+        (await AsyncStorage.getItem('employee_id')) ||
+        (await AsyncStorage.getItem('user_id')) ||
+        '';
+      if (!emp) {
+        setHistory([]);
+        return;
+      }
+      const res = await getAttendanceLogs(emp, 30);
+      console.log('Attendance history response:', res);
+      let latestType: 'IN' | 'OUT' | undefined;
+      let latestTimestamp: string | undefined;
+      let latestLocationFromServer: string | undefined;
+      let latestCheckInTime: string | undefined;
+      if (res.ok && res.data?.length) {
+        const parsed = res.data.map((row) => {
+          const rawDate = row.attendance_date || row.time;
+          const dateObj = rawDate ? new Date(rawDate) : null;
+          const date =
+            dateObj && !Number.isNaN(dateObj.getTime())
+              ? dateObj.toLocaleDateString(undefined, {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                })
+              : rawDate || '—';
+          const inTimeObj = row.in_time ? new Date(row.in_time) : dateObj;
+          const outTimeObj = row.out_time ? new Date(row.out_time) : undefined;
+          const formatTime = (d?: Date | null) =>
+            d && !Number.isNaN(d.getTime())
+              ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+              : undefined;
+          const fallbackTime = dateObj ? formatTime(dateObj) : undefined;
+          const timeStr = formatTime(inTimeObj) || fallbackTime;
+          const outStr =
+            row.log_type === 'OUT'
+              ? formatTime(outTimeObj) || fallbackTime
+              : formatTime(outTimeObj);
+          const hoursValue =
+            inTimeObj &&
+            outTimeObj &&
+            !Number.isNaN(inTimeObj.getTime()) &&
+            !Number.isNaN(outTimeObj.getTime()) &&
+            outTimeObj.getTime() > inTimeObj.getTime()
+              ? (outTimeObj.getTime() - inTimeObj.getTime()) / (1000 * 60 * 60)
+              : undefined;
+          const totalHours = hoursValue != null ? `${hoursValue.toFixed(2)} hrs` : undefined;
+          const statusLabel =
+            row.status ||
+            (row.log_type === 'IN' || row.in_time ? 'Present' : row.log_type === 'OUT' ? 'Present' : undefined);
+          const shiftLabel = row.shift || row.shift_type || undefined;
+          const location =
+            row.device_id ||
+            (row.latitude != null && row.longitude != null
+              ? `${row.latitude.toFixed(5)},${row.longitude.toFixed(5)}`
+              : '');
+          return {
+            id: row.name,
+            date,
+            checkIn: row.log_type === 'IN' || row.in_time ? timeStr : undefined,
+            checkOut: row.log_type === 'OUT' || row.out_time ? outStr : undefined,
+            status: statusLabel,
+            shift: shiftLabel,
+            totalHours,
+            hoursValue,
+            location,
+            timeMs: dateObj && !Number.isNaN(dateObj.getTime()) ? dateObj.getTime() : undefined,
+          };
+        });
+        const latestRow = [...(res.data || [])]
+          .map((row) => {
+            const candidates = [row.out_time, row.in_time, row.time, row.attendance_date].filter(Boolean);
+            const timeMs = candidates
+              .map((t: any) => new Date(t).getTime())
+              .find((ms) => !Number.isNaN(ms));
+            return { row, timeMs: timeMs ?? 0 };
+          })
+          .sort((a, b) => b.timeMs - a.timeMs)[0]?.row;
+        if (latestRow) {
+          latestType =
+            latestRow.log_type ||
+            (latestRow.out_time ? 'OUT' : latestRow.in_time ? 'IN' : undefined);
+          const latestTime =
+            latestRow.out_time || latestRow.in_time || latestRow.time || latestRow.attendance_date;
+          latestTimestamp =
+            latestTime && !Number.isNaN(new Date(latestTime).getTime())
+              ? new Date(latestTime).toLocaleString()
+              : undefined;
+          latestLocationFromServer =
+            latestRow.device_id ||
+            (latestRow.latitude != null && latestRow.longitude != null
+              ? `${Number(latestRow.latitude).toFixed(5)},${Number(latestRow.longitude).toFixed(5)}`
+              : undefined);
+        }
+        const latestCheckInRow = [...(res.data || [])]
+          .map((row) => {
+            const t = row.in_time || row.time || row.attendance_date;
+            const ms = t ? new Date(t).getTime() : 0;
+            return { row, ms };
+          })
+          .filter(
+            (r) =>
+              r.row?.log_type === 'IN' ||
+              r.row?.in_time ||
+              r.row?.time ||
+              r.row?.attendance_date
+          )
+          .sort((a, b) => b.ms - a.ms)[0];
+        if (latestCheckInRow?.ms) {
+          const formatted = new Date(latestCheckInRow.ms).toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+          });
+          latestCheckInTime = formatted;
+        }
+        // Aggregate by date to build Attendance-style rows with status, shift, in/out, hours
+        const byDate = new Map<
+          string,
+          HistoryEntry & { inMs?: number; outMs?: number; lastMs?: number }
+        >();
+        parsed
+          .sort((a, b) => (a.timeMs || 0) - (b.timeMs || 0))
+          .forEach((entry) => {
+            const key = entry.date;
+            const existing =
+              byDate.get(key) ||
+              ({
+                id: entry.id || key,
+                date: entry.date,
+                status: entry.status,
+                shift: entry.shift,
+                location: entry.location,
+                inMs: undefined,
+                outMs: undefined,
+                lastMs: entry.timeMs,
+              } as HistoryEntry & { inMs?: number; outMs?: number; lastMs?: number });
+            if (!existing.id) existing.id = entry.id || key;
+            if (entry.status) existing.status = entry.status;
+            if (entry.shift) existing.shift = entry.shift;
+            if (entry.location) existing.location = entry.location;
+            if (entry.checkIn) {
+              if (existing.inMs == null || (entry.timeMs || 0) < (existing.inMs || 0)) {
+                existing.checkIn = entry.checkIn;
+                existing.inMs = entry.timeMs;
+              }
+            }
+            if (entry.checkOut) {
+              if (existing.outMs == null || (entry.timeMs || 0) > (existing.outMs || 0)) {
+                existing.checkOut = entry.checkOut;
+                existing.outMs = entry.timeMs;
+              }
+            }
+            existing.lastMs = Math.max(existing.lastMs || 0, entry.timeMs || 0);
+            byDate.set(key, existing);
+          });
+        const aggregated: HistoryEntry[] = Array.from(byDate.values()).map((item) => {
+          if (item.inMs != null && item.outMs != null && item.outMs > item.inMs) {
+            const hours = (item.outMs - item.inMs) / (1000 * 60 * 60);
+            item.hoursValue = hours;
+            item.totalHours = `${hours.toFixed(2)} hrs`;
+          }
+          return item;
+        });
+        const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+        const limited = aggregated
+          .filter((p) => (p.lastMs || 0) >= sevenDaysAgo)
+          .sort((a, b) => (b.lastMs || 0) - (a.lastMs || 0))
+          .slice(0, 7)
+          .map(({ inMs, outMs, lastMs, ...rest }) => rest);
+        setHistory(limited);
+        console.log('Attendance history parsed entries:', {
+          parsedCount: parsed.length,
+          aggregatedCount: aggregated.length,
+          limited,
+        });
+      } else {
+        setHistory([]);
+      }
+      if (latestType) {
+        setIsCheckedIn(latestType === 'IN');
+        setLastEvent(
+          `Last status: ${latestType === 'IN' ? 'Checked in' : 'Checked out'}${
+            latestTimestamp ? ` at ${latestTimestamp}` : ''
+          }`
+        );
+        if (latestLocationFromServer) {
+          setLastLocation(latestLocationFromServer);
+          await AsyncStorage.setItem(locationStorageKey, latestLocationFromServer);
+        }
+        await AsyncStorage.setItem(statusStorageKey, latestType);
+      }
+      if (latestCheckInTime) {
+        setLastCheckInLabel(`You clocked in at ${latestCheckInTime}`);
+      }
+    } catch (err: any) {
+      console.log('Attendance history fetch error:', err?.message || err);
+      setHistory([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchHistory();
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = (navigation as any)?.addListener?.('focus', () => {
+      fetchHistory();
+    });
+    return unsubscribe;
+  }, [navigation]);
+
+  const handleRefreshHistory = async () => {
+    console.log('Attendance history: manual refresh triggered');
+    await fetchHistory();
+    console.log('Attendance history: refresh complete', { count: history.length });
+  };
 
   const handleCheck = async (type: 'IN' | 'OUT') => {
     if (loading) return;
@@ -207,12 +439,15 @@ const AttendanceScreen = () => {
           ? await checkInApi({
               ...servicePayload,
               logType: 'IN',
-              // Let the service reverse-geocode and format location
             })
           : await checkOutApi({
               ...servicePayload,
-              // Let the service reverse-geocode and format location
             });
+
+      console.log(
+        `Attendance ${type === 'IN' ? 'check-in' : 'check-out'} response:`,
+        res
+      );
 
       if (!res.ok) {
         Alert.alert('Attendance', res.message || `Failed to check ${type === 'IN' ? 'in' : 'out'}.`);
@@ -230,232 +465,198 @@ const AttendanceScreen = () => {
         (finalLat != null && finalLon != null
           ? `${Number(finalLat).toFixed(6)},${Number(finalLon).toFixed(6)}`
           : undefined);
+      const displayLocation =
+        (!looksLikeCoords(locationString) && locationString) ||
+        (await reverseGeocodeLabel({ latitude: finalLat, longitude: finalLon })) ||
+        locationString;
 
-      const now = new Date();
-      const dateLabel = now.toLocaleDateString();
-      const timeLabel = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const nowLabel = new Date().toLocaleString();
       setIsCheckedIn(type === 'IN');
       setLastEvent(
-        `${type === 'IN' ? 'Checked in' : 'Checked out'} at ${now.toLocaleString()}${
+        `${type === 'IN' ? 'Checked in' : 'Checked out'} at ${nowLabel}${
           locationString ? ' | Location recorded' : ''
         }`
       );
-      setLastLocation(locationString || 'Location not captured');
+      setLastLocation(displayLocation || 'Location not captured yet');
       setLastCoords(
         finalLat != null && finalLon != null
-          ? `Lat: ${Number(finalLat).toFixed(6)}, Lon: ${Number(finalLon).toFixed(6)}`
+          ? `${finalLat.toFixed(6)},${finalLon.toFixed(6)}`
           : 'Coords not captured'
       );
-      try {
-        await AsyncStorage.multiSet([
-          [statusStorageKey, type],
-          [locationStorageKey, locationString || 'Location not captured'],
-          [coordsStorageKey, finalLat != null && finalLon != null ? `${Number(finalLat).toFixed(6)},${Number(finalLon).toFixed(6)}` : ''],
-        ]);
-      } catch (errStore) {
-        console.log('Failed to persist attendance status:', errStore);
+      if (type === 'IN') {
+        const timeLabel = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        setLastCheckInLabel(`You clocked in at ${timeLabel}`);
       }
-      setHistory((prev) => {
-        const todayIndex = prev.findIndex((h) => h.date === dateLabel);
-        if (todayIndex === -1) {
-          const newEntry = {
-            id: String(now.getTime()),
-            date: dateLabel,
-            checkIn: type === 'IN' ? timeLabel : undefined,
-            checkOut: type === 'OUT' ? timeLabel : undefined,
-            totalHours: type === 'OUT' ? '—' : undefined,
-            location: locationString,
-          };
-          return [newEntry, ...prev];
-        }
-        const updated = [...prev];
-        const existing = { ...updated[todayIndex] };
-        if (type === 'IN') existing.checkIn = timeLabel;
-        if (type === 'OUT') existing.checkOut = timeLabel;
-        if (existing.checkIn && existing.checkOut) {
-          const start = new Date(`${existing.date} ${existing.checkIn}`);
-          const end = new Date(`${existing.date} ${existing.checkOut}`);
-          const diffMs = end.getTime() - start.getTime();
-          if (!Number.isNaN(diffMs) && diffMs > 0) {
-            const hours = diffMs / (1000 * 60 * 60);
-            existing.totalHours = `${hours.toFixed(2)} hrs`;
-          }
-        }
-        existing.location = locationString || existing.location;
-        updated[todayIndex] = existing;
-        return updated;
-      });
-      Alert.alert('Attendance', `Successfully checked ${type === 'IN' ? 'in' : 'out'}.`);
+
+      await AsyncStorage.setItem(statusStorageKey, type);
+      if (displayLocation) await AsyncStorage.setItem(locationStorageKey, displayLocation);
+      if (finalLat != null && finalLon != null)
+        await AsyncStorage.setItem(coordsStorageKey, `${finalLat},${finalLon}`);
+
+      fetchHistory();
+      Alert.alert('Attendance', `You are ${type === 'IN' ? 'checked in' : 'checked out'}.`);
     } catch (err: any) {
-      const msg = err?.message || 'Failed to record attendance';
-      if (String(msg).toLowerCase().includes('location')) {
-        Alert.alert('Location error', `${msg}. Please ensure GPS is on and allow location permission.`, [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Open Settings', onPress: () => Linking.openSettings() },
-        ]);
-        return;
-      }
-      Alert.alert('Attendance', msg);
+      console.log('Attendance check error:', err?.message || err);
+      Alert.alert('Attendance', err?.message || `Failed to check ${type === 'IN' ? 'in' : 'out'}.`);
     } finally {
       setLoading(false);
     }
   };
 
-  const ActionCard = ({
-    icon,
-    title,
-    subtitle,
-    onPress,
-    tint,
-  }: {
-    icon: React.ReactNode;
-    title: string;
-    subtitle: string;
-    onPress?: () => void;
-    tint: any;
-  }) => (
-    <Pressable
-      onPress={onPress}
-      android_ripple={{ color: '#CBD5E1' }}
-      style={({ pressed }) => [styles.actionCard, tint, pressed && styles.pressed]}
-    >
-      <View style={styles.cardRow}>
-        {icon}
-        <View style={{ flex: 1, marginLeft: 12 }}>
-          <Text style={styles.cardTitle}>{title}</Text>
-          <Text style={styles.cardSubtitle}>{subtitle}</Text>
-        </View>
-        <Ionicons name="arrow-forward" size={18} color="#0F172A" />
-      </View>
-    </Pressable>
-  );
+  const currentTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const currentDate = now.toLocaleDateString(undefined, {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  });
+
+  const stats = useMemo(() => {
+    const days = history.length;
+    const hoursTotal = history.reduce((acc, h) => acc + (h.hoursValue || 0), 0);
+    return {
+      hours: hoursTotal.toFixed(2),
+      days: days.toString(),
+      late: '0',
+    };
+  }, [history]);
 
   return (
     <View style={styles.container}>
       <Header
         screenName="Attendance"
-        useGradient
         showBack
-        notificationCount={0}
         navigation={navigation as any}
-        onBackPress={() => {
-          // Send user back to the HRM tab inside the main dashboard
-          navigation.navigate('Dashboard' as never, {
-            screen: 'DashboardTabs',
-            params: { screen: 'HRM' },
-          } as never);
-        }}
-        onNotificationPress={() => console.log('Notifications pressed')}
-        onProfilePress={() => navigation.getParent()?.openDrawer?.()}
+        onBackPress={() => navigation.goBack()}
       />
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.card}>
+          <View style={styles.clockIconWrap}>
+            <Ionicons name="time-outline" size={36} color="#0F172A" />
+          </View>
+          <Text style={styles.clockText}>{currentTime}</Text>
+          <Text style={styles.dateText}>{currentDate}</Text>
+          <View style={styles.locationRowTop}>
+            <Ionicons name="location-outline" size={14} color="#0F172A" />
+            <Text style={styles.locationTextTop} numberOfLines={2}>
+              {lastLocation}
+            </Text>
+          </View>
+          <Pressable
+            style={({ pressed }) => [
+              styles.primaryButton,
+              isCheckedIn && styles.primaryButtonDanger,
+              pressed && styles.primaryButtonPressed,
+            ]}
+            android_ripple={{ color: '#E5E7EB' }}
+            onPress={() => handleCheck(isCheckedIn ? 'OUT' : 'IN')}
+            disabled={loading}
+          >
+            <Text style={styles.primaryButtonText}>
+              {loading ? 'Please wait...' : isCheckedIn ? 'Clock Out' : 'Clock In'}
+            </Text>
+          </Pressable>
+          {lastCheckInLabel ? <Text style={styles.clockedText}>{lastCheckInLabel}</Text> : null}
+        </View>
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.statusCard}>
-          <View style={styles.statusTopRow}>
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{isCheckedIn ? 'ON SHIFT' : 'OFF SHIFT'}</Text>
-            </View>
-            <Text style={styles.statusSmall}>{loading ? 'Updating...' : 'Tap to toggle attendance'}</Text>
+        <Text style={styles.sectionHeading}>This Week</Text>
+        <View style={styles.statsCard}>
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>{stats.hours}</Text>
+            <Text style={styles.statLabel}>Hours</Text>
           </View>
-          <View style={styles.statusMain}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.statusLabel}>Current status</Text>
-              <Text style={styles.statusText}>{isCheckedIn ? 'Checked In' : 'Checked Out'}</Text>
-              <Text style={styles.statusNote}>{lastEvent}</Text>
-              <Text style={styles.locationLabel} numberOfLines={2}>
-                {lastLocation}
-              </Text>
-              <Text style={styles.coordLabel}>{lastCoords}</Text>
-            </View>
-            <Pressable
-              onPress={() => handleCheck(isCheckedIn ? 'OUT' : 'IN')}
-              disabled={loading}
-              android_ripple={{ color: '#FFFFFF20' }}
-              style={({ pressed }) => [
-                styles.primaryBtn,
-                isCheckedIn ? styles.btnOut : styles.btnIn,
-                (pressed || loading) && styles.btnPressed,
-              ]}
-            >
-              <Text style={styles.primaryBtnText}>
-                {loading ? 'Please wait...' : isCheckedIn ? 'Check Out' : 'Check In'}
-              </Text>
-            </Pressable>
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>{stats.days}</Text>
+            <Text style={styles.statLabel}>Days</Text>
           </View>
-          <View style={styles.metaRow}>
-            <View style={styles.metaItem}>
-              <Ionicons name="time-outline" size={16} color="#E2E8F0" />
-              <Text style={styles.metaText}>Shift: 9:00 AM - 6:00 PM</Text>
-            </View>
-            <View style={styles.metaItem}>
-              <Ionicons name="location-outline" size={16} color="#E2E8F0" />
-              <Text style={styles.metaText} numberOfLines={1}>
-                {lastLocation !== 'Location not captured yet' ? 'Location synced' : 'Awaiting GPS'}
-              </Text>
-            </View>
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>{stats.late}</Text>
+            <Text style={styles.statLabel}>Late</Text>
           </View>
         </View>
 
-        <Text style={styles.sectionHeading}>History</Text>
-        <View style={styles.historyBox}>
-          {history.length === 0 ? (
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionHeading}>Recent History</Text>
+          <Pressable
+            hitSlop={8}
+            style={({ pressed }) => [styles.refreshBtn, pressed && styles.refreshBtnPressed]}
+            onPress={handleRefreshHistory}
+          >
+            <Ionicons name="refresh" size={16} color="#0F172A" />
+            <Text style={styles.refreshLabel}>Fetch</Text>
+          </Pressable>
+        </View>
+        <View style={styles.historyCard}>
+          {historyLoading ? (
+            <View style={styles.historyRow}>
+              <ActivityIndicator size="small" color="#0F172A" />
+              <Text style={styles.historyEmpty}>Loading history...</Text>
+            </View>
+          ) : history.length === 0 ? (
             <Text style={styles.historyEmpty}>No attendance records yet.</Text>
           ) : (
-            history.map((item, idx) => (
-              <View
-                key={item.id}
-                style={[
-                  styles.historyRowCard,
-                  idx !== history.length - 1 && styles.historyDivider,
-                ]}
-              >
-                <View style={styles.historyLeft}>
-                  <Ionicons name="calendar-outline" size={18} color="#0F172A" />
-                  <View style={{ marginLeft: 10 }}>
-                    <Text style={styles.historyDate}>{item.date}</Text>
-                    <View style={styles.historyTimesColumn}>
-                      <View style={styles.historySimpleRow}>
-                        <Text style={styles.historyTimeLabel}>In:</Text>
-                        <Text style={styles.historyTimeValue}>{item.checkIn || '—'}</Text>
+            history.map((item) => {
+              const statusText = item.status;
+              const isAbsent = statusText?.toLowerCase() === 'absent';
+              const statusStyle = isAbsent ? styles.historyStatusAbsent : styles.historyStatus;
+              return (
+                <Pressable
+                  key={item.id}
+                  style={({ pressed }) => [styles.historyCardItem, pressed && styles.historyCardItemPressed]}
+                  android_ripple={{ color: '#E5E7EB' }}
+                >
+                  <View style={styles.historyCardHeader}>
+                    <View style={styles.historyDateRow}>
+                      <MaterialCommunityIcons name="calendar-blank" size={16} color="#0F172A" />
+                      <Text style={styles.historyDate}>{item.date}</Text>
+                    </View>
+                    {statusText ? (
+                      <View style={[styles.statusChip, isAbsent && styles.statusChipAbsent]}>
+                        <Text style={statusStyle}>{statusText}</Text>
                       </View>
-                      <View style={styles.historySimpleRow}>
-                        <Text style={styles.historyTimeLabel}>Out:</Text>
-                        <Text style={styles.historyTimeValue}>{item.checkOut || '—'}</Text>
+                    ) : null}
+                  </View>
+
+                  <View style={styles.historyInfoRow}>
+                    <View style={styles.infoPill}>
+                      <Ionicons name="briefcase-outline" size={14} color="#0F172A" />
+                      <Text style={styles.pillText}>{item.shift || 'No shift'}</Text>
+                    </View>
+                    {item.totalHours ? (
+                      <View style={styles.infoPill}>
+                        <Ionicons name="timer-outline" size={14} color="#0F172A" />
+                        <Text style={styles.pillText}>{item.totalHours}</Text>
                       </View>
+                    ) : null}
+                  </View>
+
+                  <View style={styles.timeRow}>
+                    <View style={styles.timeBlock}>
+                      <Text style={styles.timeLabel}>In</Text>
+                      <Text style={styles.timeValue}>{item.checkIn || '—'}</Text>
+                    </View>
+                    <View style={styles.timeDivider} />
+                    <View style={styles.timeBlock}>
+                      <Text style={styles.timeLabel}>Out</Text>
+                      <Text style={styles.timeValue}>{item.checkOut || '—'}</Text>
                     </View>
                   </View>
-                </View>
-                <View style={styles.historyRight}>
-                  <Text style={styles.historyDuration}>{item.totalHours || '—'}</Text>
-                </View>
-              </View>
-            ))
-          )}
-        </View>
 
-        <Text style={styles.sectionHeading}>Requests</Text>
-        <View style={styles.actionsRow}>
-          <ActionCard
-            icon={<MaterialCommunityIcons name="calendar-plus" size={24} color="#0F172A" />}
-            title="Request Attendance"
-            subtitle="Submit corrections or manual logs"
-            onPress={() => console.log('Request attendance')}
-            tint={styles.accentBlue}
-          />
-          <ActionCard
-            icon={<Ionicons name="briefcase-outline" size={22} color="#0F172A" />}
-            title="Request a Shift"
-            subtitle="Ask for a shift change"
-            onPress={() => console.log('Request shift')}
-            tint={styles.accentTeal}
-          />
-          <ActionCard
-            icon={<Ionicons name="checkbox-outline" size={22} color="#0F172A" />}
-            title="Tasks"
-            subtitle="View your task list"
-            onPress={() => navigation.navigate('TaskList' as never)}
-            tint={styles.accentBlue}
-          />
+                  {item.location ? (
+                    <View style={styles.historyLocationRow}>
+                      <Ionicons name="location-outline" size={14} color="#6B7280" />
+                      <Text style={styles.historyLocationText} numberOfLines={1}>
+                        {item.location}
+                      </Text>
+                    </View>
+                  ) : null}
+                </Pressable>
+              );
+            })
+          )}
         </View>
       </ScrollView>
     </View>
@@ -463,112 +664,165 @@ const AttendanceScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: 'white' },
-  content: { padding: 16, gap: 16, paddingBottom: 32 },
-  statusCard: {
-    backgroundColor: '#0F172A',
+  container: { flex: 1, backgroundColor: '#FFFFFF' },
+  content: { padding: 16, gap: 14, paddingBottom: 24 },
+  card: {
+    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 18,
-    gap: 12,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowOffset: { width: 0, height: 6 },
-    shadowRadius: 12,
-    elevation: 4,
-  },
-  statusTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-  },
-  statusMain: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-  },
-  statusLabel: { color: '#A5B4FC', fontWeight: '700', fontSize: 12, letterSpacing: 1 },
-  statusText: { color: '#FFFFFF', fontWeight: '800', fontSize: 22, marginTop: 6 },
-  statusNote: { color: '#E2E8F0', fontSize: 13, marginTop: 4 },
-  statusSmall: { color: '#E2E8F0', fontSize: 12 },
-  badge: {
-    backgroundColor: '#22C55E',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-  },
-  badgeText: { color: '#0F172A', fontWeight: '800', fontSize: 11, letterSpacing: 0.5 },
-  locationLabel: { color: '#CBD5E1', marginTop: 6, fontSize: 12, lineHeight: 16 },
-  coordLabel: { color: '#CBD5E1', marginTop: 2, fontSize: 11 },
-  primaryBtn: {
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-    borderRadius: 14,
-    minWidth: 120,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  btnIn: { backgroundColor: '#22C55E' },
-  btnOut: { backgroundColor: '#F97316' },
-  primaryBtnText: { color: '#0F172A', fontWeight: '800', fontSize: 15 },
-  btnPressed: { opacity: 0.85 },
-  sectionHeading: { fontSize: 18, fontWeight: '700', color: '#0D1B2A', marginTop: 4 },
-  historyBox: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  historyRowCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-  },
-  historyLeft: { flexDirection: 'row', alignItems: 'flex-start', flex: 1 },
-  historyDate: { fontWeight: '800', color: '#0D1B2A', fontSize: 15 },
-  historyTimesColumn: { marginTop: 6, gap: 4 },
-  historySimpleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  historyTimeLabel: { color: '#94A3B8', fontSize: 12, fontWeight: '600' },
-  historyTimeValue: { color: '#0F172A', fontSize: 13, fontWeight: '700' },
-  historyRight: { alignItems: 'flex-end', justifyContent: 'center', minWidth: 60 },
-  historyDuration: { color: '#10B981', fontWeight: '800', fontSize: 14 },
-  historyDivider: {
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  historyEmpty: { textAlign: 'center', color: '#6B7280', paddingVertical: 12 },
-  metaRow: {
-    marginTop: 8,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 12,
-    flexWrap: 'wrap',
-  },
-  metaItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  metaText: { color: '#E2E8F0', fontSize: 12, maxWidth: 160 },
-  actionsRow: { gap: 12 },
-  actionCard: {
-    borderRadius: 14,
-    padding: 14,
-    backgroundColor: '#FFFFFF',
+    gap: 10,
     borderWidth: 1,
     borderColor: '#E5E7EB',
     shadowColor: '#000',
     shadowOpacity: 0.04,
-    shadowOffset: { width: 0, height: 3 },
-    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 8,
     elevation: 2,
   },
-  cardRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  cardTitle: { fontSize: 16, fontWeight: '700', color: '#0D1B2A' },
-  cardSubtitle: { fontSize: 13, color: '#4B5563', marginTop: 2 },
-  accentBlue: { backgroundColor: '#E0F2FE', borderColor: '#BFDBFE' },
-  accentTeal: { backgroundColor: '#D1FAE5', borderColor: '#A7F3D0' },
-  pressed: { transform: [{ scale: 0.98 }] },
+  clockIconWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    borderWidth: 2,
+    borderColor: '#0F172A',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 6,
+    marginBottom: 4,
+  },
+  clockText: { fontSize: 26, fontWeight: '800', color: '#0F172A' },
+  dateText: { fontSize: 13, color: '#6B7280' },
+  locationRowTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+    marginBottom: 10,
+    alignSelf: 'center',
+    paddingHorizontal: 12,
+  },
+  locationTextTop: {
+    color: '#4B5563',
+    fontSize: 13,
+    maxWidth: '90%',
+    textAlign: 'center',
+    flexShrink: 1,
+  },
+  historyLocationRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
+  historyLocationText: { color: '#6B7280', fontSize: 12, flex: 1 },
+  primaryButton: {
+    marginTop: 12,
+    backgroundColor: '#1F1F2E',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+    width: '100%',
+    alignItems: 'center',
+  },
+  primaryButtonDanger: { backgroundColor: '#DC2626' },
+  primaryButtonPressed: { opacity: 0.9 },
+  primaryButtonText: { color: '#FFFFFF', fontWeight: '700', fontSize: 14 },
+  clockedText: { marginTop: 8, color: '#1F2937', fontSize: 13, fontWeight: '600' },
+  sectionHeading: { fontSize: 15, fontWeight: '700', color: '#0F172A' },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  statsCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  statItem: { flex: 1, alignItems: 'center', gap: 2 },
+  statValue: { fontSize: 18, fontWeight: '800', color: '#0F172A' },
+  statLabel: { fontSize: 12, color: '#6B7280' },
+  historyCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    paddingVertical: 6,
+  },
+  historyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  historyEmpty: { textAlign: 'center', color: '#6B7280', paddingVertical: 12 },
+  refreshBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 6, paddingVertical: 4 },
+  refreshBtnPressed: { opacity: 0.7 },
+  refreshLabel: { color: '#0F172A', fontSize: 12, fontWeight: '700' },
+  historyCardItem: {
+    marginHorizontal: 8,
+    marginVertical: 6,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  historyCardItemPressed: { opacity: 0.9 },
+  historyCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  historyDateRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  historyDate: { fontSize: 14, fontWeight: '800', color: '#0F172A' },
+  statusChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: '#ECFDF3',
+    borderWidth: 1,
+    borderColor: '#16A34A20',
+  },
+  statusChipAbsent: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#DC262620',
+  },
+  historyStatus: { color: '#16A34A', fontWeight: '800', fontSize: 12 },
+  historyStatusAbsent: { color: '#DC2626', fontWeight: '800', fontSize: 12 },
+  historyInfoRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' },
+  infoPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  pillText: { color: '#0F172A', fontWeight: '700', fontSize: 12 },
+  timeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#111827',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 8,
+  },
+  timeBlock: { flex: 1 },
+  timeLabel: { color: '#9CA3AF', fontSize: 12, fontWeight: '700' },
+  timeValue: { color: '#FFFFFF', fontSize: 16, fontWeight: '800', marginTop: 2 },
+  timeDivider: { width: 1, height: 26, backgroundColor: '#1F2937', marginHorizontal: 10 },
+  historyMeta: { fontSize: 12, color: '#4B5563', marginTop: 2 },
+  historyHours: { fontSize: 12, color: '#111827', marginTop: 2, fontWeight: '700' },
+  historyLocation: { fontSize: 12, color: '#6B7280', marginTop: 2 },
+  locationText: { color: '#4B5563', flex: 1, marginLeft: 6, fontSize: 12 },
 });
 
 export default AttendanceScreen;

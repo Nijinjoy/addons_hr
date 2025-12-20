@@ -25,6 +25,7 @@ import {
   getTasks,
   createTimesheet,
   submitTimesheet,
+  getTimesheetDetail,
 } from '../../services/timesheetService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -65,6 +66,10 @@ const TimesheetScreen = () => {
   const [savingTimesheet, setSavingTimesheet] = useState(false);
   const [taskSearch, setTaskSearch] = useState('');
   const [taskDetails, setTaskDetails] = useState('');
+  const [detailModalVisible, setDetailModalVisible] = useState(false);
+  const [selectedTimesheet, setSelectedTimesheet] = useState<Timesheet | null>(null);
+  const [detailDoc, setDetailDoc] = useState<any>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   const fetchTimesheets = async (silent?: boolean) => {
     try {
@@ -324,7 +329,7 @@ const TimesheetScreen = () => {
 
   return (
     <View style={styles.container}>
-      <Header screenName="Timesheet" showBack={false} navigation={navigation as any} />
+      <Header screenName="Timesheet" showBack navigation={navigation as any} onBackPress={() => navigation.goBack()} />
       <ScrollView
         contentContainerStyle={styles.content}
         refreshControl={
@@ -391,7 +396,32 @@ const TimesheetScreen = () => {
                   </View>
                 </View>
                 {bucket.rows.map((item) => (
-                  <View key={item.name} style={[styles.rowBase, styles.tableRow]}>
+                  <TouchableOpacity
+                    key={item.name}
+                    style={[styles.rowBase, styles.tableRow]}
+                    activeOpacity={0.85}
+                    onPress={() => {
+                      console.log('Timesheet selected:', item);
+                      setSelectedTimesheet(item);
+                      setDetailModalVisible(true);
+                      setDetailLoading(true);
+                      setDetailDoc(null);
+                      getTimesheetDetail(item.name)
+                        .then((res) => {
+                          console.log('Timesheet detail response:', res);
+                          if (res.ok) {
+                            setDetailDoc(res.data);
+                          } else {
+                            setDetailDoc(null);
+                          }
+                        })
+                        .catch((err) => {
+                          console.log('Timesheet detail fetch error:', err?.message || err);
+                          setDetailDoc(null);
+                        })
+                        .finally(() => setDetailLoading(false));
+                    }}
+                  >
                     <View style={[styles.cellContainer, styles.flex22]}>
                       <Text style={styles.entryTitle} numberOfLines={1} ellipsizeMode="tail">
                         {item.employee_name || item.employee || 'Timesheet'}
@@ -417,12 +447,98 @@ const TimesheetScreen = () => {
                         {item.status || 'Draft'}
                       </Text>
                     </View>
-                  </View>
+                  </TouchableOpacity>
                 ))}
               </View>
             </View>
           ))}
       </ScrollView>
+
+      <Modal
+        visible={detailModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setDetailModalVisible(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setDetailModalVisible(false)}>
+          <View style={styles.modalOverlay} />
+        </TouchableWithoutFeedback>
+        <View style={styles.detailSheet}>
+          <View style={styles.detailHeader}>
+            <Text style={styles.detailTitle}>Timesheet Details</Text>
+            <TouchableOpacity onPress={() => setDetailModalVisible(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Ionicons name="close" size={22} color="#0F172A" />
+            </TouchableOpacity>
+          </View>
+          <ScrollView
+            contentContainerStyle={styles.detailBody}
+            showsVerticalScrollIndicator={false}
+            style={styles.detailScroll}
+          >
+            {detailLoading ? (
+              <Text style={styles.detailRowValue}>Loading details...</Text>
+            ) : selectedTimesheet ? (
+              <>
+                <Text style={styles.detailRowLabel}>Employee</Text>
+                <Text style={styles.detailRowValue}>
+                  {(detailDoc?.employee_name || selectedTimesheet.employee_name || selectedTimesheet.employee) || '-'}
+                </Text>
+
+                <Text style={styles.detailRowLabel}>Project</Text>
+                <Text style={styles.detailRowValue}>
+                  {detailDoc?.project || detailDoc?.project_name || selectedTimesheet.project || '-'}
+                </Text>
+
+                <Text style={styles.detailRowLabel}>Task</Text>
+                <Text style={styles.detailRowValue}>
+                  {detailDoc?.task || detailDoc?.time_logs?.[0]?.task || selectedTimesheet.task || '-'}
+                </Text>
+
+                <Text style={styles.detailRowLabel}>Activity Type</Text>
+                <Text style={styles.detailRowValue}>
+                  {detailDoc?.activity_type ||
+                    detailDoc?.time_logs?.[0]?.activity_type ||
+                    selectedTimesheet.activity_type ||
+                    '-'}
+                </Text>
+
+                <Text style={styles.detailRowLabel}>Customer</Text>
+                <Text style={styles.detailRowValue}>
+                  {detailDoc?.customer || detailDoc?.time_logs?.[0]?.customer || selectedTimesheet.customer || '-'}
+                </Text>
+
+                <Text style={styles.detailRowLabel}>From</Text>
+                <Text style={styles.detailRowValue}>{selectedTimesheet.start_date || '-'}</Text>
+
+                <Text style={styles.detailRowLabel}>To</Text>
+                <Text style={styles.detailRowValue}>{selectedTimesheet.end_date || '-'}</Text>
+
+                <Text style={styles.detailRowLabel}>Status</Text>
+                <Text style={styles.detailStatus}>{selectedTimesheet.status || 'Draft'}</Text>
+
+                <Text style={styles.detailRowLabel}>Hours</Text>
+                <Text style={styles.detailRowValue}>
+                  {typeof selectedTimesheet.total_hours === 'number'
+                    ? selectedTimesheet.total_hours.toFixed(2)
+                    : selectedTimesheet.total_hours || '-'}
+                </Text>
+
+                <Text style={styles.detailRowLabel}>Note</Text>
+                <Text style={styles.detailRowValue}>
+                  {detailDoc?.note ||
+                    detailDoc?.description ||
+                    detailDoc?.time_logs?.[0]?.description ||
+                    selectedTimesheet.note ||
+                    selectedTimesheet.task ||
+                    'No notes'}
+                </Text>
+              </>
+            ) : (
+              <Text style={styles.detailRowValue}>No timesheet selected.</Text>
+            )}
+          </ScrollView>
+        </View>
+      </Modal>
 
       <Modal visible={addModalVisible} animationType="slide" transparent onRequestClose={() => setAddModalVisible(false)}>
         <TouchableWithoutFeedback onPress={() => setAddModalVisible(false)}>
@@ -856,6 +972,41 @@ const styles = StyleSheet.create({
     maxHeight: '80%',
   },
   modalTitle: { fontSize: 16, fontWeight: '700', color: '#111827', marginBottom: 4 },
+  detailSheet: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingTop: 16,
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+    gap: 10,
+    maxHeight: '85%',
+  },
+  detailHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  detailTitle: { fontSize: 18, fontWeight: '800', color: '#0F172A' },
+  detailScroll: { maxHeight: '100%' },
+  detailBody: { gap: 12, paddingBottom: 32 },
+  detailRowLabel: { color: '#475569', fontSize: 12, fontWeight: '700' },
+  detailRowValue: { color: '#0F172A', fontSize: 14, fontWeight: '600' },
+  detailStatus: {
+    color: '#0F172A',
+    fontSize: 13,
+    fontWeight: '800',
+    backgroundColor: '#E0F2FE',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
+    alignSelf: 'flex-start',
+  },
   modalLabel: { fontSize: 13, color: '#4B5563', marginTop: 4 },
   modalInput: {
     borderWidth: 1,

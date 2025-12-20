@@ -11,6 +11,12 @@ type Timesheet = {
   status?: string;
   company?: string;
   modified?: string;
+  project?: string;
+  task?: string;
+  activity_type?: string;
+  description?: string;
+  note?: string;
+  customer?: string;
 };
 
 type TimesheetListParams = {
@@ -54,6 +60,9 @@ type CreateTimesheetResult =
   | { ok: false; message: string; status?: number; raw?: string };
 
 type SubmitTimesheetResult =
+  | { ok: true; data: any }
+  | { ok: false; message: string; status?: number; raw?: string };
+type TimesheetDetailResult =
   | { ok: true; data: any }
   | { ok: false; message: string; status?: number; raw?: string };
 
@@ -125,6 +134,12 @@ const normalizeTimesheets = (rows: any[]): Timesheet[] => {
     status: (r as any)?.status,
     company: (r as any)?.company,
     modified: (r as any)?.modified,
+    project: (r as any)?.project,
+    task: (r as any)?.task,
+    activity_type: (r as any)?.activity_type,
+    description: (r as any)?.description,
+    note: (r as any)?.note,
+    customer: (r as any)?.customer,
   }));
 };
 
@@ -209,6 +224,41 @@ export const getTimesheets = async (params: TimesheetListParams = {}): Promise<T
     console.log('Timesheet fetch error:', message);
     return { ok: false, message };
   }
+};
+
+export const getTimesheetDetail = async (name: string): Promise<TimesheetDetailResult> => {
+  if (!name) return { ok: false, message: 'Timesheet id is required' };
+  const { baseResource, baseMethod } = await getBases();
+
+  // Resource fetch
+  try {
+    if (!baseResource) throw new Error('Resource base not configured');
+    const res = await requestJSON<{ data?: any }>(`${baseResource}/Timesheet/${encodeURIComponent(name)}`, {
+      method: 'GET',
+      headers: await authHeaders(),
+    });
+    const doc = (res as any)?.data || res;
+    if (doc?.name) return { ok: true, data: doc };
+  } catch (err1: any) {
+    console.warn('getTimesheetDetail resource failed', err1?.message || err1);
+  }
+
+  // Method fetch
+  try {
+    if (!baseMethod) throw new Error('Method base not configured');
+    const res = await requestJSON<{ message?: any }>(`${baseMethod}/frappe.client.get`, {
+      method: 'POST',
+      headers: await authHeaders(),
+      body: JSON.stringify({ doctype: 'Timesheet', name }),
+    });
+    const doc = (res as any)?.message || res;
+    if (doc?.name) return { ok: true, data: doc };
+  } catch (err2: any) {
+    console.error('getTimesheetDetail method failed', err2?.message || err2);
+    return { ok: false, message: err2?.message || 'Failed to load timesheet detail' };
+  }
+
+  return { ok: false, message: 'Timesheet not found' };
 };
 
 const normalizeCustomers = (rows: any[]): string[] => {

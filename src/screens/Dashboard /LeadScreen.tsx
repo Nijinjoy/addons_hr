@@ -94,11 +94,17 @@ const LeadScreen = () => {
       Alert.alert('Email', 'No email address available for this lead.');
       return;
     }
-    const url = `mailto:${encodeURIComponent(addr)}`;
+    const gmailUrl = `googlegmail://co?to=${encodeURIComponent(addr)}`;
+    const mailtoUrl = `mailto:${encodeURIComponent(addr)}`;
     try {
-      const supported = await Linking.canOpenURL(url);
+      const canGmail = await Linking.canOpenURL(gmailUrl);
+      if (canGmail) {
+        await Linking.openURL(gmailUrl);
+        return;
+      }
+      const supported = await Linking.canOpenURL(mailtoUrl);
       if (!supported) throw new Error('Cannot open mail app');
-      await Linking.openURL(url);
+      await Linking.openURL(mailtoUrl);
     } catch {
       Alert.alert('Email', 'Unable to open the email app.');
     }

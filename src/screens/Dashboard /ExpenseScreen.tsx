@@ -234,10 +234,13 @@ const ExpenseScreen = () => {
 
   return (
     <View style={styles.container}>
-      <Header screenName="Expenses" navigation={navigation as any} />
+      <Header
+        screenName="Expenses"
+        showBack
+        navigation={navigation as any}
+        onBackPress={() => navigation.goBack()}
+      />
       <View style={styles.whiteBackground}>
-
-        {/* ---------- Tabs ---------- */}
         <View style={styles.tabsContainer}>
           <TouchableOpacity
             style={[styles.tabButton, activeTab === 'submit' && styles.activeTab]}

@@ -8,6 +8,7 @@ import LeadStack from './LeadStack';
 import TaskListScreen from '../screens/Dashboard /TaskListScreen';
 import TaskCreateNewScreen from '../screens/Dashboard /TaskCreateNewScreen';
 import TimesheetScreen from '../screens/Dashboard /TimesheetScreen';
+import ExpenseScreen from '../screens/Dashboard /ExpenseScreen';
 
 const Drawer = createDrawerNavigator();
 
@@ -55,6 +56,11 @@ const DrawerNavigator = () => {
       <Drawer.Screen
         name="Leads"
         component={LeadStack}
+        options={{ drawerItemStyle: { display: 'none' } }}
+      />
+      <Drawer.Screen
+        name="Expense"
+        component={ExpenseScreen}
         options={{ drawerItemStyle: { display: 'none' } }}
       />
     </Drawer.Navigator>

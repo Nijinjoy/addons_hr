@@ -4,6 +4,24 @@ import { getMethodUrl, getResourceUrl, getApiKeySecret } from './urlService';
 type AttendanceResult =
   | { ok: true; data: any }
   | { ok: false; message: string; status?: number; raw?: string };
+type AttendanceLog = {
+  name: string;
+  employee: string;
+  log_type?: string;
+  time?: string;
+  device_id?: string;
+  latitude?: number;
+  longitude?: number;
+  status?: string;
+  attendance_date?: string;
+  in_time?: string;
+  out_time?: string;
+  shift?: string;
+  shift_type?: string;
+};
+type AttendanceListResult =
+  | { ok: true; data: AttendanceLog[] }
+  | { ok: false; message: string; status?: number; raw?: string };
 
 const getBases = async () => {
   const baseResource = (await getResourceUrl()) || '';
@@ -138,4 +156,154 @@ export const checkIn = async (
 
 export const checkOut = async (employee: string): Promise<AttendanceResult> => {
   return checkIn(employee, 'OUT');
+};
+
+const normalizeAttendanceLogs = (rows: any[]): AttendanceLog[] => {
+  return (rows || []).map((row) => ({
+    name: String(row?.name || ''),
+    employee: String(row?.employee || ''),
+    log_type: row?.log_type,
+  time: row?.time || row?.timestamp || row?.creation,
+  attendance_date: row?.attendance_date,
+  in_time: row?.in_time,
+  out_time: row?.out_time,
+  device_id: row?.device_id,
+  latitude: typeof row?.latitude === 'number' ? row.latitude : undefined,
+  longitude: typeof row?.longitude === 'number' ? row.longitude : undefined,
+  status: row?.status || row?.shift_status || row?.att_status,
+  shift: row?.shift || row?.shift_type,
+  shift_type: row?.shift_type,
+}));
+};
+
+export const getAttendanceLogs = async (
+  employee: string,
+  limit: number = 50
+): Promise<AttendanceListResult> => {
+  const emp = String(employee || '').trim();
+  if (!emp) return { ok: false, message: 'Employee id is required' };
+
+  // Try Attendance DocType for richer data (status/in/out)
+  try {
+    const { baseResource } = await getBases();
+    if (!baseResource) throw new Error('ERP base URL not configured');
+    const url =
+      baseResource +
+      '/Attendance?' +
+      new URLSearchParams({
+        fields: JSON.stringify([
+          'name',
+          'employee',
+          'status',
+          'attendance_date',
+          'in_time',
+          'out_time',
+          'shift',
+          'shift_type',
+          'device_id',
+          'latitude',
+          'longitude',
+        ]),
+        filters: JSON.stringify([['employee', '=', emp]]),
+        order_by: 'attendance_date desc',
+        limit_page_length: String(limit),
+      }).toString();
+    const res = await requestJSON<{ data?: any[] }>(url, {
+      method: 'GET',
+      headers: await authHeaders(),
+    });
+    console.log('Attendance logs (Attendance Doc) response:', res);
+    const data = normalizeAttendanceLogs(res?.data ?? []);
+    if (data.length) return { ok: true, data };
+  } catch (err: any) {
+    console.warn('getAttendanceLogs Attendance resource failed', err?.message || err);
+  }
+
+  // Method fallback for Attendance
+  try {
+    const { baseMethod } = await getBases();
+    if (!baseMethod) throw new Error('ERP base URL not configured');
+    const url =
+      baseMethod +
+      '/frappe.client.get_list?' +
+      new URLSearchParams({
+        doctype: 'Attendance',
+        fields: JSON.stringify([
+          'name',
+          'employee',
+          'status',
+          'attendance_date',
+          'in_time',
+          'out_time',
+          'shift',
+          'shift_type',
+          'device_id',
+          'latitude',
+          'longitude',
+        ]),
+        filters: JSON.stringify([['employee', '=', emp]]),
+        order_by: 'attendance_date desc',
+        limit_page_length: String(limit),
+      }).toString();
+    const res = await requestJSON<{ message?: any[] }>(url, {
+      method: 'GET',
+      headers: await authHeaders(),
+    });
+    console.log('Attendance logs (Attendance Doc) method response:', res);
+    const data = normalizeAttendanceLogs(res?.message ?? []);
+    if (data.length) return { ok: true, data };
+  } catch (err: any) {
+    console.warn('getAttendanceLogs Attendance method failed', err?.message || err);
+  }
+
+  // Resource path first
+  try {
+    const { baseResource } = await getBases();
+    if (!baseResource) throw new Error('ERP base URL not configured');
+    const url =
+      baseResource +
+      '/Employee%20Checkin?' +
+      new URLSearchParams({
+        fields: JSON.stringify(['name', 'employee', 'log_type', 'time', 'device_id', 'latitude', 'longitude']),
+        filters: JSON.stringify([['employee', '=', emp]]),
+        order_by: 'time desc',
+        limit_page_length: String(limit),
+      }).toString();
+    const res = await requestJSON<{ data?: any[] }>(url, {
+      method: 'GET',
+      headers: await authHeaders(),
+    });
+    console.log('Attendance logs resource response:', res);
+    const data = normalizeAttendanceLogs(res?.data ?? []);
+    if (data.length) return { ok: true, data };
+  } catch (err: any) {
+    console.warn('getAttendanceLogs resource failed', err?.message || err);
+  }
+
+  // Method fallback
+  try {
+    const { baseMethod } = await getBases();
+    if (!baseMethod) throw new Error('ERP base URL not configured');
+    const url =
+      baseMethod +
+      '/frappe.client.get_list?' +
+      new URLSearchParams({
+        doctype: 'Employee Checkin',
+        fields: JSON.stringify(['name', 'employee', 'log_type', 'time', 'device_id', 'latitude', 'longitude']),
+        filters: JSON.stringify([['employee', '=', emp]]),
+        order_by: 'time desc',
+        limit_page_length: String(limit),
+      }).toString();
+    const res = await requestJSON<{ message?: any[] }>(url, {
+      method: 'GET',
+      headers: await authHeaders(),
+    });
+    console.log('Attendance logs method response:', res);
+  const data = normalizeAttendanceLogs(res?.message ?? []);
+    return { ok: true, data };
+  } catch (err: any) {
+    const message = err?.message || 'Failed to fetch attendance logs';
+    console.error('getAttendanceLogs method failed', message);
+    return { ok: false, message };
+  }
 };

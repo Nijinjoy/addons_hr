@@ -45,7 +45,14 @@ const CRMDashboard = () => {
             <Pressable
               style={({ pressed }) => [styles.cta, styles.ctaPrimary, pressed && styles.pressed]}
               android_ripple={{ color: '#FFFFFF40' }}
-              onPress={() => console.log('Create lead')}
+              onPress={() => {
+                const parent = navigation.getParent?.();
+                if (parent?.navigate) {
+                  parent.navigate('Leads' as never, { screen: 'LeadCreate' } as never);
+                  return;
+                }
+                navigation.navigate('Leads' as never, { screen: 'LeadCreate' } as never);
+              }}
             >
               <Ionicons name="add-circle" size={18} color="#0F172A" />
               <Text style={styles.ctaText}>Create Lead</Text>

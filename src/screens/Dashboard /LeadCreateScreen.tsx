@@ -12,9 +12,20 @@ import Header from '../../components/Header';
 import { useNavigation } from '@react-navigation/native';
 import { launchImageLibrary, launchCamera, Asset } from 'react-native-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { getLeadSources, getAssociateDetails } from '../../services/leadService';
+import {
+  getLeadSources,
+  getAssociateDetails,
+  getServiceTypes,
+  getRequestTypes,
+  getLeadTypes,
+  getLeadStatuses,
+  getLeadOwners,
+  getBuildingLocations,
+} from '../../services/leadService';
+import { createLead } from '../../services/api/leadsCreate.service';
 
 const dropdownPlaceholder = 'Select';
+type OptionType = string | { label: string; value: string };
 
 const LeadCreateScreen = () => {
   const navigation = useNavigation<any>();
@@ -43,7 +54,98 @@ const LeadCreateScreen = () => {
   const [loadingSources, setLoadingSources] = useState(false);
   const [associateOptions, setAssociateOptions] = useState<string[]>([]);
   const [loadingAssociates, setLoadingAssociates] = useState(false);
+  const [serviceTypeOptions, setServiceTypeOptions] = useState<string[]>([]);
+  const [loadingServiceTypes, setLoadingServiceTypes] = useState(false);
+  const [requestTypeOptions, setRequestTypeOptions] = useState<string[]>([]);
+  const [loadingRequestTypes, setLoadingRequestTypes] = useState(false);
+  const [leadTypeOptions, setLeadTypeOptions] = useState<string[]>([]);
+  const [loadingLeadTypes, setLoadingLeadTypes] = useState(false);
+  const [statusOptions, setStatusOptions] = useState<string[]>([]);
+  const [loadingStatuses, setLoadingStatuses] = useState(false);
+  const [leadOwnerOptions, setLeadOwnerOptions] = useState<OptionType[]>([]);
+  const [loadingLeadOwners, setLoadingLeadOwners] = useState(false);
+  const [rawBuildingOptions, setRawBuildingOptions] = useState<string[]>([]);
+  const [buildingOptions, setBuildingOptions] = useState<string[]>([]);
+  const [loadingBuildings, setLoadingBuildings] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [openDropdown, setOpenDropdown] = useState('');
+
+  const leadDetailInputs = [
+    { label: 'Full Name', value: fullName, setter: setFullName, placeholder: 'Full name' },
+    { label: 'Job Title', value: jobTitle, setter: setJobTitle, placeholder: 'Job title' },
+  ];
+  const leadDropdowns = [
+    { label: 'Source', value: source, setter: setSource, options: sourceOptions, loading: loadingSources },
+    {
+      label: 'Building & Location',
+      value: building,
+      setter: setBuilding,
+      options: buildingOptions,
+      loading: loadingBuildings,
+    },
+    {
+      label: 'Associate Details',
+      value: associate,
+      setter: setAssociate,
+      options: associateOptions,
+      loading: loadingAssociates,
+    },
+    {
+      label: 'Lead Owner',
+      value: leadOwner,
+      setter: setLeadOwner,
+      options: leadOwnerOptions,
+      loading: loadingLeadOwners,
+    },
+    {
+      label: 'Status',
+      value: status,
+      setter: setStatus,
+      options: statusOptions,
+      loading: loadingStatuses,
+    },
+    {
+      label: 'Lead Type',
+      value: leadType,
+      setter: setLeadType,
+      options: leadTypeOptions,
+      loading: loadingLeadTypes,
+    },
+    {
+      label: 'Request Type',
+      value: requestType,
+      setter: setRequestType,
+      options: requestTypeOptions,
+      loading: loadingRequestTypes,
+    },
+    {
+      label: 'Service Type',
+      value: serviceType,
+      setter: setServiceType,
+      options: serviceTypeOptions,
+      loading: loadingServiceTypes,
+    },
+  ];
+  const contactInputs = [
+    { label: 'Email', value: email, setter: setEmail, placeholder: 'Email', keyboardType: 'email-address' as const },
+    { label: 'Mobile Number', value: mobile, setter: setMobile, placeholder: 'Mobile number', keyboardType: 'phone-pad' as const },
+    { label: 'Phone Number', value: phone, setter: setPhone, placeholder: 'Phone number', keyboardType: 'phone-pad' as const },
+    { label: 'Website', value: website, setter: setWebsite, placeholder: 'Website' },
+    { label: 'WhatsApp', value: whatsapp, setter: setWhatsapp, placeholder: 'WhatsApp', keyboardType: 'phone-pad' as const },
+  ];
+
+  const filterBuildingOptions = (options: string[], associateList: string[]) => {
+    const associateSet = new Set((associateList || []).map((a) => a.trim().toLowerCase()));
+    return (options || []).filter((item) => {
+      const val = (item || '').trim();
+      if (!val) return false;
+      const lower = val.toLowerCase();
+      if (/^crm-lead-/i.test(val)) return false;
+      if (lower.includes('associate')) return false;
+      if (associateSet.has(lower)) return false;
+      return true;
+    });
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -67,6 +169,7 @@ const LeadCreateScreen = () => {
       try {
         setLoadingAssociates(true);
         const res = await getAssociateDetails();
+        console.log('Associate details response:', res);
         if (!mounted) return;
         if (res.ok) {
           setAssociateOptions(res.data || []);
@@ -79,12 +182,129 @@ const LeadCreateScreen = () => {
         if (mounted) setLoadingAssociates(false);
       }
     };
+    const loadBuildings = async () => {
+      try {
+        setLoadingBuildings(true);
+        const res = await getBuildingLocations();
+        console.log('Building & Location response:', res);
+        if (!mounted) return;
+        if (res.ok && res.data?.length) {
+          setRawBuildingOptions(res.data);
+          setBuildingOptions(filterBuildingOptions(res.data, associateOptions));
+        } else {
+          console.log('LeadCreateScreen building load failed:', res.message);
+          setBuildingOptions([]);
+        }
+      } catch (err: any) {
+        console.log('LeadCreateScreen building fetch error:', err?.message || err);
+        setBuildingOptions([]);
+      } finally {
+        if (mounted) setLoadingBuildings(false);
+      }
+    };
+    const loadServiceTypes = async () => {
+      try {
+        setLoadingServiceTypes(true);
+        const res = await getServiceTypes();
+        console.log('Service type response:', res);
+        if (!mounted) return;
+        if (res.ok) {
+          setServiceTypeOptions(res.data || []);
+        } else {
+          console.log('LeadCreateScreen service types load failed:', res.message);
+        }
+      } catch (err: any) {
+        console.log('LeadCreateScreen service types fetch error:', err?.message || err);
+      } finally {
+        if (mounted) setLoadingServiceTypes(false);
+      }
+    };
+    const loadLeadTypes = async () => {
+      try {
+        setLoadingLeadTypes(true);
+        const res = await getLeadTypes();
+        console.log('Lead type response:', res);
+        if (!mounted) return;
+        if (res.ok && res.data?.length) {
+          setLeadTypeOptions(res.data || []);
+        } else {
+          console.log('LeadCreateScreen lead types load failed:', res.message);
+          setLeadTypeOptions([]);
+        }
+      } catch (err: any) {
+        console.log('LeadCreateScreen lead types fetch error:', err?.message || err);
+      } finally {
+        if (mounted) setLoadingLeadTypes(false);
+      }
+    };
+    const loadLeadOwners = async () => {
+      try {
+        setLoadingLeadOwners(true);
+        const res = await getLeadOwners();
+        console.log('Lead owner response:', res);
+        if (!mounted) return;
+        if (res.ok && res.data?.length) {
+          setLeadOwnerOptions(res.data || []);
+        } else {
+          console.log('LeadCreateScreen lead owners load failed:', res.message);
+          setLeadOwnerOptions([]);
+        }
+      } catch (err: any) {
+        console.log('LeadCreateScreen lead owners fetch error:', err?.message || err);
+      } finally {
+        if (mounted) setLoadingLeadOwners(false);
+      }
+    };
+    const loadStatuses = async () => {
+      try {
+        setLoadingStatuses(true);
+        const res = await getLeadStatuses();
+        console.log('Lead status response:', res);
+        if (!mounted) return;
+        if (res.ok && res.data?.length) {
+          setStatusOptions(res.data || []);
+        } else {
+          console.log('LeadCreateScreen lead statuses load failed:', res.message);
+          setStatusOptions([]);
+        }
+      } catch (err: any) {
+        console.log('LeadCreateScreen lead statuses fetch error:', err?.message || err);
+      } finally {
+        if (mounted) setLoadingStatuses(false);
+      }
+    };
+    const loadRequestTypes = async () => {
+      try {
+        setLoadingRequestTypes(true);
+        const res = await getRequestTypes();
+        if (!mounted) return;
+        if (res.ok) {
+          setRequestTypeOptions(res.data || []);
+        } else {
+          console.log('LeadCreateScreen request types load failed:', res.message);
+        }
+      } catch (err: any) {
+        console.log('LeadCreateScreen request types fetch error:', err?.message || err);
+      } finally {
+        if (mounted) setLoadingRequestTypes(false);
+      }
+    };
     loadSources();
     loadAssociates();
+    loadServiceTypes();
+    loadRequestTypes();
+    loadLeadTypes();
+    loadStatuses();
+    loadLeadOwners();
+    loadBuildings();
     return () => {
       mounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    setBuildingOptions(filterBuildingOptions(rawBuildingOptions, associateOptions));
+  }, [associateOptions, rawBuildingOptions]);
 
   const pickImages = async () => {
     const result = await launchImageLibrary({ mediaType: 'photo', selectionLimit: 0 });
@@ -98,25 +318,113 @@ const LeadCreateScreen = () => {
     setAttachments(prev => [...prev, ...result.assets]);
   };
 
-  const handleSave = () => {
-    if (!fullName) {
+  const humanizeError = (raw?: string) => {
+    if (!raw) return 'Failed to create lead.';
+    const plain = raw.replace(/<[^>]+>/g, '');
+    if (/Email Address must be unique/i.test(plain)) {
+      return 'Email is already used on another lead. Please use a unique email or leave it blank.';
+    }
+    if (/MandatoryError/i.test(plain)) {
+      return 'Please fill required fields (Date and Building/Location).';
+    }
+    return plain;
+  };
+
+  const handleSave = async () => {
+    if (saving) return;
+    if (!fullName.trim()) {
       Alert.alert('Lead', 'Please enter full name.');
       return;
     }
-    Alert.alert('Lead', 'Lead created (placeholder).');
-    navigation.goBack();
+    if (!date) {
+      Alert.alert('Lead', 'Please select a date.');
+      return;
+    }
+    const buildingTrimmed = building.trim();
+    if (!buildingTrimmed) {
+      Alert.alert('Lead', 'Please select Building / Location.');
+      return;
+    }
+    if (/^CRM-LEAD-/i.test(buildingTrimmed)) {
+      Alert.alert('Lead', 'Please choose a valid Building / Location (not a Lead ID).');
+      return;
+    }
+    setSaving(true);
+    try {
+      const payload = {
+        lead_name: fullName.trim(),
+        gender,
+        job_title: jobTitle,
+        source,
+        associate_details: associate,
+        building: buildingTrimmed,
+        lead_owner: leadOwner && /[@.]/.test(leadOwner) ? leadOwner : undefined,
+        status,
+        lead_type: leadType,
+        request_type: requestType,
+        service_type: serviceType,
+        email_id: email,
+        mobile_no: mobile,
+        phone,
+        website,
+        whatsapp,
+        date,
+        custom_date: date,
+        custom_building__location: buildingTrimmed,
+      };
+      const res = await createLead(payload);
+      console.log('Lead create response:', res);
+      if (res.ok) {
+        Alert.alert('Lead', `Lead created${res.name ? `: ${res.name}` : ''}.`);
+        // reset form
+        setFullName('');
+        setDate('');
+        setGender('');
+        setJobTitle('');
+        setSource('');
+        setAssociate('');
+        setBuilding('');
+        setLeadOwner('');
+        setStatus('');
+        setLeadType('');
+        setRequestType('');
+        setServiceType('');
+        setEmail('');
+        setMobile('');
+        setPhone('');
+        setWebsite('');
+        setWhatsapp('');
+        setAttachments([]);
+        navigation.goBack();
+      } else {
+        Alert.alert('Lead', humanizeError(res.message));
+      }
+    } catch (err: any) {
+      console.log('Lead create error:', err?.message || err);
+      Alert.alert('Lead', humanizeError(err?.message));
+    } finally {
+      setSaving(false);
+    }
   };
 
   const renderDropdown = (
     label: string,
     value: string,
     setter: (v: string) => void,
-    options?: string[],
+    options?: OptionType[],
     loading?: boolean
   ) => {
     const hasOptions = !!options?.length;
     const isOpen = openDropdown === label;
-    const displayText = loading ? 'Loading...' : value || dropdownPlaceholder;
+    const findLabel = () => {
+      if (!options) return value;
+      const match = options.find((opt) =>
+        typeof opt === 'string' ? opt === value : opt.value === value
+      );
+      if (!match) return value;
+      return typeof match === 'string' ? match : match.label;
+    };
+    const displayText = loading ? 'Loading...' : findLabel() || dropdownPlaceholder;
 
     return (
       <View style={styles.fieldBlock}>
@@ -125,11 +433,7 @@ const LeadCreateScreen = () => {
           style={styles.selectBox}
           onPress={() => {
             if (loading) return;
-            if (hasOptions) {
-              setOpenDropdown((prev) => (prev === label ? '' : label));
-            } else {
-              Alert.alert(label, 'Hook up dropdown data', [{ text: 'OK' }]);
-            }
+            setOpenDropdown((prev) => (prev === label ? '' : label));
           }}
           activeOpacity={0.8}
         >
@@ -138,19 +442,24 @@ const LeadCreateScreen = () => {
         {isOpen && hasOptions && (
           <View style={styles.dropdownListContainer}>
             <ScrollView style={styles.dropdownList} nestedScrollEnabled>
-              {options?.map((opt) => (
-                <TouchableOpacity
-                  key={opt}
-                  style={styles.dropdownItem}
-                  onPress={() => {
-                    setter(opt);
-                    setOpenDropdown('');
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.dropdownItemText}>{opt}</Text>
-                </TouchableOpacity>
-              ))}
+              {options?.map((opt) => {
+                const key = typeof opt === 'string' ? opt : opt.value;
+                const labelText = typeof opt === 'string' ? opt : opt.label;
+                const valueText = typeof opt === 'string' ? opt : opt.value;
+                return (
+                  <TouchableOpacity
+                    key={key}
+                    style={styles.dropdownItem}
+                    onPress={() => {
+                      setter(valueText);
+                      setOpenDropdown('');
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.dropdownItemText}>{labelText}</Text>
+                  </TouchableOpacity>
+                );
+              })}
             </ScrollView>
           </View>
         )}
@@ -209,21 +518,34 @@ const LeadCreateScreen = () => {
         navigation={navigation as any}
         onBackPress={() => navigation.goBack()}
       />
-      <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.sectionTitle}>Lead Details</Text>
-
-        <View style={styles.fieldBlock}>
-          <Text style={styles.label}>Date</Text>
-          <TouchableOpacity
-            style={styles.selectBox}
-            onPress={() => setShowDatePicker(true)}
-            activeOpacity={0.8}
-          >
-            <Text style={date ? styles.selectValue : styles.selectPlaceholder}>
-              {date || 'Select date'}
-            </Text>
-          </TouchableOpacity>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.progressRow}>
+          <View style={styles.progressCard}>
+            <Text style={styles.progressLabel}>Step 1</Text>
+            <Text style={styles.progressTitle}>Lead basics</Text>
+            <Text style={styles.progressSub}>Name, contact, source</Text>
+          </View>
+          <View style={styles.progressCardMuted}>
+            <Text style={[styles.progressLabel, { color: '#0F172A' }]}>Step 2</Text>
+            <Text style={[styles.progressTitle, { color: '#0F172A' }]}>Notes & follow-ups</Text>
+            <Text style={[styles.progressSub, { color: '#1F2937' }]}>Add later after saving</Text>
+          </View>
         </View>
+
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Lead Details</Text>
+          <View style={styles.fieldBlock}>
+            <Text style={styles.label}>Date</Text>
+            <TouchableOpacity
+              style={styles.selectBox}
+              onPress={() => setShowDatePicker(true)}
+              activeOpacity={0.8}
+            >
+              <Text style={date ? styles.selectValue : styles.selectPlaceholder}>
+                {date || 'Select date'}
+              </Text>
+            </TouchableOpacity>
+          </View>
         {showDatePicker && (
           <DateTimePicker
             value={date ? new Date(date) : new Date()}
@@ -238,66 +560,80 @@ const LeadCreateScreen = () => {
             }}
           />
         )}
-        {renderInput('Full Name', fullName, setFullName, 'Full name')}
-        {renderGenderToggle()}
-        {renderInput('Job Title', jobTitle, setJobTitle, 'Job title')}
-        {renderDropdown('Source', source, setSource, sourceOptions, loadingSources)}
-        {renderDropdown('Associate Details', associate, setAssociate, associateOptions, loadingAssociates)}
-        {renderInput('Building & Location', building, setBuilding, 'Building / Location')}
-        {renderDropdown('Lead Owner', leadOwner, setLeadOwner)}
-        {renderDropdown('Status', status, setStatus)}
-        {renderDropdown('Lead Type', leadType, setLeadType)}
-        {renderDropdown('Request Type', requestType, setRequestType)}
-        {renderDropdown('Service Type', serviceType, setServiceType)}
-
-        <Text style={styles.sectionTitle}>Contact Info</Text>
-        {renderInput('Email', email, setEmail, 'Email', 'email-address')}
-        {renderInput('Mobile Number', mobile, setMobile, 'Mobile number', 'phone-pad')}
-        {renderInput('Phone Number', phone, setPhone, 'Phone number', 'phone-pad')}
-        {renderInput('Website', website, setWebsite, 'Website')}
-        {renderInput('WhatsApp', whatsapp, setWhatsapp, 'WhatsApp', 'phone-pad')}
-
-        <View style={styles.fieldBlock}>
-          <Text style={styles.label}>Add Attachment</Text>
-          <TouchableOpacity
-            style={styles.attachmentBox}
-            onPress={pickImages}
-            activeOpacity={0.8}
-          >
-            <View style={styles.attachmentRow}>
-              <Text style={styles.attachmentPrimary}>Tap to upload</Text>
-              <Text style={styles.attachmentSecondary}>JPG, PNG (multiple) or capture</Text>
-            </View>
-            <View style={styles.attachmentHint}>
-              <Text style={styles.attachmentHintText}>Attach supporting photos (multiple allowed)</Text>
-            </View>
-            <TouchableOpacity style={styles.captureButton} onPress={captureImage} activeOpacity={0.8}>
-              <Text style={styles.captureText}>Capture Photo</Text>
-            </TouchableOpacity>
-            {attachments.length > 0 && (
-              <View style={styles.attachmentList}>
-                {attachments.map((a, idx) => (
-                  <View key={a.uri || idx} style={styles.attachmentItemRow}>
-                    <Text style={styles.attachmentItem} numberOfLines={1}>
-                      {a.fileName || a.uri?.split('/').pop() || 'image'}
-                    </Text>
-                    <TouchableOpacity
-                      onPress={() =>
-                        setAttachments((prev) => prev.filter((_, pIdx) => pIdx !== idx))
-                      }
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    >
-                    <Text style={styles.removeText}>✕</Text>
-                  </TouchableOpacity>
-                </View>
-              ))}
-              </View>
-            )}
-          </TouchableOpacity>
+          {leadDetailInputs.map((input) =>
+            renderInput(
+              input.label,
+              input.value,
+              input.setter,
+              input.placeholder,
+              input.keyboardType || 'default'
+            )
+          )}
+          {renderGenderToggle()}
+          {leadDropdowns.map((dropdown) =>
+            renderDropdown(
+              dropdown.label,
+              dropdown.value,
+              dropdown.setter,
+              dropdown.options,
+              dropdown.loading
+            )
+          )}
         </View>
 
-        <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-          <Text style={styles.saveText}>Save Lead</Text>
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Contact Info</Text>
+          {contactInputs.map((input) =>
+            renderInput(
+              input.label,
+              input.value,
+              input.setter,
+              input.placeholder,
+              input.keyboardType || 'default'
+            )
+          )}
+        </View>
+
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Attachments (optional)</Text>
+          <View style={styles.fieldBlock}>
+            <Text style={styles.label}>Add Attachment</Text>
+            <TouchableOpacity style={styles.attachmentBox} onPress={pickImages} activeOpacity={0.8}>
+              <View style={styles.attachmentRow}>
+                <Text style={styles.attachmentPrimary}>Tap to upload</Text>
+                <Text style={styles.attachmentSecondary}>JPG, PNG (multiple) or capture</Text>
+              </View>
+              <View style={styles.attachmentHint}>
+                <Text style={styles.attachmentHintText}>Attach supporting photos (multiple allowed)</Text>
+              </View>
+              <TouchableOpacity style={styles.captureButton} onPress={captureImage} activeOpacity={0.8}>
+                <Text style={styles.captureText}>Capture Photo</Text>
+              </TouchableOpacity>
+              {attachments.length > 0 && (
+                <View style={styles.attachmentList}>
+                  {attachments.map((a, idx) => (
+                    <View key={a.uri || idx} style={styles.attachmentItemRow}>
+                      <Text style={styles.attachmentItem} numberOfLines={1}>
+                        {a.fileName || a.uri?.split('/').pop() || 'image'}
+                      </Text>
+                      <TouchableOpacity
+                        onPress={() =>
+                          setAttachments((prev) => prev.filter((_, pIdx) => pIdx !== idx))
+                        }
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                      <Text style={styles.removeText}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <TouchableOpacity style={[styles.saveButton, saving && styles.saveButtonDisabled]} onPress={handleSave} disabled={saving}>
+          <Text style={styles.saveText}>{saving ? 'Saving...' : 'Save Lead'}</Text>
         </TouchableOpacity>
       </ScrollView>
     </View>
@@ -305,16 +641,50 @@ const LeadCreateScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
+  container: { flex: 1, backgroundColor: '#F8FAFC' },
   content: { padding: 16, paddingBottom: 32 },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
     color: '#1F2937',
-    marginBottom: 10,
-    marginTop: 8,
+    marginBottom: 12,
   },
   fieldBlock: { marginBottom: 12 },
+  sectionCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    marginBottom: 14,
+    shadowColor: '#000',
+    shadowOpacity: 0.03,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  progressRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 12,
+  },
+  progressCard: {
+    flex: 1,
+    backgroundColor: '#0F172A',
+    padding: 12,
+    borderRadius: 12,
+  },
+  progressCardMuted: {
+    flex: 1,
+    backgroundColor: '#E2E8F0',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+  progressLabel: { fontSize: 12, fontWeight: '700', color: '#E5E7EB', letterSpacing: 0.5 },
+  progressTitle: { fontSize: 15, fontWeight: '800', color: '#F8FAFC', marginTop: 6 },
+  progressSub: { fontSize: 12, color: '#CBD5E1', marginTop: 2 },
   label: { fontSize: 14, color: '#374151', marginBottom: 6, fontWeight: '600' },
   input: {
     borderWidth: 1,
@@ -404,6 +774,9 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 10,
     alignItems: 'center',
+  },
+  saveButtonDisabled: {
+    opacity: 0.7,
   },
   saveText: {
     color: '#fff',

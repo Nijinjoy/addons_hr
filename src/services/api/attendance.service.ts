@@ -51,22 +51,11 @@ const authHeaders = async (): Promise<Record<string, string>> => {
 };
 
 const isValidCoord = (n?: number) => typeof n === 'number' && !Number.isNaN(n);
-const isPlaceholderCoord = (lat?: number, lon?: number) => {
-  // Common Android/emulator defaults or zeroed coords
-  if (!isValidCoord(lat) || !isValidCoord(lon)) return true;
-  const roundedLat = Number(lat!.toFixed(6));
-  const roundedLon = Number(lon!.toFixed(6));
-  if (roundedLat === 0 && roundedLon === 0) return true;
-  if (roundedLat === 37.421998 && roundedLon === -122.084) return true; // emulator default
-  return false;
-};
-
 const reverseGeocodeLocation = async (coords?: { latitude?: number; longitude?: number }): Promise<string | undefined> => {
   if (!coords?.latitude && !coords?.longitude) return undefined;
   const lat = coords.latitude;
   const lon = coords.longitude;
   if (lat == null || lon == null) return undefined;
-  if (isPlaceholderCoord(lat, lon)) return undefined;
 
   const tryMapsCo = async () => {
     // OpenStreetMap-backed free endpoint
@@ -220,14 +209,15 @@ export const checkIn = async ({
     coords,
     locationText,
   });
+  const friendlyCoords = coordsString ? `Lat ${coordsString.split(',')[0]}, Lon ${coordsString.split(',')[1]}` : undefined;
   if (locationText) {
     payload.location = locationText;
     payload.mobile_id = locationText;
     payload.device_id = locationText;
   } else {
-    payload.device_id = coordsString || 'mobile';
-    payload.mobile_id = coordsString || undefined;
-    payload.location = coordsString || undefined;
+    payload.device_id = friendlyCoords || 'mobile';
+    payload.mobile_id = friendlyCoords || undefined;
+    payload.location = friendlyCoords || undefined;
   }
 
   const methodPaths = [
@@ -299,18 +289,19 @@ export const checkIn = async ({
       }
     } else if (coordsString && resData?.name && (!resData?.location || resData?.location === 'mobile')) {
       try {
+        const friendlyCoords = `Lat ${coordsString.split(',')[0]}, Lon ${coordsString.split(',')[1]}`;
         await requestJSON(`${baseResource}/Employee%20Checkin/${encodeURIComponent(resData.name)}`, {
           method: 'PUT',
           headers: await authHeaders(),
           body: JSON.stringify({
-            location: coordsString,
-            mobile_id: coordsString,
-            device_id: coordsString,
+            location: friendlyCoords,
+            mobile_id: friendlyCoords,
+            device_id: friendlyCoords,
           }),
         });
-        resData.location = coordsString;
-        resData.mobile_id = coordsString;
-        resData.device_id = coordsString;
+        resData.location = friendlyCoords;
+        resData.mobile_id = friendlyCoords;
+        resData.device_id = friendlyCoords;
       } catch (updateErr) {
         console.log('Failed to update check-in location with coords:', updateErr?.message || updateErr);
       }

@@ -85,6 +85,7 @@ const DashboardTabs = () => {
 
   return (
     <Tab.Navigator
+      detachInactiveScreens={false}
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarIcon: ({ color, size, focused }) => 
@@ -100,7 +101,10 @@ const DashboardTabs = () => {
           fontSize: 12,
           marginTop: -5,
         },
+        sceneContainerStyle: { backgroundColor: '#FFFFFF' },
       })}
+      initialRouteName="Home"
+      lazy={false}
     >
       <Tab.Screen 
         name="Home" 
