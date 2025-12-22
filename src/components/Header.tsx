@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, StatusBar, Platform, Image } from 'react-native';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, StatusBar, Platform, Image, InteractionManager } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import LinearGradient from 'react-native-linear-gradient';
@@ -34,6 +34,35 @@ const Header: React.FC<HeaderProps> = ({
   brandTitle = '',
 }) => {
   const [avatar, setAvatar] = useState<string | null>(null);
+  const notificationLockRef = useRef(false);
+
+  const handleNotification = useCallback(() => {
+    if (notificationLockRef.current) return;
+    notificationLockRef.current = true;
+    setTimeout(() => {
+      notificationLockRef.current = false;
+    }, 700);
+
+    const navigateToNotifications = () => {
+      if (onNotificationPress) {
+        onNotificationPress();
+        return;
+      }
+      let nav: any = navigation;
+      // walk up to the root navigator to avoid intermediate flicker
+      while (nav?.getParent?.()) {
+        nav = nav.getParent();
+      }
+      if (nav?.navigate) {
+        nav.navigate('Notifications');
+      } else {
+        console.log('Notifications pressed');
+      }
+    };
+
+    // Defer navigation until interactions finish to avoid initial flicker
+    InteractionManager.runAfterInteractions(navigateToNotifications);
+  }, [navigation, onNotificationPress]);
 
   const resolveSiteBase = async () => {
     try {
@@ -66,7 +95,6 @@ const Header: React.FC<HeaderProps> = ({
         } else if (!hasScheme && siteBase) {
           cleaned = `${siteBase}/${cleaned.replace(/^\/+/, '')}`;
         } else if (!hasScheme && !siteBase && cleaned.startsWith('/')) {
-          // leave absolute path to let RN try with bundled origin if any, but prefer to prepend https later if base becomes available
           cleaned = `https://${cleaned.replace(/^\/+/, '')}`;
         }
         // encode spaces but keep URL structure
@@ -154,7 +182,7 @@ const Header: React.FC<HeaderProps> = ({
             {/* Notification Icon */}
             <TouchableOpacity
               style={styles.iconButton}
-              onPress={onNotificationPress || (() => console.log('Notifications pressed'))}
+              onPress={handleNotification}
               activeOpacity={0.7}
             >
               <Ionicons name="notifications-outline" size={24} color="#FFFFFF" />

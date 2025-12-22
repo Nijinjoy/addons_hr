@@ -10,9 +10,9 @@ import {
 } from 'react-native';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { Lead } from '../../services/leadService';
-import { LeadStackParamList } from '../../navigation/LeadStack';
-import Header from '../../components/Header';
+import { Lead } from '../../../services/leadService';
+import { LeadStackParamList } from '../../../navigation/LeadStack';
+import Header from '../../../components/Header';
 
 type LeadDetailRouteProp = RouteProp<LeadStackParamList, 'LeadDetail'>;
 

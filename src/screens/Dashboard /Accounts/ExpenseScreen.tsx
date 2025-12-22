@@ -10,7 +10,7 @@ import {
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
-import Header from '../../components/Header';
+import Header from '../../../components/Header';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { launchImageLibrary } from 'react-native-image-picker';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -19,7 +19,7 @@ import {
   ExpenseHistoryItem,
   applyExpenseClaim,
   getExpenseTypes,
-} from '../../services/expenseClaim';
+} from '../../../services/expenseClaim';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 

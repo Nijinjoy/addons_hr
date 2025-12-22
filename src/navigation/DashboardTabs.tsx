@@ -2,12 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { View, Text, Platform } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import HomeScreen from '../screens/Dashboard /HomeScreen';
-import AccountDashboard from '../screens/Dashboard /AccountDashboard';
-import CRMDashboard from '../screens/Dashboard /CRMDashboard';
-import TimesheetScreen from '../screens/Dashboard /TimesheetScreen';
-import MoreScreen from '../screens/Dashboard /MoreScreen';
-import HRMDashboard from '../screens/Dashboard /HRMDashboard';
+import HomeScreen from '../screens/Dashboard /Core/HomeScreen';
+import AccountDashboard from '../screens/Dashboard /Accounts/AccountDashboard';
+import CRMDashboard from '../screens/Dashboard /CRM/CRMDashboard';
+import TimesheetScreen from '../screens/Dashboard /HRM/TimesheetScreen';
+import MoreScreen from '../screens/Dashboard /Core/MoreScreen';
+import HRMDashboard from '../screens/Dashboard /HRM/HRMDashboard';
 
 const Tab = createBottomTabNavigator();
 

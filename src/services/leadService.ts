@@ -149,6 +149,20 @@ export const fetchLeads = async (limit: number = 50): Promise<Lead[]> => {
         'mobile_no',
         'source',
         'creation',
+        'job_title',
+        'gender',
+        'lead_type',
+        'request_type',
+        'service_type',
+        'whatsapp',
+        'building',
+        'location',
+        'territory',
+        'no_of_employees',
+        'number_of_employees',
+        'industry',
+        'owner',
+        'associate_details',
       ]),
       order_by: 'creation desc',
       limit_page_length: limit,
@@ -918,11 +932,48 @@ export const getLeadOwners = async (limit: number = 200): Promise<LeadOwnerResul
   }
 };
 
+const getBuildingLinkDocFromMeta = async (): Promise<string> => {
+  const { baseMethod } = await getBases();
+  if (!baseMethod) return '';
+  try {
+    const url = buildQuery(`${baseMethod}/frappe.desk.form.load.getdoctype`, { doctype: 'Lead' });
+    const res = await requestJSON<{ docs?: any[]; doc?: any }>(url, {
+      method: 'GET',
+      headers: await authHeaders(),
+    });
+    const doc = (res as any)?.docs?.[0] || (res as any)?.doc;
+    const fields = doc?.fields || [];
+    const buildingField =
+      fields.find((f: any) => f.fieldname === 'building') ||
+      fields.find((f: any) => f.fieldname === 'building_location') ||
+      fields.find((f: any) => f.fieldname === 'custom_building__location');
+    const opts = typeof buildingField?.options === 'string' ? buildingField.options.trim() : '';
+    // If options contains newlines, it's a Select; otherwise it's likely a linked DocType name
+    if (opts && !/\n/.test(opts)) return opts;
+  } catch (err: any) {
+    const msg = err?.message || err;
+    console.warn('Building link doc meta fetch failed', msg);
+  }
+  return '';
+};
+
 const fetchBuildingLocations = async (limit: number = 200): Promise<string[]> => {
   const { baseResource, baseMethod } = await getBases();
-  const docs = ['Address'];
+  const metaDoc = await getBuildingLinkDocFromMeta();
+  const docs = Array.from(new Set([metaDoc, 'Building & Location', 'Address'].filter(Boolean)));
   const docFieldsMap: Record<string, string[]> = {
     Address: ['name', 'address_title', 'address_line1', 'city', 'country', 'custom_building__location'],
+    'Building & Location': [
+      'name',
+      'building',
+      'location',
+      'building_location',
+      'custom_building__location',
+      'address_title',
+      'address_line1',
+      'city',
+      'country',
+    ],
   };
   for (const doc of docs) {
     const fields = docFieldsMap[doc] || ['name'];
@@ -970,6 +1021,17 @@ const fetchBuildingLocations = async (limit: number = 200): Promise<string[]> =>
   return [];
 };
 
+const cleanBuildingLabel = (val: string): string => {
+  if (!val) return val;
+  const parts = val
+    .split(',')
+    .map((p) => p.trim())
+    .filter(Boolean);
+  const filtered = parts.filter((p) => !/@/.test(p) && !/^crm-lead-/i.test(p) && !/lead$/i);
+  const cleaned = (filtered.length ? filtered : parts).join(', ').trim();
+  return cleaned || val;
+};
+
 const fetchBuildingLocationsFromMeta = async (): Promise<string[]> => {
   const { baseMethod } = await getBases();
   if (!baseMethod) return [];
@@ -983,12 +1045,13 @@ const fetchBuildingLocationsFromMeta = async (): Promise<string[]> => {
     const fields = doc?.fields || [];
     const buildingField =
       fields.find((f: any) => f.fieldname === 'building') ||
+      fields.find((f: any) => f.fieldname === 'building_location') ||
       fields.find((f: any) => f.fieldname === 'custom_building__location');
     const opts = typeof buildingField?.options === 'string' ? buildingField.options : '';
     if (!opts) return [];
     return opts
       .split('\n')
-      .map((s: string) => s.trim())
+      .map((s: string) => cleanBuildingLabel(s.trim()))
       .filter(Boolean);
   } catch (err: any) {
     const msg = err?.message || err;
@@ -1000,27 +1063,31 @@ const fetchBuildingLocationsFromMeta = async (): Promise<string[]> => {
 const fetchBuildingLocationsViaSearch = async (limit: number = 200): Promise<string[]> => {
   const { baseMethod } = await getBases();
   if (!baseMethod) return [];
-  try {
-    const res = await requestJSON<{ message?: { value?: string; description?: string; label?: string }[] }>(
-      `${baseMethod}/frappe.desk.search.search_link`,
-      {
-        method: 'POST',
-        headers: await authHeaders(),
-        body: JSON.stringify({
-          doctype: 'Lead',
-          reference_doctype: 'Address',
-          txt: '',
-          page_length: limit,
-        }),
-      },
-    );
-    const rows = (res as any)?.message || [];
-    return normalizeBuildingSearch(rows);
-  } catch (err: any) {
-    const msg = err?.message || err;
-    console.warn('Building/location search_link fetch failed', msg);
-    return [];
+  const referenceDocs = ['Building & Location', 'Address'];
+  for (const reference_doctype of referenceDocs) {
+    try {
+      const res = await requestJSON<{ message?: { value?: string; description?: string; label?: string }[] }>(
+        `${baseMethod}/frappe.desk.search.search_link`,
+        {
+          method: 'POST',
+          headers: await authHeaders(),
+          body: JSON.stringify({
+            doctype: 'Lead',
+            reference_doctype,
+            txt: '',
+            page_length: limit,
+          }),
+        },
+      );
+      const rows = (res as any)?.message || [];
+      const normalized = normalizeBuildingSearch(rows);
+      if (normalized.length) return normalized;
+    } catch (err: any) {
+      const msg = err?.message || err;
+      console.warn(`Building/location search_link fetch failed for ${reference_doctype}`, msg);
+    }
   }
+  return [];
 };
 
 export const getBuildingLocations = async (
@@ -1069,23 +1136,32 @@ const normalizeBuildingLocations = (rows: any[]): string[] => {
   (rows || []).forEach((row) => {
     const customLoc =
       (typeof row?.custom_building__location === 'string' && row.custom_building__location.trim()) || '';
+    const buildingLoc =
+      (typeof row?.building_location === 'string' && row.building_location.trim()) || '';
+    const buildingField = (typeof row?.building === 'string' && row.building.trim()) || '';
+    const locationField = (typeof row?.location === 'string' && row.location.trim()) || '';
     const addressTitle = (typeof row?.address_title === 'string' && row.address_title.trim()) || '';
     const addressLine1 = (typeof row?.address_line1 === 'string' && row.address_line1.trim()) || '';
     const city = (typeof row?.city === 'string' && row.city.trim()) || '';
     const country = (typeof row?.country === 'string' && row.country.trim()) || '';
     const name = (typeof row?.name === 'string' && row.name.trim()) || '';
 
-    const addressCombined = addressTitle || addressLine1
-      ? [addressTitle || addressLine1, city || country || ''].filter(Boolean).join(' - ')
-      : '';
-    const val =
-      addressCombined ||
-      customLoc;
+    const addressCombined =
+      addressTitle || addressLine1
+        ? [addressTitle || addressLine1, city || country || ''].filter(Boolean).join(' - ')
+        : '';
+    const buildingCombined =
+      buildingField && locationField
+        ? `${buildingField} - ${locationField}`
+        : buildingField || locationField;
+    const val = customLoc || buildingLoc || buildingCombined || addressCombined;
     const fallback = name || '';
     const finalVal = val || fallback;
     if (finalVal && !/^CRM-LEAD-/i.test(finalVal) && !/associate/i.test(finalVal)) deduped.add(finalVal);
   });
-  return Array.from(deduped);
+  return Array.from(deduped)
+    .map((item) => cleanBuildingLabel(item))
+    .filter(Boolean);
 };
 
 const normalizeBuildingSearch = (rows: any[]): string[] => {
@@ -1094,12 +1170,14 @@ const normalizeBuildingSearch = (rows: any[]): string[] => {
     const value = (typeof row?.value === 'string' && row.value.trim()) || '';
     const desc = (typeof row?.description === 'string' && row.description.trim()) || '';
     const label = (typeof row?.label === 'string' && row.label.trim()) || '';
-    const candidate = desc || label || value;
+    const candidate = label || desc || value;
     if (candidate && !/^CRM-LEAD-/i.test(candidate) && !/associate/i.test(candidate)) {
       deduped.add(candidate);
     }
   });
-  return Array.from(deduped);
+  return Array.from(deduped)
+    .map((item) => cleanBuildingLabel(item))
+    .filter(Boolean);
 };
 
 const resolveAssociateNamesFromLeads = async (ids: string[]): Promise<Record<string, string>> => {

@@ -13,7 +13,7 @@ import {
   TouchableWithoutFeedback,
   Platform,
 } from 'react-native';
-import Header from '../../components/Header';
+import Header from '../../../components/Header';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
 import {
@@ -26,7 +26,7 @@ import {
   createTimesheet,
   submitTimesheet,
   getTimesheetDetail,
-} from '../../services/timesheetService';
+} from '../../../services/timesheetService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
 

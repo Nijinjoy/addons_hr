@@ -2,13 +2,14 @@ import React from 'react';
 import { View } from 'react-native';
 import { createDrawerNavigator } from '@react-navigation/drawer';
 import DashboardTabs from './DashboardTabs';
-import ProfileScreen from '../screens/Dashboard /ProfileScreen';
-import AttendanceScreen from '../screens/Dashboard /AttendanceScreen';
+import ProfileScreen from '../screens/Dashboard /HRM/ProfileScreen';
+import AttendanceScreen from '../screens/Dashboard /HRM/AttendanceScreen';
+import NotificationScreen from '../screens/Dashboard /Core/NotificationScreen';
 import LeadStack from './LeadStack';
-import TaskListScreen from '../screens/Dashboard /TaskListScreen';
-import TaskCreateNewScreen from '../screens/Dashboard /TaskCreateNewScreen';
-import TimesheetScreen from '../screens/Dashboard /TimesheetScreen';
-import ExpenseScreen from '../screens/Dashboard /ExpenseScreen';
+import TaskListScreen from '../screens/Dashboard /Core/TaskListScreen';
+import TaskCreateNewScreen from '../screens/Dashboard /Core/TaskCreateNewScreen';
+import TimesheetScreen from '../screens/Dashboard /HRM/TimesheetScreen';
+import ExpenseScreen from '../screens/Dashboard /Accounts/ExpenseScreen';
 
 const Drawer = createDrawerNavigator();
 
@@ -36,6 +37,11 @@ const DrawerNavigator = () => {
       <Drawer.Screen
         name="Attendance"
         component={AttendanceScreen}
+        options={{ drawerItemStyle: { display: 'none' } }}
+      />
+      <Drawer.Screen
+        name="Notifications"
+        component={NotificationScreen}
         options={{ drawerItemStyle: { display: 'none' } }}
       />
       <Drawer.Screen

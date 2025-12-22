@@ -8,7 +8,7 @@ import {
   ScrollView,
   Alert,
 } from 'react-native';
-import Header from '../../components/Header';
+import Header from '../../../components/Header';
 import { useNavigation } from '@react-navigation/native';
 import { launchImageLibrary, launchCamera, Asset } from 'react-native-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -21,8 +21,8 @@ import {
   getLeadStatuses,
   getLeadOwners,
   getBuildingLocations,
-} from '../../services/leadService';
-import { createLead } from '../../services/api/leadsCreate.service';
+} from '../../../services/leadService';
+import { createLead } from '../../../services/api/leadsCreate.service';
 
 const dropdownPlaceholder = 'Select';
 type OptionType = string | { label: string; value: string };

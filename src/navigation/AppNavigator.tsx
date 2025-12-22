@@ -6,7 +6,7 @@ import { getSession } from '../services/storage/secureStorage';
 import SplashScreen from '../screens/SplashScreen';
 import AuthStack from './AuthStack';
 import DrawerNavigator from './DrawerNavigator';
-import LeaveScreen from '../screens/Dashboard /LeaveScreen';
+import LeaveScreen from '../screens/Dashboard /HRM/LeaveScreen';
 
 const Stack = createNativeStackNavigator();
 

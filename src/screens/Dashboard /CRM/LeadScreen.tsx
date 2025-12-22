@@ -12,8 +12,8 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useNavigation } from '@react-navigation/native';
-import Header from '../../components/Header';
-import { getLeads } from '../../services/api/leads.service';
+import Header from '../../../components/Header';
+import { getLeads } from '../../../services/api/leads.service';
 
 const LeadScreen = () => {
   const navigation = useNavigation<any>();
@@ -94,19 +94,27 @@ const LeadScreen = () => {
       Alert.alert('Email', 'No email address available for this lead.');
       return;
     }
-    const gmailUrl = `googlegmail://co?to=${encodeURIComponent(addr)}`;
-    const mailtoUrl = `mailto:${encodeURIComponent(addr)}`;
+    const subject = encodeURIComponent('Regarding your inquiry');
+    const body = encodeURIComponent('Hi,\n\n');
+    const mailtoUrl = `mailto:${encodeURIComponent(addr)}?subject=${subject}&body=${body}`;
+    const gmailUrl = `googlegmail://co?to=${encodeURIComponent(addr)}&subject=${subject}&body=${body}`;
     try {
+      // Try default mail client first; some platforms return false for canOpenURL but still work
+      const canMailto = await Linking.canOpenURL(mailtoUrl);
+      if (canMailto) {
+        await Linking.openURL(mailtoUrl);
+        return;
+      }
+      await Linking.openURL(mailtoUrl).catch(() => {}); // attempt even if canOpenURL was false
+      // If still here, try Gmail scheme
       const canGmail = await Linking.canOpenURL(gmailUrl);
       if (canGmail) {
         await Linking.openURL(gmailUrl);
         return;
       }
-      const supported = await Linking.canOpenURL(mailtoUrl);
-      if (!supported) throw new Error('Cannot open mail app');
-      await Linking.openURL(mailtoUrl);
-    } catch {
-      Alert.alert('Email', 'Unable to open the email app.');
+      throw new Error('No email app available');
+    } catch (err: any) {
+      Alert.alert('Email', 'Unable to open the email app on this device.');
     }
   };
 

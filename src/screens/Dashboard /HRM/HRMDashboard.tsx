@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import Header from '../../components/Header';
+import Header from '../../../components/Header';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
@@ -51,6 +51,15 @@ const HRMDashboard = () => {
     navigation.navigate(route as never);
   };
 
+  const handleNotificationPress = useCallback(() => {
+    const parent = navigation.getParent?.();
+    if (parent?.navigate) {
+      parent.navigate('Notifications' as never);
+      return;
+    }
+    navigation.navigate('Notifications' as never);
+  }, [navigation]);
+
   return (
     <View style={styles.container}>
       <Header
@@ -58,7 +67,7 @@ const HRMDashboard = () => {
         useGradient
         notificationCount={0}
         navigation={navigation as any}
-        onNotificationPress={() => console.log('Notifications pressed')}
+        onNotificationPress={handleNotificationPress}
         onProfilePress={() => navigation.getParent()?.openDrawer?.()}
       />
 

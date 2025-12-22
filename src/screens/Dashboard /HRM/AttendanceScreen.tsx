@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState ,useCallback} from 'react';
 import {
   View,
   Text,
@@ -14,15 +14,15 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Geolocation from '@react-native-community/geolocation';
-import Header from '../../components/Header';
+import Header from '../../../components/Header';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useNavigation } from '@react-navigation/native';
 import {
   checkIn as checkInApi,
   checkOut as checkOutApi,
-} from '../../services/api/attendance.service';
-import { getAttendanceLogs } from '../../services/attendanceService';
+} from '../../../services/api/attendance.service';
+import { getAttendanceLogs } from '../../../services/attendanceService';
 
 type HistoryEntry = {
   id: string;
@@ -182,7 +182,7 @@ const AttendanceScreen = () => {
     loadStatus();
   }, []);
 
-  const fetchHistory = async () => {
+  const fetchHistory = useCallback(async () => {
     try {
       setHistoryLoading(true);
       const emp =
@@ -199,6 +199,7 @@ const AttendanceScreen = () => {
       let latestTimestamp: string | undefined;
       let latestLocationFromServer: string | undefined;
       let latestCheckInTime: string | undefined;
+
       if (res.ok && res.data?.length) {
         const parsed = res.data.map((row) => {
           const rawDate = row.attendance_date || row.time;
@@ -254,6 +255,7 @@ const AttendanceScreen = () => {
             timeMs: dateObj && !Number.isNaN(dateObj.getTime()) ? dateObj.getTime() : undefined,
           };
         });
+
         const latestRow = [...(res.data || [])]
           .map((row) => {
             const candidates = [row.out_time, row.in_time, row.time, row.attendance_date].filter(Boolean);
@@ -279,6 +281,7 @@ const AttendanceScreen = () => {
               ? `${Number(latestRow.latitude).toFixed(5)},${Number(latestRow.longitude).toFixed(5)}`
               : undefined);
         }
+
         const latestCheckInRow = [...(res.data || [])]
           .map((row) => {
             const t = row.in_time || row.time || row.attendance_date;
@@ -300,7 +303,6 @@ const AttendanceScreen = () => {
           });
           latestCheckInTime = formatted;
         }
-        // Aggregate by date to build Attendance-style rows with status, shift, in/out, hours
         const byDate = new Map<
           string,
           HistoryEntry & { inMs?: number; outMs?: number; lastMs?: number }
@@ -363,6 +365,7 @@ const AttendanceScreen = () => {
       } else {
         setHistory([]);
       }
+
       if (latestType) {
         setIsCheckedIn(latestType === 'IN');
         setLastEvent(
@@ -385,11 +388,11 @@ const AttendanceScreen = () => {
     } finally {
       setHistoryLoading(false);
     }
-  };
+  }, [statusStorageKey, locationStorageKey]);
 
   useEffect(() => {
     fetchHistory();
-  }, []);
+  }, [fetchHistory]);
 
   useEffect(() => {
     const unsubscribe = (navigation as any)?.addListener?.('focus', () => {
@@ -399,17 +402,16 @@ const AttendanceScreen = () => {
   }, [navigation]);
 
   const handleRefreshHistory = async () => {
-    console.log('Attendance history: manual refresh triggered');
     await fetchHistory();
-    console.log('Attendance history: refresh complete', { count: history.length });
   };
 
-  const handleCheck = async (type: 'IN' | 'OUT') => {
-    if (loading) return;
-    try {
-      setLoading(true);
-      const emp =
-        (await AsyncStorage.getItem('employee_id')) ||
+  const handleCheck = useCallback(
+    async (type: 'IN' | 'OUT') => {
+      if (loading) return;
+      try {
+        setLoading(true);
+        const emp =
+          (await AsyncStorage.getItem('employee_id')) ||
         (await AsyncStorage.getItem('user_id')) ||
         '';
       const companyUrl = (await AsyncStorage.getItem('company_url')) || undefined;
@@ -501,7 +503,9 @@ const AttendanceScreen = () => {
     } finally {
       setLoading(false);
     }
-  };
+    },
+    [fetchHistory, loading]
+  );
 
   const currentTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   const currentDate = now.toLocaleDateString(undefined, {
@@ -578,17 +582,7 @@ const AttendanceScreen = () => {
           </View>
         </View>
 
-        <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionHeading}>Recent History</Text>
-          <Pressable
-            hitSlop={8}
-            style={({ pressed }) => [styles.refreshBtn, pressed && styles.refreshBtnPressed]}
-            onPress={handleRefreshHistory}
-          >
-            <Ionicons name="refresh" size={16} color="#0F172A" />
-            <Text style={styles.refreshLabel}>Fetch</Text>
-          </Pressable>
-        </View>
+        <Text style={styles.sectionHeading}>Recent History</Text>
         <View style={styles.historyCard}>
           {historyLoading ? (
             <View style={styles.historyRow}>
@@ -758,9 +752,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   historyEmpty: { textAlign: 'center', color: '#6B7280', paddingVertical: 12 },
-  refreshBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 6, paddingVertical: 4 },
-  refreshBtnPressed: { opacity: 0.7 },
-  refreshLabel: { color: '#0F172A', fontSize: 12, fontWeight: '700' },
   historyCardItem: {
     marginHorizontal: 8,
     marginVertical: 6,

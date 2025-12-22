@@ -2,8 +2,8 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, RefreshControl, ActivityIndicator, Pressable, FlatList } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import Header from '../../components/Header';
-import { fetchTasks, TaskListItem } from '../../services/api/tasks.service';
+import Header from '../../../components/Header';
+import { fetchTasks, TaskListItem } from '../../../services/api/tasks.service';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const TaskListScreen = () => {

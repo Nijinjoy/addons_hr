@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, Pressable, Alert, ScrollView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import Header from '../../components/Header';
+import Header from '../../../components/Header';
 import {
   createTask,
   fetchIssues,
@@ -10,10 +10,10 @@ import {
   fetchTaskTypes,
   fetchTaskStatuses,
   fetchTaskPriorities,
-} from '../../services/api/tasks.service';
+} from '../../../services/api/tasks.service';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import CommonDropdown, { DropdownData } from '../../components/CommonDropdown/CommonDropdown';
+import CommonDropdown, { DropdownData } from '../../../components/CommonDropdown/CommonDropdown';
 
 const fallbackPriorities = ['Low', 'Medium', 'High', 'Urgent'];
 const fallbackTypes = ['Task', 'Bug', 'Feature', 'Support'];

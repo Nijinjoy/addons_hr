@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { 
   View, 
   Text, 
@@ -14,13 +14,13 @@ import {
 } from 'react-native';
 import Geolocation from '@react-native-community/geolocation';
 import { useNavigation } from '@react-navigation/native';
-import Header from '../../components/Header';
+import Header from '../../../components/Header';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { checkIn } from '../../services/attendanceService';
-import { addonserp } from '../../assets/images';
+import { checkIn } from '../../../services/attendanceService';
+import { addonserp } from '../../../assets/images';
 
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -28,9 +28,14 @@ const HomeScreen: React.FC = () => {
   const [lastCheckInText] = useState('Welcome back!');
   const [lastLocation] = useState<{ latitude?: number; longitude?: number }>({});
 
-  const handleNotificationPress = () => {
-    console.log('Notification pressed');
-  };
+  const handleNotificationPress = useCallback(() => {
+    const drawerNav = (navigation as any)?.getParent?.();
+    if (drawerNav?.navigate) {
+      drawerNav.navigate('Notifications' as never);
+      return;
+    }
+    (navigation as any)?.navigate?.('Notifications' as never);
+  }, [navigation]);
   const requestLocationPermission = async (): Promise<boolean> => {
     const hasNativeGeo = !!(NativeModules as any)?.RNCGeolocation;
 
@@ -181,6 +186,7 @@ const HomeScreen: React.FC = () => {
         notificationCount={5}
         useGradient={true}
         brandLogo={addonserp}
+        onNotificationPress={handleNotificationPress}
       />
 
       {/* White background container below header */}

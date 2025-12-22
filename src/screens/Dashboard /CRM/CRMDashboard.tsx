@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import Header from '../../components/Header';
+import Header from '../../../components/Header';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
 const CRMDashboard = () => {
@@ -18,6 +18,15 @@ const CRMDashboard = () => {
     { title: 'Schedule demo', status: 'Queued', time: 'This week' },
   ];
 
+  const handleNotificationPress = useCallback(() => {
+    const parent = navigation.getParent?.();
+    if (parent?.navigate) {
+      parent.navigate('Notifications' as never);
+      return;
+    }
+    navigation.navigate('Notifications' as never);
+  }, [navigation]);
+
   return (
     <View style={styles.container}>
       <Header
@@ -25,7 +34,7 @@ const CRMDashboard = () => {
         useGradient
         navigation={navigation as any}
         notificationCount={0}
-        onNotificationPress={() => console.log('Notifications pressed')}
+        onNotificationPress={handleNotificationPress}
         onProfilePress={() => navigation.getParent()?.openDrawer?.()}
       />
       <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>

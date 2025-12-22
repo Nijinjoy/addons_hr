@@ -4,9 +4,10 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
-import { profile as profileImage } from '../../assets/images';
-import { logout } from '../../services/authService';
-import { deleteProfileImage, getProfileDetails, ProfileData, uploadProfileImage } from '../../services/profileService';
+import { profile as profileImage } from '../../../assets/images';
+import { logout } from '../../../services/authService';
+import { getProfile, updateProfileImage, removeProfileImage, ProfileData } from '../../../services/api/profile.service';
+import { getMethodUrl, getResourceUrl } from '../../../services/urlService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { launchImageLibrary } from 'react-native-image-picker';
 
@@ -94,6 +95,40 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack }) => {
     setSelectedSection(null);
   };
 
+  const resolveSiteBase = async () => {
+    try {
+      const stored = (await AsyncStorage.getItem('company_url')) || '';
+      const candidates = [stored, await getResourceUrl(), await getMethodUrl()].filter(Boolean) as string[];
+      for (const c of candidates) {
+        const trimmed = c.replace(/\/+$/, '');
+        if (!trimmed) continue;
+        if (trimmed.endsWith('/api/resource')) return trimmed.replace(/\/api\/resource$/, '');
+        if (trimmed.endsWith('/api/method')) return trimmed.replace(/\/api\/method$/, '');
+        return trimmed;
+      }
+    } catch {
+      // ignore
+    }
+    return '';
+  };
+
+  const normalizeAvatar = (uri?: string | null, siteBase?: string | null) => {
+    if (!uri) return null;
+    let cleaned = uri.trim().replace(/^"+|"+$/g, '');
+    if (!cleaned) return null;
+    if (cleaned.startsWith('//')) cleaned = `https:${cleaned}`;
+    const hasScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(cleaned);
+    if (cleaned.startsWith('/') && siteBase) {
+      cleaned = `${siteBase}${cleaned}`;
+    } else if (!hasScheme && siteBase) {
+      cleaned = `${siteBase}/${cleaned.replace(/^\/+/, '')}`;
+    } else if (!hasScheme && !siteBase && cleaned.startsWith('/')) {
+      cleaned = `https://${cleaned.replace(/^\/+/, '')}`;
+    }
+    if (cleaned.includes(' ')) cleaned = encodeURI(cleaned);
+    return cleaned;
+  };
+
   const handleLogout = async () => {
     Alert.alert(
       'Log Out',
@@ -138,16 +173,29 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack }) => {
         setError('');
         try {
           const cachedImage = await AsyncStorage.getItem('user_image');
-          if (cachedImage) setStoredAvatar(cachedImage);
+          if (cachedImage) {
+            const siteBase = await resolveSiteBase();
+            setStoredAvatar(normalizeAvatar(cachedImage, siteBase) || cachedImage);
+          }
         } catch {
           // ignore avatar cache errors
         }
-        const res = await getProfileDetails();
+        const res = await getProfile();
         if (!res.ok) {
           setError(res.message || 'Failed to load profile');
           return;
         }
-        setProfile(res.data);
+        const siteBase = await resolveSiteBase();
+        const normalized = normalizeAvatar(res.data?.image, siteBase);
+        if (normalized) {
+          setStoredAvatar(normalized);
+          try {
+            await AsyncStorage.setItem('user_image', normalized);
+          } catch {
+            // ignore cache write errors
+          }
+        }
+        setProfile({ ...(res.data || {}), image: normalized || res.data?.image });
       } catch (err: any) {
         setError(err?.message || 'Failed to load profile');
       } finally {
@@ -156,6 +204,23 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack }) => {
     };
     loadProfile();
   }, []);
+
+  const refreshProfile = async () => {
+    try {
+      setLoading(true);
+      const res = await getProfileDetails();
+      if (res.ok) {
+        const siteBase = await resolveSiteBase();
+        const normalized = normalizeAvatar(res.data?.image, siteBase);
+        setProfile({ ...(res.data || {}), image: normalized || res.data?.image });
+        if (normalized) await AsyncStorage.setItem('user_image', normalized);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <View style={styles.root}>
@@ -219,7 +284,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack }) => {
                 if (!asset?.uri) return;
                 try {
                   setUploading(true);
-                  const res = await uploadProfileImage({
+                  const res = await updateProfileImage(undefined, {
                     uri: asset.uri,
                     name: asset.fileName || 'profile.jpg',
                     type: asset.type || 'image/jpeg',
@@ -229,10 +294,14 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack }) => {
                     Alert.alert('Profile', res.message || 'Failed to upload image');
                     return;
                   }
-                  setProfile((prev) => ({ ...(prev || {}), ...(res.data || {}) }));
-                  if ((res.data as any)?.image) {
-                    setStoredAvatar((res.data as any).image);
+                  await refreshProfile();
+                  const siteBase = await resolveSiteBase();
+                  const normalizedUploaded = normalizeAvatar((res.data as any)?.image, siteBase);
+                  if (normalizedUploaded) {
+                    setStoredAvatar(normalizedUploaded);
+                    await AsyncStorage.setItem('user_image', normalizedUploaded);
                   }
+                  Alert.alert('Profile', 'Profile photo updated successfully.');
                 } catch (err: any) {
                   Alert.alert('Profile', err?.message || 'Failed to upload image');
                 } finally {
@@ -249,7 +318,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack }) => {
               onPress={async () => {
                 try {
                   setUploading(true);
-                  const res = await deleteProfileImage();
+                  const res = await removeProfileImage();
                   if (!res.ok) {
                     Alert.alert('Profile', res.message || 'Failed to remove image');
                     return;

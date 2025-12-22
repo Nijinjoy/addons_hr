@@ -12,8 +12,8 @@ import {
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
-import Header from '../../components/Header';
-import { getLeaveBalance, getLeaveApplications, applyLeave } from '../../services/api/leave.service';
+import Header from '../../../components/Header';
+import { getLeaveBalance, getLeaveApplications, applyLeave } from '../../../services/api/leave.service';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
 

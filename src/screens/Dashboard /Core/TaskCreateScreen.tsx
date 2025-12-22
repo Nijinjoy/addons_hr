@@ -12,9 +12,9 @@ import {
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
-import Header from '../../components/Header';
-import { LeadStackParamList } from '../../navigation/LeadStack';
-import { Assignee, createLeadTask, getAssignableUsers } from '../../services/api/leads.service';
+import Header from '../../../components/Header';
+import { LeadStackParamList } from '../../../navigation/LeadStack';
+import { Assignee, createLeadTask, getAssignableUsers } from '../../../services/api/leads.service';
 import { launchImageLibrary, Asset } from 'react-native-image-picker';
 
 type RouteProps = RouteProp<LeadStackParamList, 'TaskCreate'>;

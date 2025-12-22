@@ -234,6 +234,8 @@ export const getProfileDetails = async (): Promise<ProfileResult> => {
       return trimmed ? trimmed.charAt(0).toUpperCase() : '';
     };
 
+    const chosenImage = userProfile.image || employeeProfile.image;
+
     const data: ProfileData = {
       employeeId: employeeProfile.employeeId || employeeId || userProfile.employeeId,
       userId: userProfile.userId || employeeProfile.userId || userId,
@@ -243,7 +245,7 @@ export const getProfileDetails = async (): Promise<ProfileResult> => {
       department: employeeProfile.department,
       company: employeeProfile.company,
       phone: employeeProfile.phone,
-      image: employeeProfile.image || userProfile.image,
+      image: chosenImage,
       initial:
         deriveInitial(employeeProfile.fullName) ||
         deriveInitial(userProfile.fullName) ||

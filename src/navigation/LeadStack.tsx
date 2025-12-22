@@ -1,10 +1,10 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import LeadScreen from '../screens/Dashboard /LeadScreen';
-import LeadDetailScreen from '../screens/Dashboard /LeadDetailScreen';
-import LeadCreateScreen from '../screens/Dashboard /LeadCreateScreen';
-import TaskCreateScreen from '../screens/Dashboard /TaskCreateScreen';
-import EventCreateScreen from '../screens/Dashboard /EventCreateScreen';
+import LeadScreen from '../screens/Dashboard /CRM/LeadScreen';
+import LeadDetailScreen from '../screens/Dashboard /CRM/LeadDetailScreen';
+import LeadCreateScreen from '../screens/Dashboard /CRM/LeadCreateScreen';
+import TaskCreateScreen from '../screens/Dashboard /Core/TaskCreateScreen';
+import EventCreateScreen from '../screens/Dashboard /CRM/EventCreateScreen';
 
 export type LeadStackParamList = {
   LeadsList: undefined;
