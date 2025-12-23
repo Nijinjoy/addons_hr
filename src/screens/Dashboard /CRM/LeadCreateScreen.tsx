@@ -372,6 +372,7 @@ const LeadCreateScreen = () => {
         custom_date: date,
         custom_building__location: buildingTrimmed,
       };
+      console.log('LeadCreateScreen payload:', payload);
       const res = await createLead(payload);
       console.log('Lead create response:', res);
       if (res.ok) {

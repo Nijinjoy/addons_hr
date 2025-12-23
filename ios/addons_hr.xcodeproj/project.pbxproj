@@ -10,8 +10,8 @@
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
 		761780ED2CA45674006654EE /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 761780EC2CA45674006654EE /* AppDelegate.swift */; };
 		81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */; };
+		843E3B73EE01E851E94FBC83 /* libPods-addons_hr.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 5AA611DE744C156812330B94 /* libPods-addons_hr.a */; };
 		C5087052C9AB3DB7AD35F337 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */; };
-		E2D403AF569B03F48303606C /* libPods-addons_hr.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 1DE705E148EAA6C98389FFA0 /* libPods-addons_hr.a */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -19,12 +19,12 @@
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = addons_hr/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = addons_hr/Info.plist; sourceTree = "<group>"; };
 		13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = PrivacyInfo.xcprivacy; path = addons_hr/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
-		1DE705E148EAA6C98389FFA0 /* libPods-addons_hr.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-addons_hr.a"; sourceTree = BUILT_PRODUCTS_DIR; };
-		5ED85E6F40D1C00FB6270C93 /* Pods-addons_hr.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-addons_hr.release.xcconfig"; path = "Target Support Files/Pods-addons_hr/Pods-addons_hr.release.xcconfig"; sourceTree = "<group>"; };
+		5AA611DE744C156812330B94 /* libPods-addons_hr.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-addons_hr.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		761780EC2CA45674006654EE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = addons_hr/AppDelegate.swift; sourceTree = "<group>"; };
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = addons_hr/LaunchScreen.storyboard; sourceTree = "<group>"; };
-		89A8146DAA1B9FEDF0527B0D /* Pods-addons_hr.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-addons_hr.debug.xcconfig"; path = "Target Support Files/Pods-addons_hr/Pods-addons_hr.debug.xcconfig"; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
+		EDC07470C76624AF3D587433 /* Pods-addons_hr.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-addons_hr.release.xcconfig"; path = "Target Support Files/Pods-addons_hr/Pods-addons_hr.release.xcconfig"; sourceTree = "<group>"; };
+		FCBCFAB50EAA43ACF162D81C /* Pods-addons_hr.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-addons_hr.debug.xcconfig"; path = "Target Support Files/Pods-addons_hr/Pods-addons_hr.debug.xcconfig"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -32,7 +32,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E2D403AF569B03F48303606C /* libPods-addons_hr.a in Frameworks */,
+				843E3B73EE01E851E94FBC83 /* libPods-addons_hr.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -55,7 +55,7 @@
 			isa = PBXGroup;
 			children = (
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
-				1DE705E148EAA6C98389FFA0 /* libPods-addons_hr.a */,
+				5AA611DE744C156812330B94 /* libPods-addons_hr.a */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -92,8 +92,8 @@
 		BBD78D7AC51CEA395F1C20DB /* Pods */ = {
 			isa = PBXGroup;
 			children = (
-				89A8146DAA1B9FEDF0527B0D /* Pods-addons_hr.debug.xcconfig */,
-				5ED85E6F40D1C00FB6270C93 /* Pods-addons_hr.release.xcconfig */,
+				FCBCFAB50EAA43ACF162D81C /* Pods-addons_hr.debug.xcconfig */,
+				EDC07470C76624AF3D587433 /* Pods-addons_hr.release.xcconfig */,
 			);
 			path = Pods;
 			sourceTree = "<group>";
@@ -105,13 +105,13 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "addons_hr" */;
 			buildPhases = (
-				6ACF1AD28E1A581FB4DCCC5F /* [CP] Check Pods Manifest.lock */,
+				8A0BCF8B025C9E68BC92D180 /* [CP] Check Pods Manifest.lock */,
 				13B07F871A680F5B00A75B9A /* Sources */,
 				13B07F8C1A680F5B00A75B9A /* Frameworks */,
 				13B07F8E1A680F5B00A75B9A /* Resources */,
 				00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */,
-				FBD09545B3E61007FBAC443B /* [CP] Embed Pods Frameworks */,
-				EA0F86C941EECC853041FDC9 /* [CP] Copy Pods Resources */,
+				EA43B17BAF742B3DD916F9A2 /* [CP] Embed Pods Frameworks */,
+				793546574DDEF92D4D899361 /* [CP] Copy Pods Resources */,
 			);
 			buildRules = (
 			);
@@ -183,7 +183,24 @@
 			shellPath = /bin/sh;
 			shellScript = "set -e\n\nWITH_ENVIRONMENT=\"$REACT_NATIVE_PATH/scripts/xcode/with-environment.sh\"\nREACT_NATIVE_XCODE=\"$REACT_NATIVE_PATH/scripts/react-native-xcode.sh\"\n\n/bin/sh -c \"\\\"$WITH_ENVIRONMENT\\\" \\\"$REACT_NATIVE_XCODE\\\"\"\n";
 		};
-		6ACF1AD28E1A581FB4DCCC5F /* [CP] Check Pods Manifest.lock */ = {
+		793546574DDEF92D4D899361 /* [CP] Copy Pods Resources */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-addons_hr/Pods-addons_hr-resources-${CONFIGURATION}-input-files.xcfilelist",
+			);
+			name = "[CP] Copy Pods Resources";
+			outputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-addons_hr/Pods-addons_hr-resources-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-addons_hr/Pods-addons_hr-resources.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+		8A0BCF8B025C9E68BC92D180 /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -205,24 +222,7 @@
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
-		EA0F86C941EECC853041FDC9 /* [CP] Copy Pods Resources */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-addons_hr/Pods-addons_hr-resources-${CONFIGURATION}-input-files.xcfilelist",
-			);
-			name = "[CP] Copy Pods Resources";
-			outputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-addons_hr/Pods-addons_hr-resources-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-addons_hr/Pods-addons_hr-resources.sh\"\n";
-			showEnvVarsInLog = 0;
-		};
-		FBD09545B3E61007FBAC443B /* [CP] Embed Pods Frameworks */ = {
+		EA43B17BAF742B3DD916F9A2 /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -255,12 +255,14 @@
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 89A8146DAA1B9FEDF0527B0D /* Pods-addons_hr.debug.xcconfig */;
+			baseConfigurationReference = FCBCFAB50EAA43ACF162D81C /* Pods-addons_hr.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = V4NTW8B563;
+				DEVELOPMENT_TEAM = "";
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = addons_hr/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
@@ -277,6 +279,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.addons.erp.mobile;
 				"PRODUCT_BUNDLE_IDENTIFIER[sdk=iphoneos*]" = com.addons.addon.erp.mobile;
 				PRODUCT_NAME = addons_hr;
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 				VERSIONING_SYSTEM = "apple-generic";
@@ -285,12 +288,14 @@
 		};
 		13B07F951A680F5B00A75B9A /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 5ED85E6F40D1C00FB6270C93 /* Pods-addons_hr.release.xcconfig */;
+			baseConfigurationReference = EDC07470C76624AF3D587433 /* Pods-addons_hr.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = V4NTW8B563;
+				DEVELOPMENT_TEAM = "";
 				INFOPLIST_FILE = addons_hr/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -306,6 +311,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.addons.erp.mobile;
 				"PRODUCT_BUNDLE_IDENTIFIER[sdk=iphoneos*]" = com.addons.addon.erp.mobile;
 				PRODUCT_NAME = addons_hr;
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_VERSION = 5.0;
 				VERSIONING_SYSTEM = "apple-generic";
 			};

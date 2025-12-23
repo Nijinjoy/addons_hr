@@ -13,6 +13,8 @@ import {
   Keyboard,
   TouchableWithoutFeedback,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useWindowDimensions } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import LinearGradient from 'react-native-linear-gradient';
 import Button from '../components/Button';
@@ -34,6 +36,8 @@ type AuthStackParamList = {
 type Props = NativeStackScreenProps<AuthStackParamList, 'Login'>;
 
 const LoginScreen = ({ navigation }: Props) => {
+  const insets = useSafeAreaInsets();
+  const { height: screenHeight } = useWindowDimensions();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [passwordVisible, setPasswordVisible] = useState(false);
@@ -163,11 +167,6 @@ const LoginScreen = ({ navigation }: Props) => {
     navigation.navigate('Register');
   };
 
-  useEffect(() => {
-    const hideSub = Keyboard.addListener('keyboardDidHide', scrollToTop);
-    return () => hideSub.remove();
-  }, []);
-
   return (
     <LinearGradient
       colors={['#141D35', '#1D2B4C', '#14223E']}
@@ -178,15 +177,18 @@ const LoginScreen = ({ navigation }: Props) => {
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.select({ ios: 64, android: 0 })}
+        keyboardVerticalOffset={Platform.select({ ios: 48, android: 0 })}
       >
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <ScrollView
             style={styles.scroll}
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={[
+              styles.scrollContent,
+              { minHeight: screenHeight, paddingBottom: 0 },
+            ]}
             bounces={false}
             keyboardShouldPersistTaps="handled"
-            keyboardDismissMode="on-drag"
+            keyboardDismissMode="interactive"
             ref={scrollRef}
           >
             <View style={styles.content}>
@@ -199,7 +201,7 @@ const LoginScreen = ({ navigation }: Props) => {
               </View>
 
               <View
-                style={styles.formContainer}
+                style={[styles.formContainer, { paddingBottom: insets.bottom }]}
                 onLayout={(e) => {
                   formOffsetY.current = e.nativeEvent.layout.y;
                 }}
@@ -215,33 +217,31 @@ const LoginScreen = ({ navigation }: Props) => {
                     autoCapitalize="none"
                     keyboardType="url"
                     onFocus={scrollToForm}
-                    onBlur={scrollToTop}
                   />
                   {!!companyUrlError && <Text style={styles.errorText}>{companyUrlError}</Text>}
                 </View>
 
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>Email</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter your email"
-                  placeholderTextColor="#888"
-                  value={email}
-                  onChangeText={setEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  onFocus={() => {
-                    setEmailError('');
-                    scrollToForm();
-                  }}
-                  onBlur={scrollToTop}
-                />
-                {!!emailError && <Text style={styles.errorText}>{emailError}</Text>}
-              </View>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter your email"
+                    placeholderTextColor="#888"
+                    value={email}
+                    onChangeText={setEmail}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    onFocus={() => {
+                      setEmailError('');
+                      scrollToForm();
+                    }}
+                  />
+                  {!!emailError && <Text style={styles.errorText}>{emailError}</Text>}
+                </View>
 
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Password</Text>
-                <View style={styles.passwordWrapper}>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Password</Text>
+                  <View style={styles.passwordWrapper}>
                     <TextInput
                       style={[styles.input, styles.passwordInput]}
                       placeholder="Enter your password"
@@ -253,7 +253,6 @@ const LoginScreen = ({ navigation }: Props) => {
                         setPasswordError('');
                         scrollToForm();
                       }}
-                      onBlur={scrollToTop}
                     />
                     <TouchableOpacity
                       style={styles.eyeButton}
@@ -266,9 +265,9 @@ const LoginScreen = ({ navigation }: Props) => {
                         color="#1D2B4C"
                       />
                     </TouchableOpacity>
+                  </View>
+                  {!!passwordError && <Text style={styles.errorText}>{passwordError}</Text>}
                 </View>
-                {!!passwordError && <Text style={styles.errorText}>{passwordError}</Text>}
-              </View>
 
                 <Button
                   title={loading ? 'Logging in...' : 'Login'}
@@ -295,14 +294,8 @@ const LoginScreen = ({ navigation }: Props) => {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   scroll: { flex: 1 },
-  scrollContent: {
-    flexGrow: 1,
-    minHeight: '100%',
-  },
-  content: {
-    flexGrow: 1,
-    justifyContent: 'space-between',
-  },
+  scrollContent: { flexGrow: 1 },
+  content: { flex: 1, justifyContent: 'space-between' },
   header: {
     alignItems: 'center',
     paddingTop: 70,
@@ -330,7 +323,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 20,
     padding: 24,
     width: '100%',
-    flexGrow: 0,
+    marginTop: 'auto',
   },
   inputGroup: { marginBottom: 16 },
   label: { fontSize: 14, color: '#1D2B4C', marginBottom: 6, fontWeight: '500' },

@@ -33,5 +33,15 @@ target 'addons_hr' do
       :mac_catalyst_enabled => false,
       # :ccache_enabled => true
     )
+
+    # Allow glog to include its generated config header when built as a module
+    installer.pods_project.targets.each do |target|
+      next unless target.name == 'glog'
+
+      target.build_configurations.each do |build_configuration|
+        build_configuration.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
+        build_configuration.build_settings['CLANG_WARN_NON_MODULAR_INCLUDE_IN_FRAMEWORK_MODULE'] = 'NO'
+      end
+    end
   end
 end

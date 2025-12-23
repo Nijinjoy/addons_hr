@@ -1,47 +1,69 @@
 import React, { useCallback } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  SafeAreaView,
+  useWindowDimensions,
+  Image,
+} from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import Header from '../../../components/Header';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { logo } from '../../../assets/images';
 
-const ACTIONS = [
+const CARDS = [
   {
     key: 'attendance',
     label: 'Attendance',
-    sub: 'Log & review presence',
-    icon: <MaterialCommunityIcons name="calendar-check" size={26} color="#0D1B2A" />,
+    icon: <MaterialCommunityIcons name="account-check-outline" size={56} color="#0F172A" />,
+    color: '#BFD9F8',
     route: 'Attendance',
-    style: 'accentBlue',
   },
   {
     key: 'timesheet',
     label: 'Timesheet',
-    sub: 'Capture today’s work',
-    icon: <Ionicons name="time-outline" size={24} color="#0D1B2A" />,
+    icon: <MaterialCommunityIcons name="calendar-multiselect" size={56} color="#0F172A" />,
+    color: '#07C08B',
     route: 'TimesheetScreen',
-    style: 'accentTeal',
   },
   {
     key: 'tasks',
-    label: 'Tasks',
-    sub: 'My list & team board',
-    icon: <Ionicons name="checkbox-outline" size={24} color="#0D1B2A" />,
+    label: 'Task',
+    icon: <Ionicons name="checkbox-outline" size={56} color="#0F172A" />,
+    color: '#3B91C8',
     route: 'TaskList',
-    style: 'accentOrange',
   },
   {
     key: 'leaves',
-    label: 'Leaves',
-    sub: 'Balance & apply',
-    icon: <Ionicons name="leaf-outline" size={24} color="#0D1B2A" />,
+    label: 'Leave',
+    icon: <Ionicons name="exit-outline" size={56} color="#0F172A" />,
+    color: '#BFD9F8',
     route: 'Leaves',
-    style: 'accentGreen',
   },
 ] as const;
 
 const HRMDashboard = () => {
   const navigation = useNavigation();
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+
+  // Size cards for exactly 2 per row and healthy vertical fill
+  const horizontalPadding = 20;
+  const gap = 16;
+  const cardWidth = (screenWidth - horizontalPadding * 2 - gap) / 2;
+  const headerEstimated = insets.top + 96; // header height including safe area
+  const heroEstimated = 110; // greeting block
+  const paddingEstimated = 32; // content padding & gaps
+  const tabBarHeight = 88; // approximate bottom tabs height
+  const availableGridHeight = screenHeight - headerEstimated - heroEstimated - paddingEstimated - tabBarHeight;
+  const targetHeightFromScreen = (availableGridHeight - gap) / 2;
+  const minCardHeight = Math.max(220, screenHeight * 0.28);
+  const maxCardHeight = screenHeight * 0.55;
+  const cardHeight = Math.max(minCardHeight, Math.min(targetHeightFromScreen, maxCardHeight));
+
   const handleNavigate = (route: string) => {
     const parent = navigation.getParent?.();
     if (parent?.navigate) {
@@ -61,101 +83,193 @@ const HRMDashboard = () => {
   }, [navigation]);
 
   return (
-    <View style={styles.container}>
-      <Header
-        screenName="HRM"
-        useGradient
-        notificationCount={0}
-        navigation={navigation as any}
-        onNotificationPress={handleNotificationPress}
-        onProfilePress={() => navigation.getParent()?.openDrawer?.()}
-      />
-
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.hero}>
-          <Text style={styles.heroLabel}>HR Hub</Text>
-          <Text style={styles.heroTitle}>Everything you need, fast.</Text>
-          <Text style={styles.heroSub}>Tap a card to continue</Text>
-        </View>
-
-        <Text style={styles.sectionHeading}>Quick actions</Text>
-        <View style={styles.grid}>
-          {ACTIONS.map(({ key, label, sub, icon, route, style }) => (
+    <SafeAreaView style={styles.safe}>
+      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
+        <View style={styles.topRow}>
+          <View style={styles.leftActions}>
             <Pressable
-              key={key}
-              onPress={() => handleNavigate(route)}
-              android_ripple={{ color: '#CBD5E1' }}
-              style={({ pressed }) => [
-                styles.card,
-                styles[style],
-                pressed && styles.cardPressed,
-              ]}
+              style={[styles.circle, styles.arrowCircle]}
+              onPress={() => navigation.goBack?.()}
+              android_ripple={{ color: '#E5E7EB' }}
             >
-              <View style={styles.cardIconText}>
-                {icon}
-                <View style={styles.cardText}>
-                  <Text style={styles.cardTitle}>{label}</Text>
-                  <Text style={styles.cardSubtitle}>{sub}</Text>
-                </View>
-              </View>
-              <Ionicons name="arrow-forward" size={18} color="#0D1B2A" />
+              <Ionicons name="arrow-back-outline" size={20} color="#111827" />
             </Pressable>
-          ))}
+            <Pressable
+              style={styles.pill}
+              onPress={() => navigation.goBack?.()}
+              android_ripple={{ color: '#D1D5DB' }}
+            >
+              <Text style={styles.pillText}>HRM</Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.rightActions}>
+            <Pressable
+              style={[styles.circle, styles.bell]}
+              onPress={handleNotificationPress}
+              android_ripple={{ color: '#1D8CD6' }}
+            >
+              <Ionicons name="notifications-outline" size={22} color="#FFFFFF" />
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>1</Text>
+              </View>
+            </Pressable>
+            <Pressable
+              style={[styles.circle, styles.avatar]}
+              onPress={() => navigation.getParent()?.openDrawer?.()}
+              android_ripple={{ color: '#E5E7EB' }}
+            >
+              <Ionicons name="person" size={26} color="#6B7280" />
+            </Pressable>
+          </View>
         </View>
-        <View style={styles.spacer} />
-      </ScrollView>
-    </View>
+      </View>
+
+      <View style={[styles.content, { minHeight: screenHeight - (insets.top + 40) }]}>
+        <View style={styles.hero}>
+          <Text style={styles.heroHello}>Hello</Text>
+          <Text style={styles.heroTitle}>Everything You Need Fast</Text>
+        </View>
+
+        <View style={styles.gridWrapper}>
+          <View style={styles.grid}>
+            {CARDS.map(({ key, label, icon, color, route }) => (
+              <Pressable
+                key={key}
+                onPress={() => handleNavigate(route)}
+                android_ripple={{ color: '#CBD5E1' }}
+                style={({ pressed }) => [
+                  styles.cardBase,
+                  { backgroundColor: color, width: cardWidth, height: cardHeight },
+                  pressed && styles.cardPressed,
+                ]}
+              >
+                {icon}
+                <Text style={styles.cardLabel}>{label}</Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <View style={styles.centerLogo}>
+            <View style={styles.centerLogoCircle}>
+              <Image source={logo} style={styles.centerLogoImage} />
+            </View>
+          </View>
+        </View>
+      </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: 'white' },
-  content: { padding: 16, gap: 20, flexGrow: 1, paddingBottom: 40 },
-  hero: {
-    backgroundColor: '#0F172A',
-    borderRadius: 16,
-    padding: 16,
+  safe: { flex: 1, backgroundColor: '#FFFFFF' },
+  content: {
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+    paddingTop: 0,
+    flexGrow: 1,
+    flex: 1,
+    justifyContent: 'flex-start',
   },
-  heroLabel: { color: '#A5B4FC', fontWeight: '700', fontSize: 12, letterSpacing: 1 },
-  heroTitle: { color: '#FFFFFF', fontWeight: '800', fontSize: 20, marginTop: 6 },
-  heroSub: { color: '#E2E8F0', fontSize: 13, marginTop: 4 },
-  sectionHeading: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#0D1B2A',
-    marginTop: 8,
+  header: {
+    backgroundColor: '#0E7EC0',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    marginBottom: 20,
+    alignSelf: 'stretch',
+    zIndex: 10,
+    marginHorizontal: 0,
   },
-  grid: { gap: 14, flexGrow: 1, justifyContent: 'space-evenly' },
-  card: {
+  topRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 16,
-    minHeight: 110,
-    borderRadius: 14,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+  },
+  leftActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  rightActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  pill: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 18,
+    paddingVertical: 8,
+    paddingHorizontal: 18,
+  },
+  pillText: { fontSize: 16, fontWeight: '700', color: '#FFFFFF', letterSpacing: 0.3 },
+  circle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  bell: { backgroundColor: 'rgba(255,255,255,0.25)' },
+  avatar: { backgroundColor: 'rgba(255,255,255,0.25)', width: 46, height: 46, borderRadius: 23 },
+  badge: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: '#EF4444',
+    borderRadius: 8,
+    paddingHorizontal: 4,
+    minWidth: 16,
+    alignItems: 'center',
+  },
+  badgeText: { color: '#0E7EC0', fontSize: 10, fontWeight: '700' },
+  hero: { marginBottom: 18 },
+  heroHello: { fontSize: 32, fontWeight: '700', color: '#111827' },
+  heroTitle: { fontSize: 22, fontWeight: '600', color: '#111827', marginTop: 6 },
+  heroSub: { fontSize: 14, color: '#6B7280', marginTop: 6 },
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    rowGap: 16,
+    paddingBottom: 24,
+  },
+  gridWrapper: { position: 'relative' },
+  cardBase: {
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
     shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowOffset: { width: 0, height: 3 },
-    shadowRadius: 6,
-    elevation: 2,
-    gap: 12,
+    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 8,
+    elevation: 3,
   },
-  cardPressed: {
-    transform: [{ scale: 0.98 }],
-    shadowOpacity: 0.02,
+  cardLabel: { fontSize: 16, fontWeight: '700', color: '#0F172A', marginTop: 4 },
+  cardPressed: { transform: [{ scale: 0.98 }], shadowOpacity: 0.04 },
+  centerLogo: {
+    position: 'absolute',
+    alignSelf: 'center',
+    top: '42%',
+    width: 96,
+    height: 96,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  cardIconText: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
-  cardText: { flex: 1 },
-  cardTitle: { fontSize: 16, fontWeight: '700', color: '#0D1B2A' },
-  cardSubtitle: { fontSize: 13, color: '#4B5563', marginTop: 2 },
-  accentBlue: { backgroundColor: '#E0F2FE', borderColor: '#BFDBFE' },
-  accentTeal: { backgroundColor: '#D1FAE5', borderColor: '#A7F3D0' },
-  accentOrange: { backgroundColor: '#FFEDD5', borderColor: '#FED7AA' },
-  accentGreen: { backgroundColor: '#ECFDF3', borderColor: '#D1FADF' },
-  spacer: { flex: 1 },
+  centerLogoCircle: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.16,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 8,
+  },
+  centerLogoImage: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    resizeMode: 'cover',
+    overflow: 'hidden',
+  },
 });
 
 export default HRMDashboard;

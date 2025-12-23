@@ -84,6 +84,15 @@ const requestJSON = async <T = any>(url: string, options: RequestInit): Promise<
   return (json as T) ?? (text as unknown as T);
 };
 
+const cleanErrorMessage = (raw?: string) => {
+  if (!raw) return '';
+  const plain = raw.replace(/<[^>]+>/g, '');
+  if (/Email Address must be unique/i.test(plain)) {
+    return 'Email Address must be unique. Please use a different email or leave it blank.';
+  }
+  return plain;
+};
+
 const pruneEmpty = (obj: Record<string, any>) => {
   const cleaned: Record<string, any> = {};
   Object.entries(obj).forEach(([key, val]) => {
@@ -144,7 +153,9 @@ export const createLead = async (
       const doc = (res as any)?.data || (res as any);
       if (doc?.name) return { ok: true, name: doc.name, lead: doc };
     } catch (err: any) {
-      console.log('Create lead via resource failed:', err?.message || err);
+      const message = cleanErrorMessage(err?.message || err);
+      console.log('Create lead via resource failed:', message);
+      // fall through to method call
     }
   }
 
@@ -159,8 +170,9 @@ export const createLead = async (
       const doc = (res as any)?.message || (res as any);
       if (doc?.name) return { ok: true, name: doc.name, lead: doc };
     } catch (err: any) {
-      console.log('Create lead via method failed:', err?.message || err);
-      return { ok: false, message: err?.message || 'Lead creation failed' };
+      const message = cleanErrorMessage(err?.message || err);
+      console.log('Create lead via method failed:', message);
+      return { ok: false, message: message || 'Lead creation failed' };
     }
   }
 

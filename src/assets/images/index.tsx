@@ -5,4 +5,4 @@ import expense from '../images/expense/expense.png'
 import profile from '../images/profile.jpeg'
 import addonserp from '../images/addonserp/addonserp_logo.png'
 
-export { logo, microsoft, back, expense, profile ,addonserp}
+export { logo, microsoft, back, expense, profile, addonserp }

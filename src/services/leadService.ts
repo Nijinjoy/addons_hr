@@ -310,9 +310,17 @@ const normalizeLeadTypes = (rows: any[]): string[] => {
       '';
     const name = (typeof row?.name === 'string' && row.name.trim()) || '';
     const candidate = leadType || (name && !/^CRM-LEAD-/i.test(name) ? name : '');
-    if (candidate) deduped.add(candidate);
+    if (candidate && !/^CRM-LEAD-/i.test(candidate)) deduped.add(candidate);
   });
   return Array.from(deduped);
+};
+
+const cleanLeadTypeOptions = (options: string[]): string[] => {
+  const cleaned = (options || [])
+    .map((opt) => (opt || '').trim())
+    .filter(Boolean)
+    .filter((opt) => !/^CRM-LEAD-/i.test(opt) && !/@/.test(opt));
+  return Array.from(new Set(cleaned));
 };
 
 const normalizeStatuses = (rows: any[]): string[] => {
@@ -746,33 +754,32 @@ const fetchLeadsForLeadType = async (limit: number = 100): Promise<any[]> => {
 };
 
 export const getLeadTypes = async (limit: number = 100): Promise<LeadTypeResult> => {
+  const defaults = ['Client', 'Channel Partner', 'Consultant'];
   try {
     const sid = await AsyncStorage.getItem('sid');
     if (!sid) {
       return { ok: false, message: 'No active session. Please log in.' };
     }
-    const data = await fetchLeadTypes(limit);
+    const data = cleanLeadTypeOptions(await fetchLeadTypes(limit));
     if (data.length) return { ok: true, data };
 
-    const docOptions = await fetchLeadTypesFromDoc();
+    const docOptions = cleanLeadTypeOptions(await fetchLeadTypesFromDoc());
     if (docOptions.length) return { ok: true, data: docOptions };
 
-    const linkFieldOptions = await fetchLeadTypesViaLinkField(limit);
+    const linkFieldOptions = cleanLeadTypeOptions(await fetchLeadTypesViaLinkField(limit));
     if (linkFieldOptions.length) return { ok: true, data: linkFieldOptions };
 
-    const searchOptions = await fetchLeadTypesViaSearch(limit);
+    const searchOptions = cleanLeadTypeOptions(await fetchLeadTypesViaSearch(limit));
     if (searchOptions.length) return { ok: true, data: searchOptions };
 
-    const metaOptions = await fetchLeadTypesFromMeta();
+    const metaOptions = cleanLeadTypeOptions(await fetchLeadTypesFromMeta());
     if (metaOptions.length) return { ok: true, data: metaOptions };
 
     // Fallback to common ERPNext lead types to unblock UI if none returned
-    const defaults = ['Client', 'Channel Partner', 'Consultant', 'Supplier', 'Employee', 'Others'];
     return { ok: true, data: defaults, message: 'Using default lead types; none returned from ERP.' };
   } catch (error: any) {
     const message = error?.message || 'Unexpected error while fetching lead types';
     console.log('Lead types fetch error:', message);
-    const defaults = ['Client', 'Channel Partner', 'Consultant', 'Supplier', 'Employee', 'Others'];
     return { ok: true, data: defaults, message };
   }
 };
@@ -957,6 +964,27 @@ const getBuildingLinkDocFromMeta = async (): Promise<string> => {
   return '';
 };
 
+const getAssociateLinkDocFromMeta = async (): Promise<string> => {
+  const { baseMethod } = await getBases();
+  if (!baseMethod) return '';
+  try {
+    const url = buildQuery(`${baseMethod}/frappe.desk.form.load.getdoctype`, { doctype: 'Lead' });
+    const res = await requestJSON<{ docs?: any[]; doc?: any }>(url, {
+      method: 'GET',
+      headers: await authHeaders(),
+    });
+    const doc = (res as any)?.docs?.[0] || (res as any)?.doc;
+    const fields = doc?.fields || [];
+    const associateField = fields.find((f: any) => f.fieldname === 'associate_details');
+    const opts = typeof associateField?.options === 'string' ? associateField.options.trim() : '';
+    if (opts && !/\n/.test(opts)) return opts;
+  } catch (err: any) {
+    const msg = err?.message || err;
+    console.warn('Associate link doc meta fetch failed', msg);
+  }
+  return '';
+};
+
 const fetchBuildingLocations = async (limit: number = 200): Promise<string[]> => {
   const { baseResource, baseMethod } = await getBases();
   const metaDoc = await getBuildingLinkDocFromMeta();
@@ -1115,6 +1143,20 @@ export const getBuildingLocations = async (
   }
 };
 
+const cleanAssociateLabel = (val: string): string => {
+  if (!val) return val;
+  if (/^crm-lead-/i.test(val)) return '';
+  const parts = val
+    .split(',')
+    .map((p) => p.trim())
+    .filter(Boolean);
+  const filtered = parts.filter(
+    (p) => !/@/.test(p) && !/^crm-lead-/i.test(p) && !/lead$/i
+  );
+  const cleaned = (filtered.length ? filtered : parts).join(', ').trim();
+  return cleaned || val;
+};
+
 const normalizeAssociateDetails = (rows: any[]): string[] => {
   const deduped = new Set<string>();
   (rows || []).forEach((row) => {
@@ -1125,10 +1167,12 @@ const normalizeAssociateDetails = (rows: any[]): string[] => {
       (typeof row?.employee_name === 'string' && row.employee_name.trim()) ||
       (typeof row?.associate_name === 'string' && row.associate_name.trim()) ||
       (typeof row?.associate_details === 'string' && row.associate_details.trim()) ||
+      (typeof (row as any)?.company_name === 'string' && (row as any).company_name.trim()) ||
       '';
-    if (name) deduped.add(name);
+    const cleaned = cleanAssociateLabel(name);
+    if (cleaned) deduped.add(cleaned);
   });
-  return Array.from(deduped);
+  return Array.from(deduped).filter(Boolean);
 };
 
 const normalizeBuildingLocations = (rows: any[]): string[] => {
@@ -1209,12 +1253,91 @@ const resolveAssociateNamesFromLeads = async (ids: string[]): Promise<Record<str
   return map;
 };
 
+const resolveEmployeeNamesFromIds = async (ids: string[]): Promise<Record<string, string>> => {
+  const map: Record<string, string> = {};
+  const empIds = ids.filter((id) => /^HR-EMP-/i.test(id));
+  if (!empIds.length) return map;
+  const { baseMethod, baseResource } = await getBases();
+  const fields = ['name', 'employee_name', 'first_name', 'last_name'];
+
+  // resource
+  if (baseResource) {
+    try {
+      const url = buildQuery(`${baseResource}/Employee`, {
+        fields: JSON.stringify(fields),
+        filters: JSON.stringify([['name', 'in', empIds]]),
+        limit_page_length: empIds.length,
+      });
+      const res = await requestJSON<{ data?: any[] }>(url, {
+        method: 'GET',
+        headers: await authHeaders(),
+      });
+      (res?.data || []).forEach((row: any) => {
+        const key = typeof row?.name === 'string' ? row.name.trim() : '';
+        const val =
+          (typeof row?.employee_name === 'string' && row.employee_name.trim()) ||
+          (typeof row?.first_name === 'string' && row.first_name.trim()) ||
+          '';
+        if (key && val) map[key] = val;
+      });
+      if (Object.keys(map).length) return map;
+    } catch (err: any) {
+      const msg = err?.message || err;
+      if (!/DocType .*not found/i.test(String(msg))) console.warn('resolveEmployeeNamesFromIds resource failed', msg);
+    }
+  }
+
+  // method
+  if (baseMethod) {
+    try {
+      const url = buildQuery(`${baseMethod}/frappe.client.get_list`, {
+        doctype: 'Employee',
+        fields: JSON.stringify(fields),
+        filters: JSON.stringify([['name', 'in', empIds]]),
+        limit_page_length: empIds.length,
+      });
+      const res = await requestJSON<{ message?: any[] }>(url, {
+        method: 'GET',
+        headers: await authHeaders(),
+      });
+      (res?.message || []).forEach((row: any) => {
+        const key = typeof row?.name === 'string' ? row.name.trim() : '';
+        const val =
+          (typeof row?.employee_name === 'string' && row.employee_name.trim()) ||
+          (typeof row?.first_name === 'string' && row.first_name.trim()) ||
+          '';
+        if (key && val) map[key] = val;
+      });
+    } catch (err: any) {
+      const msg = err?.message || err;
+      if (!/DocType .*not found/i.test(String(msg))) console.warn('resolveEmployeeNamesFromIds method failed', msg);
+    }
+  }
+  return map;
+};
+
 const fetchAssociateDetailsFromDoc = async (doc: string, limit: number): Promise<string[]> => {
   const { baseResource, baseMethod } = await getBases();
+  const baseFields = [
+    'name',
+    'full_name',
+    'associate_name',
+    'associate_details',
+    'first_name',
+    'employee_name',
+    'company_name',
+  ];
+  const docFieldsMap: Record<string, string[]> = {
+    Employee: ['name', 'employee_name', 'first_name', 'last_name'],
+    Associates: ['name', 'associate_name', 'company_name', 'first_name', 'employee_name'],
+    'Associate Details': ['name', 'associate_name', 'company_name', 'first_name', 'employee_name'],
+    Associate: ['name', 'associate_name', 'company_name', 'first_name', 'employee_name'],
+  };
+  const fields = docFieldsMap[doc] || baseFields;
   try {
     if (!baseResource) throw new Error('Resource base not configured');
     const url = buildQuery(`${baseResource}/${encodeURIComponent(doc)}`, {
-      fields: JSON.stringify(['name', 'full_name', 'associate_name', 'associate_details', 'first_name', 'employee_name']),
+      fields: JSON.stringify(fields),
       order_by: 'modified desc',
       limit_page_length: limit,
     });
@@ -1235,7 +1358,7 @@ const fetchAssociateDetailsFromDoc = async (doc: string, limit: number): Promise
     if (!baseMethod) throw new Error('Method base not configured');
     const url = buildQuery(`${baseMethod}/frappe.client.get_list`, {
       doctype: doc,
-      fields: JSON.stringify(['name', 'full_name', 'associate_name', 'associate_details', 'first_name', 'employee_name']),
+      fields: JSON.stringify(fields),
       order_by: 'modified desc',
       limit_page_length: limit,
     });
@@ -1274,7 +1397,9 @@ const fetchAssociateDetailsViaSearch = async (referenceDoc: string, limit: numbe
     );
     const rows = (res as any)?.message || [];
     return rows
-      .map((r: any) => (typeof r?.value === 'string' ? r.value.trim() : ''))
+      .map((r: any) =>
+        typeof r?.value === 'string' ? cleanAssociateLabel(r.value.trim()) : ''
+      )
       .filter(Boolean);
   } catch (err: any) {
     const msg = err?.message || err;
@@ -1291,15 +1416,28 @@ export const getAssociateDetails = async (
     if (!sid) {
       return { ok: false, message: 'No active session. Please log in.' };
     }
-    const docCandidates = ['Associate Details', 'Associate'];
+    const metaDoc = await getAssociateLinkDocFromMeta();
+    const docCandidates = Array.from(
+      new Set(
+        [metaDoc, 'Associate Details', 'Associate', 'Associates', 'Employee'].filter(Boolean)
+      )
+    );
     for (const doc of docCandidates) {
       const data = await fetchAssociateDetailsFromDoc(doc, limit);
-      if (data.length) return { ok: true, data };
+      if (data.length) {
+        const employeeResolution = await resolveEmployeeNamesFromIds(data);
+        const resolved = data.map((item) => employeeResolution[item] || item);
+        return { ok: true, data: resolved };
+      }
     }
 
     for (const ref of docCandidates) {
       const data = await fetchAssociateDetailsViaSearch(ref, limit);
-      if (data.length) return { ok: true, data };
+      if (data.length) {
+        const employeeResolution = await resolveEmployeeNamesFromIds(data);
+        const resolved = data.map((item) => employeeResolution[item] || item);
+        return { ok: true, data: resolved };
+      }
     }
 
     // Fallback: derive from existing leads if no dedicated doctype exists
@@ -1310,6 +1448,11 @@ export const getAssociateDetails = async (
     const resolution = await resolveAssociateNamesFromLeads(data);
     if (Object.keys(resolution).length) {
       data = data.map((item) => resolution[item] || item);
+    }
+
+    const employeeResolution = await resolveEmployeeNamesFromIds(data);
+    if (Object.keys(employeeResolution).length) {
+      data = data.map((item) => employeeResolution[item] || item);
     }
 
     return { ok: true, data };
