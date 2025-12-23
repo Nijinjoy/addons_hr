@@ -49,6 +49,7 @@ const LoginScreen = ({ navigation }: Props) => {
   const [companyUrlError, setCompanyUrlError] = useState('');
   const scrollRef = React.useRef<ScrollView | null>(null);
   const formOffsetY = React.useRef(0);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
   const safeDecode = (value: string) => {
     try {
       return decodeURIComponent(value);
@@ -151,9 +152,10 @@ const LoginScreen = ({ navigation }: Props) => {
     }
   };
 
-  const scrollToForm = () => {
+  const scrollToForm = (offset = 0) => {
     requestAnimationFrame(() => {
-      scrollRef.current?.scrollTo({ y: formOffsetY.current, animated: true });
+      const targetY = Math.max(formOffsetY.current + offset, 0);
+      scrollRef.current?.scrollTo({ y: targetY, animated: true });
     });
   };
 
@@ -167,6 +169,18 @@ const LoginScreen = ({ navigation }: Props) => {
     navigation.navigate('Register');
   };
 
+  useEffect(() => {
+    const showSub = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardVisible(false);
+      scrollToTop();
+    });
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
   return (
     <LinearGradient
       colors={['#141D35', '#1D2B4C', '#14223E']}
@@ -176,15 +190,18 @@ const LoginScreen = ({ navigation }: Props) => {
     >
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.select({ ios: 48, android: 0 })}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={0}
       >
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <ScrollView
             style={styles.scroll}
             contentContainerStyle={[
               styles.scrollContent,
-              { minHeight: screenHeight, paddingBottom: 0 },
+              {
+                minHeight: screenHeight,
+                paddingBottom: keyboardVisible ? insets.bottom + 220 : insets.bottom + 24,
+              },
             ]}
             bounces={false}
             keyboardShouldPersistTaps="handled"
@@ -212,14 +229,15 @@ const LoginScreen = ({ navigation }: Props) => {
                     style={styles.input}
                     placeholder="https://yourcompany.com"
                     placeholderTextColor="#888"
-                    value={companyUrl}
-                    onChangeText={setCompanyUrl}
-                    autoCapitalize="none"
-                    keyboardType="url"
-                    onFocus={scrollToForm}
-                  />
-                  {!!companyUrlError && <Text style={styles.errorText}>{companyUrlError}</Text>}
-                </View>
+                  value={companyUrl}
+                  onChangeText={setCompanyUrl}
+                  autoCapitalize="none"
+                  keyboardType="url"
+                  onFocus={() => scrollToForm(40)}
+                  onBlur={scrollToTop}
+                />
+                {!!companyUrlError && <Text style={styles.errorText}>{companyUrlError}</Text>}
+              </View>
 
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>Email</Text>
@@ -233,8 +251,9 @@ const LoginScreen = ({ navigation }: Props) => {
                     autoCapitalize="none"
                     onFocus={() => {
                       setEmailError('');
-                      scrollToForm();
+                      scrollToForm(60);
                     }}
+                    onBlur={scrollToTop}
                   />
                   {!!emailError && <Text style={styles.errorText}>{emailError}</Text>}
                 </View>
@@ -251,8 +270,9 @@ const LoginScreen = ({ navigation }: Props) => {
                       secureTextEntry={!passwordVisible}
                       onFocus={() => {
                         setPasswordError('');
-                        scrollToForm();
+                        scrollToForm(220);
                       }}
+                      onBlur={scrollToTop}
                     />
                     <TouchableOpacity
                       style={styles.eyeButton}
