@@ -23,6 +23,10 @@ export type CreateLeadPayload = {
   custom_building__location?: string;
 };
 
+export type UpdateLeadPayload = CreateLeadPayload & {
+  name: string;
+};
+
 export type CreateLeadResult =
   | { ok: true; name: string; lead: any }
   | { ok: false; message: string };
@@ -51,14 +55,20 @@ const normalizeMethodBase = (base?: string): string => {
 
 const authHeaders = async (): Promise<Record<string, string>> => {
   const base: Record<string, string> = { 'Content-Type': 'application/json' };
-  const { apiKey, apiSecret } = getApiKeySecret();
-  if (apiKey && apiSecret) base.Authorization = `token ${apiKey}:${apiSecret}`;
+  let sid = '';
   try {
-    const sid = await AsyncStorage.getItem('sid');
-    if (sid) base.Cookie = `sid=${sid}`;
+    sid = (await AsyncStorage.getItem('sid')) || '';
   } catch {
     // ignore storage errors
   }
+
+  if (sid) {
+    base.Cookie = `sid=${sid}`;
+  } else {
+    const { apiKey, apiSecret } = getApiKeySecret();
+    if (apiKey && apiSecret) base.Authorization = `token ${apiKey}:${apiSecret}`;
+  }
+
   return base;
 };
 
@@ -177,4 +187,79 @@ export const createLead = async (
   }
 
   return { ok: false, message: 'Lead creation failed' };
+};
+
+export const updateLead = async (
+  payload: UpdateLeadPayload,
+  companyUrl?: string
+): Promise<CreateLeadResult> => {
+  if (!payload.name?.trim()) {
+    return { ok: false, message: 'Lead ID is required' };
+  }
+
+  const baseResource =
+    normalizeResourceBase(companyUrl) || normalizeResourceBase(await getResourceUrl());
+  const baseMethod = normalizeMethodBase(companyUrl) || normalizeMethodBase(await getMethodUrl());
+
+  if (!baseResource && !baseMethod) {
+    return { ok: false, message: 'ERP URLs not configured' };
+  }
+
+  const body = pruneEmpty({
+    lead_name: payload.lead_name,
+    gender: payload.gender,
+    job_title: payload.job_title,
+    source: payload.source,
+    associate_details: payload.associate_details,
+    building: payload.building,
+    custom_building__location: payload.custom_building__location || payload.building,
+    lead_owner: payload.lead_owner,
+    status: payload.status,
+    lead_type: payload.lead_type,
+    request_type: payload.request_type,
+    service_type: payload.service_type,
+    email_id: payload.email_id,
+    mobile_no: payload.mobile_no,
+    phone: payload.phone,
+    website: payload.website,
+    whatsapp: payload.whatsapp,
+    date: payload.date,
+    custom_date: payload.custom_date || payload.date,
+  });
+
+  if (baseResource) {
+    try {
+      const res = await requestJSON<{ data?: any }>(
+        `${baseResource}/Lead/${encodeURIComponent(payload.name)}`,
+        {
+          method: 'PUT',
+          headers: await authHeaders(),
+          body: JSON.stringify(body),
+        }
+      );
+      const doc = (res as any)?.data || (res as any);
+      if (doc?.name) return { ok: true, name: doc.name, lead: doc };
+    } catch (err: any) {
+      const message = cleanErrorMessage(err?.message || err);
+      console.log('Update lead via resource failed:', message);
+    }
+  }
+
+  if (baseMethod) {
+    try {
+      const res = await requestJSON<{ message?: any }>(`${baseMethod}/frappe.client.save`, {
+        method: 'POST',
+        headers: await authHeaders(),
+        body: JSON.stringify({ doc: { doctype: 'Lead', name: payload.name, ...body } }),
+      });
+      const doc = (res as any)?.message || (res as any);
+      if (doc?.name) return { ok: true, name: doc.name, lead: doc };
+    } catch (err: any) {
+      const message = cleanErrorMessage(err?.message || err);
+      console.log('Update lead via method failed:', message);
+      return { ok: false, message: message || 'Lead update failed' };
+    }
+  }
+
+  return { ok: false, message: 'Lead update failed' };
 };

@@ -9,7 +9,7 @@ import EventCreateScreen from '../screens/Dashboard /CRM/EventCreateScreen';
 export type LeadStackParamList = {
   LeadsList: undefined;
   LeadDetail: { lead: any };
-  LeadCreate: undefined;
+  LeadCreate: { lead?: any; onLeadUpdated?: (lead: any) => void } | undefined;
   TaskCreate: { lead?: any };
   EventCreate: { lead?: any };
 };

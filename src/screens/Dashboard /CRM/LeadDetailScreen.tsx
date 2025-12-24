@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -18,8 +18,14 @@ type LeadDetailRouteProp = RouteProp<LeadStackParamList, 'LeadDetail'>;
 
 const LeadDetailScreen = () => {
   const { params } = useRoute<LeadDetailRouteProp>();
-  const navigation = useNavigation();
-  const lead: Lead = params?.lead || ({} as Lead);
+  const navigation = useNavigation<any>();
+  const [lead, setLead] = useState<Lead>((params?.lead as Lead) || ({} as Lead));
+
+  useEffect(() => {
+    if (params?.lead) {
+      setLead(params.lead);
+    }
+  }, [params?.lead]);
 
   const handleCall = async (phone?: string | null) => {
     const raw = (phone || '').trim();
@@ -109,9 +115,8 @@ const LeadDetailScreen = () => {
   return (
     <View style={styles.container}>
       <Header
-        screenName="Lead Details"
+        pillText="Lead Details"
         onBackPress={() => navigation.goBack?.()}
-        showBack
       />
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.heroCard}>
@@ -164,6 +169,18 @@ const LeadDetailScreen = () => {
             >
               <Ionicons name="mail-outline" size={18} color="#1D4ED8" />
               <Text style={styles.secondaryButtonText}>Email</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.editButton}
+              onPress={() =>
+                navigation.navigate('LeadCreate', {
+                  lead,
+                  onLeadUpdated: (updated: Lead) => setLead(updated),
+                })
+              }
+            >
+              <Ionicons name="create-outline" size={18} color="#0F172A" />
+              <Text style={styles.editButtonText}>Edit</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -281,6 +298,23 @@ const styles = StyleSheet.create({
   },
   secondaryButtonText: {
     color: '#1D4ED8',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  editButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F3F4F6',
+    paddingVertical: 12,
+    borderRadius: 12,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+  },
+  editButtonText: {
+    color: '#0F172A',
     fontSize: 14,
     fontWeight: '700',
   },

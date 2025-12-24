@@ -1,5 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getMethodUrl } from './urlService';
+import { clearSession } from './storage/secureStorage';
+import { clearApi } from './api/axiosInstance';
 
 type LoginResult =
   | { ok: true; data: any; cookies?: Record<string, string> }
@@ -90,10 +92,17 @@ export const login = async (username: string, password: string, companyUrl?: str
 
 export const logout = async (): Promise<{ ok: boolean; message?: string }> => {
   try {
+    // Resolve base before clearing storage
+    let methodBase = '';
     try {
-      const base = normalizeMethodBase(await getMethodUrl());
-      if (base) {
-        await fetch(`${base}/logout`, {
+      methodBase = normalizeMethodBase(await getMethodUrl());
+    } catch {
+      methodBase = '';
+    }
+
+    try {
+      if (methodBase) {
+        await fetch(`${methodBase}/logout`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
         });
@@ -103,7 +112,27 @@ export const logout = async (): Promise<{ ok: boolean; message?: string }> => {
     }
 
     try {
-      await AsyncStorage.multiRemove(['sid', 'full_name', 'user_id', 'user_image', 'employee_id']);
+      const userId = (await AsyncStorage.getItem('user_id')) || '';
+      const userEmail = (await AsyncStorage.getItem('user_email')) || '';
+      const derivedKeys = [
+        userId ? `employee_id_for_${encodeURIComponent(userId)}` : '',
+        userEmail ? `employee_id_for_${encodeURIComponent(userEmail)}` : '',
+      ].filter(Boolean) as string[];
+
+      await AsyncStorage.multiRemove([
+        'sid',
+        'full_name',
+        'user_id',
+        'user_image',
+        'employee_id',
+        'roles',
+        'company_url',
+        'user_email',
+        ...derivedKeys,
+      ]);
+
+      await clearSession();
+      clearApi();
     } catch (err2) {
       console.warn('Error clearing storage during logout:', err2);
     }

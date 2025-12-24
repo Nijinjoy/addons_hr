@@ -72,7 +72,10 @@ const LoginScreen = ({ navigation }: Props) => {
     }
 
     try {
-      await AsyncStorage.setItem('company_url', companyUrl.trim());
+      const trimmedCompanyUrl = companyUrl.trim();
+      await AsyncStorage.setItem('company_url', trimmedCompanyUrl);
+      const storedCompanyUrl = await AsyncStorage.getItem('company_url');
+      console.log('Stored company_url:', storedCompanyUrl);
     } catch {
       // ignore storage errors
     }
@@ -95,6 +98,7 @@ const LoginScreen = ({ navigation }: Props) => {
       if (user?.user_image) toStore.push(['user_image', user.user_image]);
       toStore.push(['user_email', email]);
       if (authRes?.cookies?.sid) toStore.push(['sid', authRes.cookies.sid]);
+      if (companyUrl.trim()) toStore.push(['company_url', companyUrl.trim()]);
       if (authRes?.roles) toStore.push(['roles', JSON.stringify(authRes.roles)]);
       try {
         if (toStore.length) await AsyncStorage.multiSet(toStore);

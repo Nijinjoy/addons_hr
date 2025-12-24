@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   StyleSheet,
@@ -23,6 +23,7 @@ const LeadScreen = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [openMenuId, setOpenMenuId] = useState<string | number | null>(null);
+  const scrollRef = useRef<ScrollView | null>(null);
 
   const statusOptions = useMemo(() => {
     const set = new Set<string>();
@@ -61,6 +62,15 @@ const LeadScreen = () => {
     };
     loadLeads();
   }, []);
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('blur', () => setOpenMenuId(null));
+    return unsubscribe;
+  }, [navigation]);
+
+  useEffect(() => {
+    requestAnimationFrame(() => scrollRef.current?.scrollTo({ y: 0, animated: false }));
+  }, [statusFilter]);
 
   const handleCall = async (phone?: string | null) => {
     const raw = (phone || '').trim();
@@ -131,12 +141,10 @@ const LeadScreen = () => {
   return (
     <View style={styles.container}>
       <Header
-        screenName="Leads"
-        showBack
-        navigation={navigation as any}
-        notificationCount={0}
+        pillText="Leads"
+        badgeCount={0}
         onBackPress={() => navigation.goBack()}
-        onNotificationPress={() => console.log('Notifications pressed')}
+        onBellPress={() => console.log('Notifications pressed')}
         onProfilePress={() => navigation.getParent()?.openDrawer?.()}
       />
       <View style={styles.searchRow}>
@@ -154,7 +162,11 @@ const LeadScreen = () => {
             <Icon name="add" size={24} color="white" />
           </TouchableOpacity>
       </View>
-      <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        ref={scrollRef}
+        contentContainerStyle={styles.body}
+        showsVerticalScrollIndicator={false}
+      >
         {loading && (
           <View style={styles.loaderRow}>
             <ActivityIndicator color="#3B82F6" />
@@ -169,7 +181,10 @@ const LeadScreen = () => {
             return (
               <TouchableOpacity
                 key={opt}
-                onPress={() => setStatusFilter(opt)}
+                onPress={() => {
+                  setStatusFilter(opt);
+                  requestAnimationFrame(() => scrollRef.current?.scrollTo({ y: 0, animated: false }));
+                }}
                 style={[styles.filterPill, active && styles.filterPillActive]}
               >
                 <Text style={[styles.filterText, active && styles.filterTextActive]}>
@@ -191,7 +206,14 @@ const LeadScreen = () => {
             const cardId = lead.name || idx;
             const showMenu = openMenuId === cardId;
             return (
-              <View key={cardId} style={styles.leadCard}>
+              <View
+                key={cardId}
+                style={styles.leadCard}
+                onStartShouldSetResponder={() => {
+                  if (openMenuId !== null) setOpenMenuId(null);
+                  return false;
+                }}
+              >
                 <View style={styles.cardTop}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.leadTitle}>{lead.company_name || lead.lead_name || lead.name}</Text>
@@ -256,7 +278,13 @@ const LeadScreen = () => {
                     <Icon name="email" size={16} color="#7C3AED" />
                     <Text style={[styles.actionBtnText, { color: '#7C3AED' }]}>Email</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.viewBtn}>
+                  <TouchableOpacity
+                    style={styles.viewBtn}
+                    onPress={() => {
+                      setOpenMenuId(null);
+                      navigation.navigate('LeadDetail', { lead });
+                    }}
+                  >
                     <Text style={styles.viewBtnText}>View</Text>
                     <Icon name="chevron-right" size={18} color="#6B7280" />
                   </TouchableOpacity>
@@ -313,10 +341,14 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   filterPill: {
+    minWidth: 90,
+    height: 36,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 12,
     backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   filterPillActive: {
     backgroundColor: '#DBEAFE',

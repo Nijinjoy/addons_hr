@@ -9,7 +9,7 @@ import {
   Alert,
 } from 'react-native';
 import Header from '../../../components/Header';
-import { useNavigation } from '@react-navigation/native';
+import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { launchImageLibrary, launchCamera, Asset } from 'react-native-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import {
@@ -22,13 +22,19 @@ import {
   getLeadOwners,
   getBuildingLocations,
 } from '../../../services/leadService';
-import { createLead } from '../../../services/api/leadsCreate.service';
+import { createLead, updateLead } from '../../../services/api/leadsCreate.service';
+import { LeadStackParamList } from '../../../navigation/LeadStack';
 
 const dropdownPlaceholder = 'Select';
 type OptionType = string | { label: string; value: string };
+type LeadCreateRouteProp = RouteProp<LeadStackParamList, 'LeadCreate'>;
 
 const LeadCreateScreen = () => {
   const navigation = useNavigation<any>();
+  const route = useRoute<LeadCreateRouteProp>();
+  const editingLead = route.params?.lead;
+  const onLeadUpdated = route.params?.onLeadUpdated;
+  const isEditing = !!editingLead?.name;
 
   const [fullName, setFullName] = useState('');
   const [date, setDate] = useState('');
@@ -306,6 +312,38 @@ const LeadCreateScreen = () => {
     setBuildingOptions(filterBuildingOptions(rawBuildingOptions, associateOptions));
   }, [associateOptions, rawBuildingOptions]);
 
+  useEffect(() => {
+    if (!editingLead) return;
+    setFullName(editingLead.lead_name || editingLead.company_name || editingLead.name || '');
+    setDate(
+      (editingLead as any)?.custom_date ||
+        (editingLead as any)?.date ||
+        (editingLead as any)?.creation?.slice(0, 10) ||
+        ''
+    );
+    setGender((editingLead as any)?.gender || '');
+    setJobTitle((editingLead as any)?.job_title || '');
+    setSource(editingLead.source || '');
+    setAssociate((editingLead as any)?.associate_details || '');
+    setBuilding(
+      (editingLead as any)?.building ||
+        (editingLead as any)?.custom_building__location ||
+        (editingLead as any)?.location ||
+        ''
+    );
+    setLeadOwner((editingLead as any)?.lead_owner || (editingLead as any)?.owner || '');
+    setStatus(editingLead.status || '');
+    setLeadType((editingLead as any)?.lead_type || '');
+    setRequestType((editingLead as any)?.request_type || '');
+    setServiceType((editingLead as any)?.service_type || '');
+    setEmail(editingLead.email_id || '');
+    setMobile((editingLead as any)?.mobile_no || '');
+    setPhone(editingLead.phone || '');
+    setWebsite((editingLead as any)?.website || '');
+    setWhatsapp((editingLead as any)?.whatsapp || '');
+    setOpenDropdown('');
+  }, [editingLead]);
+
   const pickImages = async () => {
     const result = await launchImageLibrary({ mediaType: 'photo', selectionLimit: 0 });
     if (result.didCancel || !result.assets?.length) return;
@@ -319,13 +357,13 @@ const LeadCreateScreen = () => {
   };
 
   const humanizeError = (raw?: string) => {
-    if (!raw) return 'Failed to create lead.';
+    if (!raw) return 'Failed to save lead.';
     const plain = raw.replace(/<[^>]+>/g, '');
     if (/Email Address must be unique/i.test(plain)) {
       return 'Email is already used on another lead. Please use a unique email or leave it blank.';
     }
     if (/MandatoryError/i.test(plain)) {
-      return 'Please fill required fields (Date and Building/Location).';
+      return 'Please fill required fields (Full Name, Date, Status).';
     }
     return plain;
   };
@@ -340,17 +378,15 @@ const LeadCreateScreen = () => {
       Alert.alert('Lead', 'Please select a date.');
       return;
     }
+    if (!status.trim()) {
+      Alert.alert('Lead', 'Please select a status.');
+      return;
+    }
     const buildingTrimmed = building.trim();
-    if (!buildingTrimmed) {
-      Alert.alert('Lead', 'Please select Building / Location.');
-      return;
-    }
-    if (/^CRM-LEAD-/i.test(buildingTrimmed)) {
-      Alert.alert('Lead', 'Please choose a valid Building / Location (not a Lead ID).');
-      return;
-    }
     setSaving(true);
     try {
+      const leadOwnerValue =
+        leadOwner && (isEditing || /[@.]/.test(leadOwner)) ? leadOwner : undefined;
       const payload = {
         lead_name: fullName.trim(),
         gender,
@@ -358,7 +394,7 @@ const LeadCreateScreen = () => {
         source,
         associate_details: associate,
         building: buildingTrimmed,
-        lead_owner: leadOwner && /[@.]/.test(leadOwner) ? leadOwner : undefined,
+        lead_owner: leadOwnerValue,
         status,
         lead_type: leadType,
         request_type: requestType,
@@ -373,9 +409,23 @@ const LeadCreateScreen = () => {
         custom_building__location: buildingTrimmed,
       };
       console.log('LeadCreateScreen payload:', payload);
-      const res = await createLead(payload);
-      console.log('Lead create response:', res);
+      const res = isEditing
+        ? await updateLead({ name: editingLead?.name || '', ...payload })
+        : await createLead(payload);
+      console.log(isEditing ? 'Lead update response:' : 'Lead create response:', res);
       if (res.ok) {
+        const updatedLead = res.lead || {
+          ...(editingLead || {}),
+          ...payload,
+          name: res.name || (editingLead as any)?.name,
+        };
+        if (isEditing) {
+          onLeadUpdated?.(updatedLead);
+          Alert.alert('Lead', 'Lead updated successfully.', [
+            { text: 'OK', onPress: () => navigation.goBack() },
+          ]);
+          return;
+        }
         Alert.alert('Lead', `Lead created${res.name ? `: ${res.name}` : ''}.`);
         // reset form
         setFullName('');
@@ -401,7 +451,7 @@ const LeadCreateScreen = () => {
         Alert.alert('Lead', humanizeError(res.message));
       }
     } catch (err: any) {
-      console.log('Lead create error:', err?.message || err);
+      console.log('Lead save error:', err?.message || err);
       Alert.alert('Lead', humanizeError(err?.message));
     } finally {
       setSaving(false);
@@ -511,12 +561,18 @@ const LeadCreateScreen = () => {
     </View>
   );
 
+  const saveButtonLabel = saving
+    ? isEditing
+      ? 'Updating...'
+      : 'Saving...'
+    : isEditing
+    ? 'Update Lead'
+    : 'Save Lead';
+
   return (
     <View style={styles.container}>
       <Header
-        screenName="New Lead"
-        showBack
-        navigation={navigation as any}
+        pillText={isEditing ? 'Edit Lead' : 'New Lead'}
         onBackPress={() => navigation.goBack()}
       />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -634,7 +690,7 @@ const LeadCreateScreen = () => {
         </View>
 
         <TouchableOpacity style={[styles.saveButton, saving && styles.saveButtonDisabled]} onPress={handleSave} disabled={saving}>
-          <Text style={styles.saveText}>{saving ? 'Saving...' : 'Save Lead'}</Text>
+          <Text style={styles.saveText}>{saveButtonLabel}</Text>
         </TouchableOpacity>
       </ScrollView>
     </View>

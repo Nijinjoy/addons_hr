@@ -528,10 +528,11 @@ const AttendanceScreen = () => {
   return (
     <View style={styles.container}>
       <Header
-        screenName="Attendance"
-        showBack
-        navigation={navigation as any}
+        pillText="Attendance"
+        badgeCount={0}
         onBackPress={() => navigation.goBack()}
+        onBellPress={() => navigation.navigate('Notifications' as never)}
+        onProfilePress={() => navigation.getParent()?.openDrawer?.()}
       />
       <ScrollView
         contentContainerStyle={styles.content}

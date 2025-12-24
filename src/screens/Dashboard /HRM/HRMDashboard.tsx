@@ -13,6 +13,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { logo } from '../../../assets/images';
+import Header from '../../../components/Header';
 
 const CARDS = [
   {
@@ -38,8 +39,8 @@ const CARDS = [
   },
   {
     key: 'leaves',
-    label: 'Leave',
-    icon: <Ionicons name="exit-outline" size={56} color="#0F172A" />,
+    label: 'Leave Apply',
+    icon: <MaterialCommunityIcons name="calendar-edit" size={56} color="#0F172A" />,
     color: '#BFD9F8',
     route: 'Leaves',
   },
@@ -84,46 +85,13 @@ const HRMDashboard = () => {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-        <View style={styles.topRow}>
-          <View style={styles.leftActions}>
-            <Pressable
-              style={[styles.circle, styles.arrowCircle]}
-              onPress={() => navigation.goBack?.()}
-              android_ripple={{ color: '#E5E7EB' }}
-            >
-              <Ionicons name="arrow-back-outline" size={20} color="#111827" />
-            </Pressable>
-            <Pressable
-              style={styles.pill}
-              onPress={() => navigation.goBack?.()}
-              android_ripple={{ color: '#D1D5DB' }}
-            >
-              <Text style={styles.pillText}>HRM</Text>
-            </Pressable>
-          </View>
-
-          <View style={styles.rightActions}>
-            <Pressable
-              style={[styles.circle, styles.bell]}
-              onPress={handleNotificationPress}
-              android_ripple={{ color: '#1D8CD6' }}
-            >
-              <Ionicons name="notifications-outline" size={22} color="#FFFFFF" />
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>1</Text>
-              </View>
-            </Pressable>
-            <Pressable
-              style={[styles.circle, styles.avatar]}
-              onPress={() => navigation.getParent()?.openDrawer?.()}
-              android_ripple={{ color: '#E5E7EB' }}
-            >
-              <Ionicons name="person" size={26} color="#6B7280" />
-            </Pressable>
-          </View>
-        </View>
-      </View>
+      <Header
+        pillText="HRM"
+        badgeCount={1}
+        onBackPress={() => navigation.goBack?.()}
+        onBellPress={handleNotificationPress}
+        onProfilePress={() => navigation.getParent()?.openDrawer?.()}
+      />
 
       <View style={[styles.content, { minHeight: screenHeight - (insets.top + 40) }]}>
         <View style={styles.hero}>
@@ -171,51 +139,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'flex-start',
   },
-  header: {
-    backgroundColor: '#0E7EC0',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    marginBottom: 20,
-    alignSelf: 'stretch',
-    zIndex: 10,
-    marginHorizontal: 0,
-  },
-  topRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  leftActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  rightActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  pill: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 18,
-    paddingVertical: 8,
-    paddingHorizontal: 18,
-  },
-  pillText: { fontSize: 16, fontWeight: '700', color: '#FFFFFF', letterSpacing: 0.3 },
-  circle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  bell: { backgroundColor: 'rgba(255,255,255,0.25)' },
-  avatar: { backgroundColor: 'rgba(255,255,255,0.25)', width: 46, height: 46, borderRadius: 23 },
-  badge: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    backgroundColor: '#EF4444',
-    borderRadius: 8,
-    paddingHorizontal: 4,
-    minWidth: 16,
-    alignItems: 'center',
-  },
-  badgeText: { color: '#0E7EC0', fontSize: 10, fontWeight: '700' },
   hero: { marginBottom: 18 },
   heroHello: { fontSize: 32, fontWeight: '700', color: '#111827' },
   heroTitle: { fontSize: 22, fontWeight: '600', color: '#111827', marginTop: 6 },

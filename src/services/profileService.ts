@@ -38,14 +38,20 @@ const siteBase = async () => {
 
 const authHeaders = async (): Promise<Record<string, string>> => {
   const base: Record<string, string> = { 'Content-Type': 'application/json' };
-  const { apiKey, apiSecret } = getApiKeySecret();
-  if (apiKey && apiSecret) base.Authorization = `token ${apiKey}:${apiSecret}`;
+  let sid = '';
   try {
-    const sid = await AsyncStorage.getItem('sid');
-    if (sid) base.Cookie = `sid=${sid}`;
+    sid = (await AsyncStorage.getItem('sid')) || '';
   } catch {
     // ignore storage errors
   }
+
+  if (sid) {
+    base.Cookie = `sid=${sid}`;
+  } else {
+    const { apiKey, apiSecret } = getApiKeySecret();
+    if (apiKey && apiSecret) base.Authorization = `token ${apiKey}:${apiSecret}`;
+  }
+
   return base;
 };
 
@@ -153,7 +159,17 @@ const fetchEmployeeProfile = async (employeeId: string): Promise<Partial<Profile
 
 const fetchUserProfile = async (userId: string): Promise<Partial<ProfileData>> => {
   if (!userId) return {};
-  const fields = ['name', 'full_name', 'email', 'user_image'];
+  const fields = [
+    'name',
+    'full_name',
+    'email',
+    'user_image',
+    'mobile_no',
+    'phone',
+    'department',
+    'company',
+    'default_company',
+  ];
 
   const { baseResource, baseMethod } = await getBases();
 
@@ -172,6 +188,9 @@ const fetchUserProfile = async (userId: string): Promise<Partial<ProfileData>> =
         fullName: d?.full_name,
         email: d?.email,
         image: d?.user_image,
+        phone: d?.mobile_no || d?.phone,
+        department: d?.department,
+        company: d?.company || d?.default_company,
       };
     } catch (err) {
       console.warn('fetchUserProfile resource failed', (err as any)?.message || err);
@@ -195,6 +214,9 @@ const fetchUserProfile = async (userId: string): Promise<Partial<ProfileData>> =
       fullName: d?.full_name,
       email: d?.email,
       image: d?.user_image,
+      phone: d?.mobile_no || d?.phone,
+      department: d?.department,
+      company: d?.company || d?.default_company,
     };
   } catch (err2) {
     console.warn('fetchUserProfile method failed', (err2 as any)?.message || err2);
@@ -237,14 +259,14 @@ export const getProfileDetails = async (): Promise<ProfileResult> => {
     const chosenImage = userProfile.image || employeeProfile.image;
 
     const data: ProfileData = {
-      employeeId: employeeProfile.employeeId || employeeId || userProfile.employeeId,
-      userId: userProfile.userId || employeeProfile.userId || userId,
-      fullName: employeeProfile.fullName || userProfile.fullName,
-      email: userProfile.email || employeeProfile.email,
-      designation: employeeProfile.designation,
-      department: employeeProfile.department,
-      company: employeeProfile.company,
-      phone: employeeProfile.phone,
+      employeeId: employeeProfile.employeeId || employeeId || userProfile.employeeId || '',
+      userId: userProfile.userId || employeeProfile.userId || userId || '',
+      fullName: employeeProfile.fullName || userProfile.fullName || userId || '',
+      email: userProfile.email || employeeProfile.email || '',
+      designation: employeeProfile.designation || '',
+      department: employeeProfile.department || userProfile.department || '',
+      company: employeeProfile.company || userProfile.company || '',
+      phone: employeeProfile.phone || userProfile.phone || '',
       image: chosenImage,
       initial:
         deriveInitial(employeeProfile.fullName) ||

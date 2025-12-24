@@ -9,14 +9,20 @@ const getBases = async () => {
 
 async function authHeaders(): Promise<Record<string, string>> {
   const base: Record<string, string> = { 'Content-Type': 'application/json' };
-  const { apiKey, apiSecret } = getApiKeySecret();
-  if (apiKey && apiSecret) base.Authorization = `token ${apiKey}:${apiSecret}`;
+  let sid = '';
   try {
-    const sid = await AsyncStorage.getItem('sid');
-    if (sid) base.Cookie = `sid=${sid}`;
+    sid = (await AsyncStorage.getItem('sid')) || '';
   } catch {
     // ignore storage errors
   }
+
+  if (sid) {
+    base.Cookie = `sid=${sid}`;
+  } else {
+    const { apiKey, apiSecret } = getApiKeySecret();
+    if (apiKey && apiSecret) base.Authorization = `token ${apiKey}:${apiSecret}`;
+  }
+
   return base;
 }
 
@@ -97,21 +103,27 @@ export async function resolveEmployeeIdForUser(userId: string): Promise<string |
     // Method attempt 2: get_value (single value fetch)
     try {
       const url = `${baseMethod}/frappe.client.get_value`;
-      const body = {
-        doctype: 'Employee',
-        fieldname: 'name',
-        filters: { user_id: user },
-      };
-      const res = await requestJSON<{ message?: { name?: string } }>(url, {
-        method: 'POST',
-        headers: await authHeaders(),
-        body: JSON.stringify(body),
-      });
-      const name = res?.message?.name;
-      if (name) {
-        const id = String(name);
-        await persistEmployeeId(id);
-        return id;
+      const filterVariants = [{ user_id: user }, { company_email: user }, { personal_email: user }];
+      for (const filters of filterVariants) {
+        try {
+          const res = await requestJSON<{ message?: { name?: string } }>(url, {
+            method: 'POST',
+            headers: await authHeaders(),
+            body: JSON.stringify({
+              doctype: 'Employee',
+              fieldname: 'name',
+              filters,
+            }),
+          });
+          const name = res?.message?.name;
+          if (name) {
+            const id = String(name);
+            await persistEmployeeId(id);
+            return id;
+          }
+        } catch {
+          // try next filter
+        }
       }
     } catch (inner2) {
       // continue to resource fallback
@@ -141,24 +153,36 @@ export async function resolveEmployeeIdForUser(userId: string): Promise<string |
     return null;
   };
 
-  try {
-    const found = await tryResource([['user_id', '=', user]]);
-    if (found) {
-      await persistEmployeeId(found);
-      return found;
+  const resourceFilters = [
+    [['user_id', '=', user]],
+    [['company_email', '=', user]],
+    [['personal_email', '=', user]],
+  ];
+
+  for (const filters of resourceFilters) {
+    try {
+      const found = await tryResource(filters);
+      if (found) {
+        await persistEmployeeId(found);
+        return found;
+      }
+    } catch (errRes: any) {
+      console.warn('resolveEmployeeIdForUser resource failed', errRes?.message || errRes);
     }
-  } catch (err1: any) {
-    console.warn('resolveEmployeeIdForUser resource failed', err1?.message || err1);
   }
 
-  try {
-    const found = await tryResource({ user_id: user });
-    if (found) {
-      await persistEmployeeId(found);
-      return found;
+  // Object-style filter variants
+  const objectFilters = [{ user_id: user }, { company_email: user }, { personal_email: user }];
+  for (const filters of objectFilters) {
+    try {
+      const found = await tryResource(filters);
+      if (found) {
+        await persistEmployeeId(found);
+        return found;
+      }
+    } catch (errObj: any) {
+      console.warn('resolveEmployeeIdForUser resource alt failed', errObj?.message || errObj);
     }
-  } catch (err2: any) {
-    console.warn('resolveEmployeeIdForUser resource alt failed', err2?.message || err2);
   }
 
   return null;

@@ -46,18 +46,21 @@ export const createApi = async (companyUrl?: string): Promise<AxiosInstance> => 
   api.interceptors.request.use(async (config) => {
     const headers = (config.headers = config.headers || {});
 
-    const { apiKey, apiSecret } = getApiKeySecret();
-    if (apiKey && apiSecret && !headers.Authorization) {
-      headers.Authorization = `token ${apiKey}:${apiSecret}`;
-    }
-
+    let sid = '';
     try {
-      const sid = await AsyncStorage.getItem('sid');
+      sid = (await AsyncStorage.getItem('sid')) || '';
       if (sid && !headers.Cookie) {
         headers.Cookie = `sid=${sid}`;
       }
     } catch {
       // ignore storage errors
+    }
+
+    if (!sid) {
+      const { apiKey, apiSecret } = getApiKeySecret();
+      if (apiKey && apiSecret && !headers.Authorization) {
+        headers.Authorization = `token ${apiKey}:${apiSecret}`;
+      }
     }
 
     return config;

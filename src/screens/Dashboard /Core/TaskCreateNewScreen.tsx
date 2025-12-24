@@ -129,12 +129,10 @@ const TaskCreateNewScreen = () => {
   return (
     <View style={styles.container}>
       <Header
-        screenName="New Task"
-        useGradient
-        showBack
-        navigation={navigation as any}
+        pillText="Task"
+        badgeCount={0}
         onBackPress={() => navigation.goBack()}
-        onNotificationPress={() => console.log('Notifications pressed')}
+        onBellPress={() => navigation.navigate('Notifications' as never)}
         onProfilePress={() => navigation.getParent()?.openDrawer?.()}
       />
 

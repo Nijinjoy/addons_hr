@@ -39,14 +39,20 @@ const getBases = async () => {
 
 const authHeaders = async (): Promise<Record<string, string>> => {
   const base: Record<string, string> = { 'Content-Type': 'application/json' };
-  const { apiKey, apiSecret } = getApiKeySecret();
-  if (apiKey && apiSecret) base.Authorization = `token ${apiKey}:${apiSecret}`;
+  let sid = '';
   try {
-    const sid = await AsyncStorage.getItem('sid');
-    if (sid) base.Cookie = `sid=${sid}`;
+    sid = (await AsyncStorage.getItem('sid')) || '';
   } catch {
     // ignore storage errors
   }
+
+  if (sid) {
+    base.Cookie = `sid=${sid}`;
+  } else {
+    const { apiKey, apiSecret } = getApiKeySecret();
+    if (apiKey && apiSecret) base.Authorization = `token ${apiKey}:${apiSecret}`;
+  }
+
   return base;
 };
 
