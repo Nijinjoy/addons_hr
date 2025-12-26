@@ -193,7 +193,7 @@ const LeadScreen = () => {
             const active = statusFilter === opt;
             const label =
               opt === 'all'
-                ? `All (${leads.length})`
+                ? 'All'
                 : opt
                     .split(' ')
                     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
