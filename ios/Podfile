@@ -5,7 +5,8 @@ require Pod::Executable.execute_command('node', ['-p',
     {paths: [process.argv[1]]},
   )', __dir__]).strip
 
-platform :ios, min_ios_version_supported
+# Set a valid iOS deployment target
+platform :ios, '15.1'
 prepare_react_native_project!
 
 linkage = ENV['USE_FRAMEWORKS']
@@ -19,22 +20,20 @@ target 'addons_hr' do
 
   use_react_native!(
     :path => config[:reactNativePath],
-    # An absolute path to your application root.
     :app_path => "#{Pod::Config.instance.installation_root}/.."
   )
 
-  # Explicitly add geolocation native module (autolinking can be flaky)
-  pod 'react-native-geolocation', :path => '../node_modules/@react-native-community/geolocation'
+  # Remove manual pod for geolocation unless you need it for some reason
+  # pod 'react-native-geolocation', :path => '../node_modules/@react-native-community/geolocation'
 
   post_install do |installer|
     react_native_post_install(
       installer,
       config[:reactNativePath],
-      :mac_catalyst_enabled => false,
-      # :ccache_enabled => true
+      :mac_catalyst_enabled => false
     )
 
-    # Allow glog to include its generated config header when built as a module
+    # Fix glog for modular imports
     installer.pods_project.targets.each do |target|
       next unless target.name == 'glog'
 

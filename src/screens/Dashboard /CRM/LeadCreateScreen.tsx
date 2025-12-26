@@ -573,6 +573,7 @@ const LeadCreateScreen = () => {
     <View style={styles.container}>
       <Header
         pillText={isEditing ? 'Edit Lead' : 'New Lead'}
+        showBackButton
         onBackPress={() => navigation.goBack()}
       />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>

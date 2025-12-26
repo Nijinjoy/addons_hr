@@ -20,7 +20,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { checkIn } from '../../../services/attendanceService';
-import { addonserp } from '../../../assets/images';
 
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -29,9 +28,9 @@ const HomeScreen: React.FC = () => {
   const [lastLocation] = useState<{ latitude?: number; longitude?: number }>({});
 
   const handleNotificationPress = useCallback(() => {
-    const drawerNav = (navigation as any)?.getParent?.();
-    if (drawerNav?.navigate) {
-      drawerNav.navigate('Notifications' as never);
+    const rootNav = (navigation as any)?.getParent?.()?.getParent?.();
+    if (rootNav?.navigate) {
+      rootNav.navigate('Notifications' as never);
       return;
     }
     (navigation as any)?.navigate?.('Notifications' as never);
@@ -178,18 +177,16 @@ const HomeScreen: React.FC = () => {
     <View style={styles.container}>
       <StatusBar 
         barStyle="dark-content"
-        backgroundColor="white" // Changed to white
+        backgroundColor="white" 
         translucent={false}
       />
-      <Header 
-        navigation={navigation}
-        notificationCount={5}
-        useGradient={true}
-        brandLogo={addonserp}
-        onNotificationPress={handleNotificationPress}
+      <Header
+        pillText="Home"
+        showBackButton={false}
+        badgeCount={5}
+        onBellPress={handleNotificationPress}
+        onProfilePress={() => (navigation as any)?.openDrawer?.()}
       />
-
-      {/* White background container below header */}
       <View style={styles.whiteContainer}>
         <ScrollView 
           style={[
@@ -208,7 +205,6 @@ const HomeScreen: React.FC = () => {
             }
           ]}
         >
-          {/* Welcome Section */}
           <View style={styles.welcomeSection}>
             <View style={styles.heroCard}>
               <Text style={styles.heroTitle}>Welcome back</Text>
@@ -259,7 +255,7 @@ const HomeScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: { 
     flex: 1,
-    backgroundColor: 'white', // Changed to white
+    // backgroundColor: 'white',
   },
   whiteContainer: {
     flex: 1,

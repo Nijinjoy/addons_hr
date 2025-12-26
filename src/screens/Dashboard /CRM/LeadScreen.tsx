@@ -35,6 +35,15 @@ const LeadScreen = () => {
     return ['all', ...options];
   }, [leads]);
 
+  const statusCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    leads.forEach((lead) => {
+      const s = (lead.status || '').trim().toLowerCase() || 'unknown';
+      counts[s] = (counts[s] || 0) + 1;
+    });
+    return counts;
+  }, [leads]);
+
   const filteredLeads = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return leads.filter((lead) => {
@@ -142,6 +151,7 @@ const LeadScreen = () => {
     <View style={styles.container}>
       <Header
         pillText="Leads"
+        showBackButton
         badgeCount={0}
         onBackPress={() => navigation.goBack()}
         onBellPress={() => console.log('Notifications pressed')}
@@ -158,7 +168,10 @@ const LeadScreen = () => {
               onChangeText={setSearchQuery}
             />
           </View>
-          <TouchableOpacity style={styles.addButton} onPress={() => console.log('Add lead')}>
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={() => navigation.navigate('LeadCreate')}
+          >
             <Icon name="add" size={24} color="white" />
           </TouchableOpacity>
       </View>
@@ -178,6 +191,14 @@ const LeadScreen = () => {
         <View style={styles.filterRow}>
           {statusOptions.map((opt) => {
             const active = statusFilter === opt;
+            const label =
+              opt === 'all'
+                ? `All (${leads.length})`
+                : opt
+                    .split(' ')
+                    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+                    .join(' ');
+            const count = opt === 'all' ? leads.length : statusCounts[opt] || 0;
             return (
               <TouchableOpacity
                 key={opt}
@@ -188,12 +209,7 @@ const LeadScreen = () => {
                 style={[styles.filterPill, active && styles.filterPillActive]}
               >
                 <Text style={[styles.filterText, active && styles.filterTextActive]}>
-                  {opt === 'all'
-                    ? 'All'
-                    : opt
-                        .split(' ')
-                        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-                        .join(' ')}
+                  {label} ({count})
                 </Text>
               </TouchableOpacity>
             );
@@ -219,6 +235,14 @@ const LeadScreen = () => {
                     <Text style={styles.leadTitle}>{lead.company_name || lead.lead_name || lead.name}</Text>
                     <Text style={styles.leadSub}>{lead.lead_name || lead.company_name || '-'}</Text>
                   </View>
+                  <View
+                    style={[
+                      styles.statusChip,
+                      { backgroundColor: '#E0F2FE' },
+                    ]}
+                  >
+                    <Text style={styles.statusChipText}>{lead.status || 'Open'}</Text>
+                  </View>
                   <TouchableOpacity
                     onPress={() => handleMore(lead, cardId)}
                     style={styles.moreBtn}
@@ -236,14 +260,6 @@ const LeadScreen = () => {
                       </TouchableOpacity>
                     </View>
                   )}
-                  <View
-                    style={[
-                      styles.statusChip,
-                      { backgroundColor: '#E0F2FE' },
-                    ]}
-                  >
-                    <Text style={styles.statusChipText}>{lead.status || 'Open'}</Text>
-                  </View>
                 </View>
 
                 <View style={styles.cardMeta}>
@@ -298,14 +314,14 @@ const LeadScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: 'white' },
-  body: { flexGrow: 1, backgroundColor: 'white', padding: 12, gap: 10 },
+  container: { flex: 1, backgroundColor: '#FFFFFF' },
+  body: { flexGrow: 1, backgroundColor: '#FFFFFF', padding: 12, gap: 10 },
   searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 12,
     gap: 8,
-    backgroundColor: 'white',
+    backgroundColor: '#FFFFFF',
   },
   searchInput: {
     flex: 1,

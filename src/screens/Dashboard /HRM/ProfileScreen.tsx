@@ -1,8 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, Modal, TouchableWithoutFeedback, Alert, ActivityIndicator } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import LinearGradient from 'react-native-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import { profile as profileImage } from '../../../assets/images';
 import { logout } from '../../../services/authService';
@@ -10,6 +8,7 @@ import { getProfile, updateProfileImage, removeProfileImage, ProfileData } from 
 import { getMethodUrl, getResourceUrl } from '../../../services/urlService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { launchImageLibrary } from 'react-native-image-picker';
+import Header from '../../../components/Header';
 
 type ProfileScreenProps = {
   onBack?: () => void;
@@ -39,20 +38,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack }) => {
     { label: 'Company Information', icon: 'briefcase-outline', onPress: () => handleOpenSection('Company Information') },
     { label: 'Contact Information', icon: 'document-text-outline', onPress: () => handleOpenSection('Contact Information') },
     { label: 'Salary Information', icon: 'cash-outline', onPress: () => handleOpenSection('Salary Information') },
-    {
-      label: 'Leaves',
-      icon: 'calendar-number-outline',
-      onPress: () => {
-        try {
-          navigation?.closeDrawer?.();
-        } catch {
-          // ignore
-        }
-        const parentNav = navigation.getParent?.();
-        const rootNav = parentNav?.getParent?.() || parentNav || navigation;
-        rootNav?.navigate?.('Leaves' as never);
-      },
-    },
   ];
 
   const detailMap = useMemo(
@@ -224,25 +209,11 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack }) => {
 
   return (
     <View style={styles.root}>
-      <LinearGradient
-        colors={['#141D35', '#1D2B4C', '#14223E']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-        style={styles.headerGradient}
-      >
-        <SafeAreaView edges={['top']} style={styles.headerSafeArea}>
-          <View style={styles.navBar}>
-            <TouchableOpacity
-              onPress={onBack}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              style={styles.backButton}
-            >
-              <Ionicons name="chevron-back" size={22} color="#FFFFFF" />
-            </TouchableOpacity>
-            <Text style={styles.navTitle}>Profile</Text>
-          </View>
-        </SafeAreaView>
-      </LinearGradient>
+      <Header
+        pillText="Profile"
+        showBackButton
+        onBackPress={() => (onBack ? onBack() : navigation.goBack?.())}
+      />
 
       <ScrollView contentContainerStyle={styles.container} bounces={false} showsVerticalScrollIndicator={false}>
           <View style={styles.header}>
@@ -395,13 +366,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack }) => {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#F6F7F9',
-  },
-  headerGradient: {
-    paddingBottom: 12,
-  },
-  headerSafeArea: {
-    paddingHorizontal: 12,
+    backgroundColor: '#FFFFFF',
   },
   container: {
     paddingTop: 16,
@@ -509,24 +474,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#D14343',
-  },
-  navBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingTop: 4,
-    paddingBottom: 8,
-  },
-  navTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    marginLeft: 6,
-  },
-  backButton: {
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   modalOverlay: {
     flex: 1,

@@ -529,9 +529,10 @@ const AttendanceScreen = () => {
     <View style={styles.container}>
       <Header
         pillText="Attendance"
+        showBack
         badgeCount={0}
         onBackPress={() => navigation.goBack()}
-        onBellPress={() => navigation.navigate('Notifications' as never)}
+        onBellPress={() => navigation.getParent?.()?.getParent?.()?.navigate?.('Notifications' as never)}
         onProfilePress={() => navigation.getParent()?.openDrawer?.()}
       />
       <ScrollView

@@ -4,9 +4,9 @@ import {
   Text,
   StyleSheet,
   Pressable,
-  SafeAreaView,
   useWindowDimensions,
   Image,
+  StatusBar,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -75,25 +75,27 @@ const HRMDashboard = () => {
   };
 
   const handleNotificationPress = useCallback(() => {
-    const parent = navigation.getParent?.();
-    if (parent?.navigate) {
-      parent.navigate('Notifications' as never);
+    const rootNav = (navigation as any)?.getParent?.()?.getParent?.();
+    if (rootNav?.navigate) {
+      rootNav.navigate('Notifications' as never);
       return;
     }
     navigation.navigate('Notifications' as never);
   }, [navigation]);
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <View style={styles.safe}>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       <Header
         pillText="HRM"
-        badgeCount={1}
-        onBackPress={() => navigation.goBack?.()}
+        showBackButton={false}
+        badgeCount={5}
         onBellPress={handleNotificationPress}
-        onProfilePress={() => navigation.getParent()?.openDrawer?.()}
+        onProfilePress={() => (navigation as any)?.openDrawer?.()}
       />
 
-      <View style={[styles.content, { minHeight: screenHeight - (insets.top + 40) }]}>
+      <View style={styles.contentWrapper}>
+        <View style={[styles.content, { minHeight: screenHeight - (insets.top + 40) }]}>
         <View style={styles.hero}>
           <Text style={styles.heroHello}>Hello</Text>
           <Text style={styles.heroTitle}>Everything You Need Fast</Text>
@@ -125,12 +127,17 @@ const HRMDashboard = () => {
           </View>
         </View>
       </View>
-    </SafeAreaView>
+      </View>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#FFFFFF' },
+  safe: { flex: 1, backgroundColor: '#141D35' },
+  contentWrapper: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
   content: {
     paddingHorizontal: 20,
     paddingBottom: 20,

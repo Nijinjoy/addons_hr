@@ -132,7 +132,7 @@ const TaskCreateNewScreen = () => {
         pillText="Task"
         badgeCount={0}
         onBackPress={() => navigation.goBack()}
-        onBellPress={() => navigation.navigate('Notifications' as never)}
+        onBellPress={() => navigation.getParent?.()?.getParent?.()?.navigate?.('Notifications' as never)}
         onProfilePress={() => navigation.getParent()?.openDrawer?.()}
       />
 

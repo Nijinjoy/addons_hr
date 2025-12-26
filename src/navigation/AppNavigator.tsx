@@ -7,6 +7,7 @@ import SplashScreen from '../screens/SplashScreen';
 import AuthStack from './AuthStack';
 import DrawerNavigator from './DrawerNavigator';
 import LeaveScreen from '../screens/Dashboard /HRM/LeaveScreen';
+import NotificationScreen from '../screens/Dashboard /Core/NotificationScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -46,6 +47,11 @@ const AppNavigator = () => {
           <>
             <Stack.Screen name="Dashboard" component={DrawerNavigator} />
             <Stack.Screen name="Leaves" component={LeaveScreen} />
+            <Stack.Screen
+              name="Notifications"
+              component={NotificationScreen}
+              options={{ animation: 'slide_from_right' }}
+            />
             <Stack.Screen name="Auth" component={AuthStack} />
           </>
         ) : (
@@ -53,6 +59,11 @@ const AppNavigator = () => {
             <Stack.Screen name="Auth" component={AuthStack} />
             <Stack.Screen name="Dashboard" component={DrawerNavigator} />
             <Stack.Screen name="Leaves" component={LeaveScreen} />
+            <Stack.Screen
+              name="Notifications"
+              component={NotificationScreen}
+              options={{ animation: 'slide_from_right' }}
+            />
           </>
         )}
       </Stack.Navigator>

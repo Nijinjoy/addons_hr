@@ -236,8 +236,7 @@ const ExpenseScreen = () => {
     <View style={styles.container}>
       <Header
         screenName="Expenses"
-        showBack
-        navigation={navigation as any}
+        showBackButton
         onBackPress={() => navigation.goBack()}
       />
       <View style={styles.whiteBackground}>

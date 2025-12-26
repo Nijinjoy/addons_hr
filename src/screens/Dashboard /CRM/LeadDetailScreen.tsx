@@ -116,6 +116,7 @@ const LeadDetailScreen = () => {
     <View style={styles.container}>
       <Header
         pillText="Lead Details"
+        showBackButton
         onBackPress={() => navigation.goBack?.()}
       />
       <ScrollView contentContainerStyle={styles.content}>

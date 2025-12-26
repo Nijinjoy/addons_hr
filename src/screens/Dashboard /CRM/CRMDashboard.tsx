@@ -5,8 +5,8 @@ import Header from '../../../components/Header';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
 const METRICS = [15, 5, 5];
-const LEAD_LINKS = Array.from({ length: 6 }, () => 'View All Leads');
-const TODO_ITEMS = Array.from({ length: 3 }, () => 'View All Leads');
+const LEAD_LINKS = ['New Leads', '30 Days', 'Last Year'];
+const TODO_ITEMS = ['Call Leads', 'Tickets', 'Demo'];
 
 const CRMDashboard = () => {
   const navigation = useNavigation();
@@ -34,24 +34,12 @@ const CRMDashboard = () => {
     [go]
   );
 
-  const goToTasks = useCallback(
-    (screen?: string) => {
-      const target = screen === 'TaskCreateNewScreen' ? 'TaskCreateNew' : screen;
-      if (target) {
-        go(target);
-        return;
-      }
-      go('TaskList');
-    },
-    [go]
-  );
-
-  const handleNotificationPress = useCallback(() => go('Notifications'), [go]);
+  const handleNotificationPress = useCallback(() => {
+    navigation.getParent?.()?.getParent?.()?.navigate?.('Notifications' as never);
+  }, [navigation]);
   const handleCreateLead = useCallback(() => goToLeads('LeadCreate'), [goToLeads]);
   const handleViewPipeline = useCallback(() => goToLeads(), [goToLeads]);
   const handleViewLeads = useCallback(() => goToLeads(), [goToLeads]);
-  const handleViewTasks = useCallback(() => goToTasks(), [goToTasks]);
-  const handleAddTask = useCallback(() => goToTasks('TaskCreateNew'), [goToTasks]);
   const handleProfile = useCallback(() => navigation.getParent()?.openDrawer?.(), [navigation]);
   const handleBack = useCallback(() => navigation.goBack?.(), [navigation]);
 
@@ -108,8 +96,10 @@ const CRMDashboard = () => {
             <Pressable
               onPress={handleViewLeads}
               android_ripple={{ color: '#0f172a33' }}
+              style={styles.cardLineRow}
             >
               <Text style={[styles.cardLine, styles.cardLineUnderline]}>View All Leads</Text>
+              <Ionicons name="eye" size={16} color="#0F172A" />
             </Pressable>
           </View>
 
@@ -121,7 +111,10 @@ const CRMDashboard = () => {
                 <Text style={styles.cardLine}>{text}</Text>
               </View>
             ))}
-            <Text style={[styles.cardLine, styles.cardLineUnderline]}>Add To-Do</Text>
+            <View style={styles.cardLineRow}>
+              <Text style={[styles.cardLine, styles.cardLineUnderline]}>Add To-Do</Text>
+              <Ionicons name="add-circle" size={16} color="#0F172A" />
+            </View>
           </View>
         </View>
 
@@ -135,22 +128,6 @@ const CRMDashboard = () => {
           </View>
         </View>
 
-        <View style={styles.taskActions}>
-          <Pressable
-            style={({ pressed }) => [styles.ctaSmall, styles.ctaBlue, pressed && styles.ctaPressed]}
-            onPress={handleViewTasks}
-            android_ripple={{ color: '#ffffff30' }}
-          >
-            <Text style={styles.ctaText}>View Tasks</Text>
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [styles.ctaSmall, styles.ctaGreen, pressed && styles.ctaPressed]}
-            onPress={handleAddTask}
-            android_ripple={{ color: '#ffffff30' }}
-          >
-            <Text style={styles.ctaText}>Add Task</Text>
-          </Pressable>
-        </View>
       </ScrollView>
     </View>
   );
@@ -160,7 +137,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFFFFF' },
   body: { padding: 16, gap: 18, paddingBottom: 28 },
   hero: {
-    backgroundColor: '#E5E7EB',
+    backgroundColor: '#D7DBE0',
     borderRadius: 18,
     padding: 16,
     gap: 12,
@@ -189,13 +166,6 @@ const styles = StyleSheet.create({
   ctaGreen: { backgroundColor: '#19C89B' },
   ctaPressed: { opacity: 0.9 },
   ctaText: { fontSize: 15, fontWeight: '700', color: '#0F172A' },
-  ctaSmall: {
-    flex: 1,
-    borderRadius: 16,
-    paddingVertical: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   duoRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
   card: {
     flex: 1,
@@ -208,7 +178,8 @@ const styles = StyleSheet.create({
   cardBlue: { backgroundColor: '#4EA0CC' },
   cardTitle: { fontSize: 20, fontWeight: '800', color: '#0F172A' },
   cardLine: { fontSize: 14, color: '#0F172A' },
-  cardLineUnderline: { textDecorationLine: 'underline', marginTop: 6 },
+  cardLineUnderline: { textDecorationLine: 'underline' },
+  cardLineRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
   todoRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   taskCard: {
     borderRadius: 16,
@@ -217,7 +188,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  cardGray: { backgroundColor: '#E5E7EB' },
+  cardGray: { backgroundColor: '#D7DBE0' },
   taskTitle: { fontSize: 18, fontWeight: '800', color: '#111827' },
   taskSub: { color: '#4B5563', fontSize: 14, marginTop: 4 },
   statusPill: {
@@ -227,7 +198,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   statusText: { color: '#0F172A', fontWeight: '700' },
-  taskActions: { flexDirection: 'row', gap: 12 },
 });
 
 export default CRMDashboard;
