@@ -7,11 +7,14 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
+  Modal,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import Header from '../../../components/Header';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { launchImageLibrary, launchCamera, Asset } from 'react-native-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import CommonDropdown, { DropdownData } from '../../../components/CommonDropdown/CommonDropdown';
 import {
   getLeadSources,
   getAssociateDetails,
@@ -21,6 +24,7 @@ import {
   getLeadStatuses,
   getLeadOwners,
   getBuildingLocations,
+  createLeadSource,
 } from '../../../services/leadService';
 import { createLead, updateLead } from '../../../services/api/leadsCreate.service';
 import { LeadStackParamList } from '../../../navigation/LeadStack';
@@ -75,6 +79,12 @@ const LeadCreateScreen = () => {
   const [loadingBuildings, setLoadingBuildings] = useState(false);
   const [saving, setSaving] = useState(false);
   const [openDropdown, setOpenDropdown] = useState('');
+  const [newOptionModalVisible, setNewOptionModalVisible] = useState(false);
+  const [newOptionName, setNewOptionName] = useState('');
+  const [newOptionLabel, setNewOptionLabel] = useState('');
+  const [newOptionSave, setNewOptionSave] =
+    useState<((value: string) => Promise<boolean> | boolean) | null>(null);
+  const [creatingSource, setCreatingSource] = useState(false);
 
   const leadDetailInputs = [
     { label: 'Full Name', value: fullName, setter: setFullName, placeholder: 'Full name' },
@@ -477,6 +487,122 @@ const LeadCreateScreen = () => {
     };
     const displayText = loading ? 'Loading...' : findLabel() || dropdownPlaceholder;
 
+    const useCommonDropdown =
+      label === 'Source' ||
+      label === 'Building & Location' ||
+      label === 'Associate Details' ||
+      label === 'Lead Owner' ||
+      label === 'Service Type';
+    const dropdownData: DropdownData[] = (options || []).map((opt) => ({
+      id: typeof opt === 'string' ? opt : opt.value,
+      label: typeof opt === 'string' ? opt : opt.label,
+    }));
+
+    if (useCommonDropdown) {
+      return (
+        <View style={styles.fieldBlock}>
+          <Text style={styles.label}>{label}</Text>
+          <TouchableOpacity
+            style={styles.selectBox}
+            onPress={() => {
+              if (loading) return;
+              setOpenDropdown((prev) => (prev === label ? '' : label));
+            }}
+            activeOpacity={0.8}
+          >
+            <Text style={value ? styles.selectValue : styles.selectPlaceholder}>{displayText}</Text>
+          </TouchableOpacity>
+          {isOpen && (
+            <View style={styles.dropdownListContainer}>
+              <View style={styles.dropdownCommonList}>
+                <CommonDropdown
+                  data={dropdownData}
+                  value={value ? { id: value, label: value } : null}
+                  onSelect={(item) => {
+                    setter(String(item.label));
+                    setOpenDropdown('');
+                  }}
+                  onCreateNew={() => {
+                    setNewOptionName('');
+                    setNewOptionLabel(label);
+                    setNewOptionSave(() => async (nextValue: string) => {
+                      const nextTrimmed = nextValue.trim();
+                      if (!nextTrimmed) return false;
+                      if (label === 'Source') {
+                        if (creatingSource) return false;
+                        if (sourceOptions.includes(nextTrimmed)) {
+                          setSource(nextTrimmed);
+                          setOpenDropdown('');
+                          return true;
+                        }
+                        setCreatingSource(true);
+                        const res = await createLeadSource(nextTrimmed);
+                        setCreatingSource(false);
+                        if (!res.ok) {
+                          Alert.alert('Lead Source', res.message);
+                          return false;
+                        }
+                        setSourceOptions((prev) =>
+                          prev.includes(nextTrimmed) ? prev : [...prev, nextTrimmed]
+                        );
+                        setSource(nextTrimmed);
+                        setOpenDropdown('');
+                        return true;
+                      } else if (label === 'Building & Location') {
+                        setBuildingOptions((prev) =>
+                          prev.includes(nextTrimmed) ? prev : [...prev, nextTrimmed]
+                        );
+                        setBuilding(nextTrimmed);
+                        setOpenDropdown('');
+                        return true;
+                      } else if (label === 'Associate Details') {
+                        setAssociateOptions((prev) =>
+                          prev.includes(nextTrimmed) ? prev : [...prev, nextTrimmed]
+                        );
+                        setAssociate(nextTrimmed);
+                        setOpenDropdown('');
+                        return true;
+                      } else if (label === 'Lead Owner') {
+                        setLeadOwnerOptions((prev) =>
+                          prev.some((opt) =>
+                            typeof opt === 'string'
+                              ? opt === nextTrimmed
+                              : opt.value === nextTrimmed
+                          )
+                            ? prev
+                            : [...prev, nextTrimmed]
+                        );
+                        setLeadOwner(nextTrimmed);
+                        setOpenDropdown('');
+                        return true;
+                      } else if (label === 'Service Type') {
+                        setServiceTypeOptions((prev) =>
+                          prev.includes(nextTrimmed) ? prev : [...prev, nextTrimmed]
+                        );
+                        setServiceType(nextTrimmed);
+                        setOpenDropdown('');
+                        return true;
+                      }
+                      setOpenDropdown('');
+                      return true;
+                    });
+                    setNewOptionModalVisible(true);
+                  }}
+                  createLabel={`Create new ${label}`}
+                  searchEnabled
+                  searchPlaceholder={`Search ${label.toLowerCase()}`}
+                />
+              </View>
+            </View>
+          )}
+          {loading && options && <Text style={styles.dropdownHint}>Loading options...</Text>}
+          {!loading && options && !options.length && (
+            <Text style={styles.dropdownHint}>No options available</Text>
+          )}
+        </View>
+      );
+    }
+
     return (
       <View style={styles.fieldBlock}>
         <Text style={styles.label}>{label}</Text>
@@ -694,6 +820,51 @@ const LeadCreateScreen = () => {
           <Text style={styles.saveText}>{saveButtonLabel}</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      <Modal visible={newOptionModalVisible} transparent animationType="fade">
+        <TouchableWithoutFeedback
+          onPress={() => {
+            setNewOptionModalVisible(false);
+            setOpenDropdown('');
+          }}
+        >
+          <View style={styles.modalBackdrop} />
+        </TouchableWithoutFeedback>
+        <View style={styles.modalCard}>
+          <Text style={styles.modalTitle}>Add new {newOptionLabel.toLowerCase()}</Text>
+          <TextInput
+            value={newOptionName}
+            onChangeText={setNewOptionName}
+            placeholder={`Enter ${newOptionLabel.toLowerCase()}`}
+            style={styles.modalInput}
+            autoFocus
+          />
+          <View style={styles.modalActions}>
+            <TouchableOpacity
+              style={[styles.modalButton, styles.modalCancel]}
+              onPress={() => {
+                setNewOptionModalVisible(false);
+                setOpenDropdown('');
+              }}
+            >
+              <Text style={styles.modalCancelText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.modalButton, styles.modalSave]}
+              onPress={async () => {
+                const nextValue = newOptionName.trim();
+                if (!nextValue || !newOptionSave) return;
+                const ok = await newOptionSave(nextValue);
+                if (!ok) return;
+                setNewOptionModalVisible(false);
+              }}
+              disabled={creatingSource}
+            >
+              <Text style={styles.modalSaveText}>Save</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -857,6 +1028,9 @@ const styles = StyleSheet.create({
   dropdownList: {
     maxHeight: 220,
   },
+  dropdownCommonList: {
+    maxHeight: 220,
+  },
   dropdownItem: {
     paddingVertical: 10,
     paddingHorizontal: 12,
@@ -871,6 +1045,64 @@ const styles = StyleSheet.create({
     marginTop: 6,
     fontSize: 12,
     color: '#6B7280',
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+  },
+  modalCard: {
+    position: 'absolute',
+    left: 20,
+    right: 20,
+    top: '35%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowOffset: { width: 0, height: 6 },
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  modalInput: {
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: '#111827',
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 10,
+    marginTop: 16,
+  },
+  modalButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+  },
+  modalCancel: {
+    backgroundColor: '#E5E7EB',
+  },
+  modalSave: {
+    backgroundColor: '#1D3765',
+  },
+  modalCancelText: {
+    color: '#111827',
+    fontWeight: '600',
+  },
+  modalSaveText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
   },
 });
 

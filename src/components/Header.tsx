@@ -1,13 +1,15 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   Platform,
+  Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import { getProfile } from '../services/api/profile.service';
 
 type HeaderProps = {
   title?: string;
@@ -38,6 +40,27 @@ const Header = ({
   const showBell = !!onBellPress || badgeCount > 0;
   const showProfile = !!onProfilePress;
   const iconColor = '#FFFFFF';
+  const [profileImage, setProfileImage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!showProfile || profileImage) return;
+    let isActive = true;
+    const loadProfileImage = async () => {
+      try {
+        const res = await getProfile();
+        if (!isActive) return;
+        if (res.ok && res.data?.image) {
+          setProfileImage(res.data.image);
+        }
+      } catch {
+        // ignore profile load errors
+      }
+    };
+    loadProfileImage();
+    return () => {
+      isActive = false;
+    };
+  }, [showProfile, profileImage]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top, minHeight: insets.top + 56 }]}>
@@ -91,7 +114,11 @@ const Header = ({
               onPress={onProfilePress}
               accessibilityLabel="Profile"
             >
-              <Ionicons name="person-circle-outline" size={24} color={iconColor} />
+              {profileImage ? (
+                <Image source={{ uri: profileImage }} style={styles.profileImage} />
+              ) : (
+                <Ionicons name="person-circle-outline" size={24} color={iconColor} />
+              )}
             </TouchableOpacity>
           ) : (
             <View style={styles.iconSpacer} />
@@ -168,6 +195,11 @@ const styles = StyleSheet.create({
   },
   profileButton: {
     backgroundColor: 'rgba(255,255,255,0.18)',
+  },
+  profileImage: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
   },
   iconSpacer: {
     width: 36,

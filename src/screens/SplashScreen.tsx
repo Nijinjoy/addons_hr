@@ -29,7 +29,7 @@ export default function SplashScreen() {
       <View style={styles.centerContent}>
         <Text style={styles.appName}>ADDON-S ERP</Text>
         <View style={styles.accent} />
-        <Text style={styles.subtitle}>Employee Management System</Text>
+        <Text style={styles.subtitle}>Your IT Partner in city</Text>
       </View>
 
       {/* Bottom credits */}

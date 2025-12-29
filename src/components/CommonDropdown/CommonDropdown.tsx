@@ -21,6 +21,7 @@ interface CommonDropdownProps {
   value?: DropdownData | null;
   onSelect: (item: DropdownData) => void;
   onCreateNew?: () => void;
+  createLabel?: string;
   onAdvancedSearch?: () => void;
   searchEnabled?: boolean;
   searchPlaceholder?: string;
@@ -31,6 +32,7 @@ const CommonDropdown: React.FC<CommonDropdownProps> = ({
   value,
   onSelect,
   onCreateNew,
+  createLabel,
   onAdvancedSearch,
   searchEnabled = false,
   searchPlaceholder = 'Search',
@@ -75,7 +77,7 @@ const CommonDropdown: React.FC<CommonDropdownProps> = ({
                 onPress={onCreateNew}
               >
                 <Text style={styles.footerText}>
-                  + Create new
+                  + {createLabel || 'Create new'}
                 </Text>
               </TouchableOpacity>
             )}

@@ -33,6 +33,9 @@ type LeadResult =
 type LeadSourceResult =
   | { ok: true; data: string[] }
   | { ok: false; message: string };
+type LeadSourceCreateResult =
+  | { ok: true; name: string }
+  | { ok: false; message: string };
 
 type AssociateDetailsResult =
   | { ok: true; data: string[] }
@@ -392,6 +395,58 @@ export const getLeadSources = async (limit: number = 100): Promise<LeadSourceRes
   } catch (error: any) {
     const message = error?.message || 'Unexpected error while fetching lead sources';
     console.log('Lead sources fetch error:', message);
+    return { ok: false, message };
+  }
+};
+
+export const createLeadSource = async (sourceName: string): Promise<LeadSourceCreateResult> => {
+  const trimmed = sourceName.trim();
+  if (!trimmed) {
+    return { ok: false, message: 'Lead source name is required.' };
+  }
+
+  try {
+    const sid = await AsyncStorage.getItem('sid');
+    if (!sid) {
+      return { ok: false, message: 'No active session. Please log in.' };
+    }
+
+    const { baseResource, baseMethod } = await getBases();
+    const body = { doctype: 'Lead Source', source_name: trimmed };
+
+    if (baseResource) {
+      try {
+        const res = await requestJSON<{ data?: any }>(`${baseResource}/Lead%20Source`, {
+          method: 'POST',
+          headers: await authHeaders(),
+          body: JSON.stringify(body),
+        });
+        const doc = (res as any)?.data || (res as any);
+        if (doc?.name) return { ok: true, name: doc.name };
+      } catch (err1: any) {
+        console.warn('createLeadSource resource failed', err1?.message || err1);
+      }
+    }
+
+    if (baseMethod) {
+      try {
+        const res = await requestJSON<{ message?: any }>(`${baseMethod}/frappe.client.insert`, {
+          method: 'POST',
+          headers: await authHeaders(),
+          body: JSON.stringify({ doc: body }),
+        });
+        const doc = (res as any)?.message || (res as any);
+        if (doc?.name) return { ok: true, name: doc.name };
+      } catch (err2: any) {
+        const message = err2?.message || err2;
+        console.warn('createLeadSource method failed', message);
+        return { ok: false, message: String(message) };
+      }
+    }
+
+    return { ok: false, message: 'Lead source creation failed.' };
+  } catch (error: any) {
+    const message = error?.message || 'Lead source creation failed.';
     return { ok: false, message };
   }
 };
