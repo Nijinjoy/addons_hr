@@ -7,6 +7,7 @@ import {
   useWindowDimensions,
   Image,
   StatusBar,
+  ScrollView,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -55,13 +56,13 @@ const HRMDashboard = () => {
   const horizontalPadding = 20;
   const gap = 16;
   const cardWidth = (screenWidth - horizontalPadding * 2 - gap) / 2;
-  const headerEstimated = insets.top + 96; // header height including safe area
-  const heroEstimated = 110; // greeting block
-  const paddingEstimated = 32; // content padding & gaps
+  const headerEstimated = insets.top + 88; // header height including safe area
+  const heroEstimated = 88; // greeting block
+  const paddingEstimated = 28; // content padding & gaps
   const tabBarHeight = 88; // approximate bottom tabs height
   const availableGridHeight = screenHeight - headerEstimated - heroEstimated - paddingEstimated - tabBarHeight;
   const targetHeightFromScreen = (availableGridHeight - gap) / 2;
-  const minCardHeight = Math.max(220, screenHeight * 0.28);
+  const minCardHeight = Math.max(180, screenHeight * 0.22);
   const maxCardHeight = screenHeight * 0.55;
   const cardHeight = Math.max(minCardHeight, Math.min(targetHeightFromScreen, maxCardHeight));
 
@@ -95,38 +96,63 @@ const HRMDashboard = () => {
       />
 
       <View style={styles.contentWrapper}>
-        <View style={[styles.content, { minHeight: screenHeight - (insets.top + 40) }]}>
-        <View style={styles.hero}>
-          <Text style={styles.heroHello}>Hello</Text>
-          <Text style={styles.heroTitle}>Everything You Need Fast</Text>
-        </View>
-
-        <View style={styles.gridWrapper}>
-          <View style={styles.grid}>
-            {CARDS.map(({ key, label, icon, color, route }) => (
-              <Pressable
-                key={key}
-                onPress={() => handleNavigate(route)}
-                android_ripple={{ color: '#CBD5E1' }}
-                style={({ pressed }) => [
-                  styles.cardBase,
-                  { backgroundColor: color, width: cardWidth, height: cardHeight },
-                  pressed && styles.cardPressed,
-                ]}
-              >
-                {icon}
-                <Text style={styles.cardLabel}>{label}</Text>
-              </Pressable>
-            ))}
+        <ScrollView
+          contentContainerStyle={[styles.content, { minHeight: screenHeight - (insets.top + 40) }]}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.hero}>
+            <Text style={styles.heroHello}>Hello</Text>
+            <Text style={styles.heroTitle}>Everything You Need Fast</Text>
           </View>
 
-          <View style={styles.centerLogo}>
-            <View style={styles.centerLogoCircle}>
-              <Image source={logo} style={styles.centerLogoImage} />
+          <View style={styles.gridWrapper}>
+            <View style={styles.grid}>
+              {CARDS.map(({ key, label, icon, color, route }) => (
+                <Pressable
+                  key={key}
+                  onPress={() => handleNavigate(route)}
+                  android_ripple={{ color: '#CBD5E1' }}
+                  style={({ pressed }) => [
+                    styles.cardBase,
+                    { backgroundColor: color, width: cardWidth, height: cardHeight },
+                    pressed && styles.cardPressed,
+                  ]}
+                >
+                  {icon}
+                  <Text style={styles.cardLabel}>{label}</Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <View style={styles.centerLogo}>
+              <View style={styles.centerLogoCircle}>
+                <Image source={logo} style={styles.centerLogoImage} />
+              </View>
             </View>
           </View>
-        </View>
-      </View>
+
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Calendar</Text>
+            </View>
+            <Pressable
+              onPress={() => handleNavigate('Calendar')}
+              android_ripple={{ color: '#E2E8F0' }}
+              style={({ pressed }) => [
+                styles.calendarCard,
+                pressed && styles.calendarCardPressed,
+              ]}
+            >
+              <View style={styles.calendarIconWrap}>
+                <Ionicons name="calendar-outline" size={28} color="#1D3765" />
+              </View>
+              <View style={styles.calendarText}>
+                <Text style={styles.calendarTitle}>Upcoming schedule</Text>
+                <Text style={styles.calendarSub}>No events yet. Add items in calendar.</Text>
+              </View>
+            </Pressable>
+          </View>
+        </ScrollView>
       </View>
     </View>
   );
@@ -141,14 +167,14 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 20,
     paddingBottom: 20,
-    paddingTop: 0,
+    paddingTop: 16,
     flexGrow: 1,
     flex: 1,
     justifyContent: 'flex-start',
   },
   hero: { marginBottom: 18 },
-  heroHello: { fontSize: 32, fontWeight: '700', color: '#111827' },
-  heroTitle: { fontSize: 22, fontWeight: '600', color: '#111827', marginTop: 6 },
+  heroHello: { fontSize: 26, fontWeight: '700', color: '#111827' },
+  heroTitle: { fontSize: 18, fontWeight: '600', color: '#111827', marginTop: 6 },
   heroSub: { fontSize: 14, color: '#6B7280', marginTop: 6 },
   grid: {
     flexDirection: 'row',
@@ -174,16 +200,16 @@ const styles = StyleSheet.create({
   centerLogo: {
     position: 'absolute',
     alignSelf: 'center',
-    top: '42%',
-    width: 96,
-    height: 96,
+    top: '43%',
+    width: 80,
+    height: 80,
     alignItems: 'center',
     justifyContent: 'center',
   },
   centerLogoCircle: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
@@ -194,11 +220,52 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
   },
   centerLogoImage: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     resizeMode: 'cover',
     overflow: 'hidden',
+  },
+  section: {
+    marginTop: 8,
+    marginBottom: 1,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  sectionTitle: { fontSize: 16, fontWeight: '700', color: '#0F172A' },
+  calendarCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  calendarCardPressed: {
+    opacity: 0.85,
+  },
+  calendarIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#E5ECFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  calendarText: {
+    flex: 1,
+  },
+  calendarTitle: { fontSize: 14, fontWeight: '700', color: '#0F172A' },
+  calendarSub: {
+    marginTop: 2,
+    fontSize: 12,
+    color: '#475569',
   },
 });
 

@@ -1,3 +1,5 @@
+# Podfile for addons_hr React Native project
+
 # Resolve react_native_pods.rb with node to allow for hoisting
 require Pod::Executable.execute_command('node', ['-p',
   'require.resolve(
@@ -7,8 +9,10 @@ require Pod::Executable.execute_command('node', ['-p',
 
 # Set a valid iOS deployment target
 platform :ios, '15.1'
+
 prepare_react_native_project!
 
+# Configure frameworks linkage if needed
 linkage = ENV['USE_FRAMEWORKS']
 if linkage != nil
   Pod::UI.puts "Configuring Pod with #{linkage}ally linked Frameworks".green
@@ -18,13 +22,12 @@ end
 target 'addons_hr' do
   config = use_native_modules!
 
+  # Enable Hermes and set React Native path
   use_react_native!(
     :path => config[:reactNativePath],
-    :app_path => "#{Pod::Config.instance.installation_root}/.."
+    :app_path => "#{Pod::Config.instance.installation_root}/..",
+    :hermes_enabled => true
   )
-
-  # Remove manual pod for geolocation unless you need it for some reason
-  # pod 'react-native-geolocation', :path => '../node_modules/@react-native-community/geolocation'
 
   post_install do |installer|
     react_native_post_install(
@@ -32,6 +35,24 @@ target 'addons_hr' do
       config[:reactNativePath],
       :mac_catalyst_enabled => false
     )
+
+    installer.pods_project.targets.each do |target|
+      target.build_configurations.each do |config|
+        # Default for all pods
+        config.build_settings['DEBUG_INFORMATION_FORMAT'] = 'dwarf-with-dsym'
+
+        # Disable stripping ONLY for Hermes
+        if target.name.include?("hermesvm")
+          config.build_settings['STRIP_INSTALLED_PRODUCT'] = 'NO'
+          config.build_settings['COPY_PHASE_STRIP'] = 'NO'
+        else
+          # Keep stripping for other pods if you want
+          config.build_settings['STRIP_INSTALLED_PRODUCT'] = 'YES'
+          config.build_settings['STRIP_STYLE'] = 'all'
+          config.build_settings['COPY_PHASE_STRIP'] = 'YES'
+        end
+      end
+    end
 
     # Fix glog for modular imports
     installer.pods_project.targets.each do |target|

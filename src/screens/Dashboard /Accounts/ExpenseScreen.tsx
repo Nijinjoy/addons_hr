@@ -21,11 +21,19 @@ import {
   getExpenseTypes,
 } from '../../../services/expenseClaim';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 
 const ExpenseScreen = () => {
   const navigation = useNavigation<any>();
+  const route = useRoute<any>();
   const [activeTab, setActiveTab] = useState<'submit' | 'history'>('submit');
+  const initialTab = route.params?.initialTab;
+
+  useEffect(() => {
+    if (initialTab === 'history' || initialTab === 'submit') {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
 
   // Submit Tab States
   const [expenseType, setExpenseType] = useState('');

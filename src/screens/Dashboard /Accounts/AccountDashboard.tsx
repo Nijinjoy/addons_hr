@@ -1,19 +1,21 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import Header from '../../../components/Header';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import { getExpenseHistory } from '../../../services/expenseClaim';
 
 const AccountDashboard = () => {
   const navigation = useNavigation();
+  const [statusCounts, setStatusCounts] = useState({ draft: 0, approved: 0, rejected: 0 });
   const quickActions = [
     { icon: 'add-circle-outline', label: 'New expense', desc: 'Log a purchase in seconds' },
-    { icon: 'cloud-upload-outline', label: 'Upload receipt', desc: 'Snap or attach a file' },
+    { icon: 'time-outline', label: 'History', desc: 'View past expense claims' },
   ];
   const claims = [
-    { label: 'Under review', value: 15, color: '#FFFFFF' },
-    { label: 'Approved', value: 5, color: '#FFFFFF' },
-    { label: 'Paid out', value: 5, color: '#FFFFFF' },
+    { label: 'Draft', value: statusCounts.draft, color: '#FFFFFF' },
+    { label: 'Approved', value: statusCounts.approved, color: '#FFFFFF' },
+    { label: 'Rejected', value: statusCounts.rejected, color: '#FFFFFF' },
   ];
 
   const handleNotificationPress = useCallback(() => {
@@ -24,6 +26,33 @@ const AccountDashboard = () => {
     }
     navigation.navigate('Notifications' as never);
   }, [navigation]);
+
+  useEffect(() => {
+    let mounted = true;
+    const loadDraftCount = async () => {
+      const res = await getExpenseHistory({ limit: 200 });
+      if (!mounted) return;
+      if (!res.ok) {
+        setStatusCounts({ draft: 0, approved: 0, rejected: 0 });
+        return;
+      }
+      const nextCounts = (res.data || []).reduce(
+        (acc, item) => {
+          const status = String(item.status || '').toLowerCase();
+          if (status === 'draft') acc.draft += 1;
+          if (status === 'approved') acc.approved += 1;
+          if (status === 'rejected') acc.rejected += 1;
+          return acc;
+        },
+        { draft: 0, approved: 0, rejected: 0 }
+      );
+      setStatusCounts(nextCounts);
+    };
+    loadDraftCount();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   return (
     <View style={styles.container}>
@@ -75,6 +104,10 @@ const AccountDashboard = () => {
               onPress={() => {
                 if (action.label === 'New expense') {
                   navigation.getParent()?.navigate('Expense');
+                  return;
+                }
+                if (action.label === 'History') {
+                  navigation.getParent()?.navigate('Expense', { initialTab: 'history' });
                   return;
                 }
                 console.log(action.label);

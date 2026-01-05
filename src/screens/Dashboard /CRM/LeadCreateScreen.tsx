@@ -26,6 +26,7 @@ import {
   getBuildingLocations,
   createLeadSource,
 } from '../../../services/leadService';
+import { createLeadComment } from '../../../services/api/leads.service';
 import { createLead, updateLead } from '../../../services/api/leadsCreate.service';
 import { LeadStackParamList } from '../../../navigation/LeadStack';
 
@@ -41,7 +42,9 @@ const LeadCreateScreen = () => {
   const isEditing = !!editingLead?.name;
 
   const [fullName, setFullName] = useState('');
+  const [organizationName, setOrganizationName] = useState('');
   const [date, setDate] = useState('');
+  const [notesText, setNotesText] = useState('');
   const [gender, setGender] = useState('');
   const [jobTitle, setJobTitle] = useState('');
   const [source, setSource] = useState('');
@@ -60,6 +63,8 @@ const LeadCreateScreen = () => {
   const [whatsapp, setWhatsapp] = useState('');
   const [attachments, setAttachments] = useState<Asset[]>([]);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [activeTab, setActiveTab] = useState<'details' | 'notes'>('details');
+  const [savingNotes, setSavingNotes] = useState(false);
   const [sourceOptions, setSourceOptions] = useState<string[]>([]);
   const [loadingSources, setLoadingSources] = useState(false);
   const [associateOptions, setAssociateOptions] = useState<string[]>([]);
@@ -88,6 +93,12 @@ const LeadCreateScreen = () => {
 
   const leadDetailInputs = [
     { label: 'Full Name', value: fullName, setter: setFullName, placeholder: 'Full name' },
+    {
+      label: 'Organization Name',
+      value: organizationName,
+      setter: setOrganizationName,
+      placeholder: 'Organization name',
+    },
     { label: 'Job Title', value: jobTitle, setter: setJobTitle, placeholder: 'Job title' },
   ];
   const leadDropdowns = [
@@ -325,6 +336,7 @@ const LeadCreateScreen = () => {
   useEffect(() => {
     if (!editingLead) return;
     setFullName(editingLead.lead_name || editingLead.company_name || editingLead.name || '');
+    setOrganizationName(editingLead.company_name || '');
     setDate(
       (editingLead as any)?.custom_date ||
         (editingLead as any)?.date ||
@@ -346,6 +358,12 @@ const LeadCreateScreen = () => {
     setLeadType((editingLead as any)?.lead_type || '');
     setRequestType((editingLead as any)?.request_type || '');
     setServiceType((editingLead as any)?.service_type || '');
+    setNotesText(
+      (editingLead as any)?.notes ||
+        (editingLead as any)?.note ||
+        (editingLead as any)?.remarks ||
+        ''
+    );
     setEmail(editingLead.email_id || '');
     setMobile((editingLead as any)?.mobile_no || '');
     setPhone(editingLead.phone || '');
@@ -399,6 +417,7 @@ const LeadCreateScreen = () => {
         leadOwner && (isEditing || /[@.]/.test(leadOwner)) ? leadOwner : undefined;
       const payload = {
         lead_name: fullName.trim(),
+        company_name: organizationName.trim(),
         gender,
         job_title: jobTitle,
         source,
@@ -429,6 +448,12 @@ const LeadCreateScreen = () => {
           ...payload,
           name: res.name || (editingLead as any)?.name,
         };
+        if (!isEditing && notesText.trim() && res.name) {
+          const notesRes = await createLeadComment(res.name, notesText);
+          if (!notesRes.ok) {
+            console.log('Lead notes save failed:', notesRes.message);
+          }
+        }
         if (isEditing) {
           onLeadUpdated?.(updatedLead);
           Alert.alert('Lead', 'Lead updated successfully.', [
@@ -439,7 +464,9 @@ const LeadCreateScreen = () => {
         Alert.alert('Lead', `Lead created${res.name ? `: ${res.name}` : ''}.`);
         // reset form
         setFullName('');
+        setOrganizationName('');
         setDate('');
+        setNotesText('');
         setGender('');
         setJobTitle('');
         setSource('');
@@ -465,6 +492,32 @@ const LeadCreateScreen = () => {
       Alert.alert('Lead', humanizeError(err?.message));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSaveNotes = async () => {
+    if (savingNotes) return;
+    const trimmed = notesText.trim();
+    if (!trimmed) {
+      Alert.alert('Lead Notes', 'Please enter notes.');
+      return;
+    }
+    if (!editingLead?.name) {
+      Alert.alert('Lead Notes', 'Notes will be saved when you save the lead.');
+      return;
+    }
+    setSavingNotes(true);
+    try {
+      const res = await createLeadComment(editingLead.name, trimmed);
+      if (!res.ok) {
+        Alert.alert('Lead Notes', res.message || 'Failed to save notes.');
+        return;
+      }
+      Alert.alert('Lead Notes', 'Notes saved successfully.');
+    } catch (err: any) {
+      Alert.alert('Lead Notes', err?.message || 'Failed to save notes.');
+    } finally {
+      setSavingNotes(false);
     }
   };
 
@@ -591,6 +644,8 @@ const LeadCreateScreen = () => {
                   createLabel={`Create new ${label}`}
                   searchEnabled
                   searchPlaceholder={`Search ${label.toLowerCase()}`}
+                  listMaxHeight={220}
+                  nestedScrollEnabled
                 />
               </View>
             </View>
@@ -696,7 +751,7 @@ const LeadCreateScreen = () => {
     : 'Save Lead';
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, activeTab === 'notes' && styles.containerNotes]}>
       <Header
         pillText={isEditing ? 'Edit Lead' : 'New Lead'}
         showBackButton
@@ -704,117 +759,171 @@ const LeadCreateScreen = () => {
       />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.progressRow}>
-          <View style={styles.progressCard}>
+          <TouchableOpacity
+            style={[styles.progressCard, activeTab === 'details' && styles.progressCardActive]}
+            onPress={() => setActiveTab('details')}
+            activeOpacity={0.85}
+          >
             <Text style={styles.progressLabel}>Step 1</Text>
             <Text style={styles.progressTitle}>Lead basics</Text>
             <Text style={styles.progressSub}>Name, contact, source</Text>
-          </View>
-          <View style={styles.progressCardMuted}>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.progressCardMuted,
+              activeTab === 'notes' && styles.progressCardMutedActive,
+            ]}
+            onPress={() => setActiveTab('notes')}
+            activeOpacity={0.85}
+          >
             <Text style={[styles.progressLabel, { color: '#0F172A' }]}>Step 2</Text>
             <Text style={[styles.progressTitle, { color: '#0F172A' }]}>Notes & follow-ups</Text>
-            <Text style={[styles.progressSub, { color: '#1F2937' }]}>Add later after saving</Text>
-          </View>
+            <Text style={[styles.progressSub, { color: '#1F2937' }]}>
+              {notesText.trim() ? 'Edit notes' : 'Add notes'}
+            </Text>
+          </TouchableOpacity>
         </View>
 
-        <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Lead Details</Text>
-          <View style={styles.fieldBlock}>
-            <Text style={styles.label}>Date</Text>
-            <TouchableOpacity
-              style={styles.selectBox}
-              onPress={() => setShowDatePicker(true)}
-              activeOpacity={0.8}
-            >
-              <Text style={date ? styles.selectValue : styles.selectPlaceholder}>
-                {date || 'Select date'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        {showDatePicker && (
-          <DateTimePicker
-            value={date ? new Date(date) : new Date()}
-            mode="date"
-            display="default"
-            onChange={(_, selected) => {
-              setShowDatePicker(false);
-              if (selected) {
-                const iso = selected.toISOString().slice(0, 10);
-                setDate(iso);
-              }
-            }}
-          />
-        )}
-          {leadDetailInputs.map((input) =>
-            renderInput(
-              input.label,
-              input.value,
-              input.setter,
-              input.placeholder,
-              input.keyboardType || 'default'
-            )
-          )}
-          {renderGenderToggle()}
-          {leadDropdowns.map((dropdown) =>
-            renderDropdown(
-              dropdown.label,
-              dropdown.value,
-              dropdown.setter,
-              dropdown.options,
-              dropdown.loading
-            )
-          )}
-        </View>
-
-        <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Contact Info</Text>
-          {contactInputs.map((input) =>
-            renderInput(
-              input.label,
-              input.value,
-              input.setter,
-              input.placeholder,
-              input.keyboardType || 'default'
-            )
-          )}
-        </View>
-
-        <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Attachments (optional)</Text>
-          <View style={styles.fieldBlock}>
-            <Text style={styles.label}>Add Attachment</Text>
-            <TouchableOpacity style={styles.attachmentBox} onPress={pickImages} activeOpacity={0.8}>
-              <View style={styles.attachmentRow}>
-                <Text style={styles.attachmentPrimary}>Tap to upload</Text>
-                <Text style={styles.attachmentSecondary}>JPG, PNG (multiple) or capture</Text>
+        {activeTab === 'details' && (
+          <>
+            <View style={styles.sectionCard}>
+              <Text style={styles.sectionTitle}>Lead Details</Text>
+              <View style={styles.fieldBlock}>
+                <Text style={styles.label}>Date</Text>
+                <TouchableOpacity
+                  style={styles.selectBox}
+                  onPress={() => setShowDatePicker(true)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={date ? styles.selectValue : styles.selectPlaceholder}>
+                    {date || 'Select date'}
+                  </Text>
+                </TouchableOpacity>
               </View>
-              <View style={styles.attachmentHint}>
-                <Text style={styles.attachmentHintText}>Attach supporting photos (multiple allowed)</Text>
-              </View>
-              <TouchableOpacity style={styles.captureButton} onPress={captureImage} activeOpacity={0.8}>
-                <Text style={styles.captureText}>Capture Photo</Text>
-              </TouchableOpacity>
-              {attachments.length > 0 && (
-                <View style={styles.attachmentList}>
-                  {attachments.map((a, idx) => (
-                    <View key={a.uri || idx} style={styles.attachmentItemRow}>
-                      <Text style={styles.attachmentItem} numberOfLines={1}>
-                        {a.fileName || a.uri?.split('/').pop() || 'image'}
-                      </Text>
-                      <TouchableOpacity
-                        onPress={() =>
-                          setAttachments((prev) => prev.filter((_, pIdx) => pIdx !== idx))
-                        }
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                      >
-                      <Text style={styles.removeText}>✕</Text>
+              {showDatePicker && (
+                <DateTimePicker
+                  value={date ? new Date(date) : new Date()}
+                  mode="date"
+                  display="default"
+                  onChange={(_, selected) => {
+                    setShowDatePicker(false);
+                    if (selected) {
+                      const iso = selected.toISOString().slice(0, 10);
+                      setDate(iso);
+                    }
+                  }}
+                />
+              )}
+              {leadDetailInputs.map((input) =>
+                renderInput(
+                  input.label,
+                  input.value,
+                  input.setter,
+                  input.placeholder,
+                  input.keyboardType || 'default'
+                )
+              )}
+              {renderGenderToggle()}
+              {leadDropdowns.map((dropdown) =>
+                renderDropdown(
+                  dropdown.label,
+                  dropdown.value,
+                  dropdown.setter,
+                  dropdown.options,
+                  dropdown.loading
+                )
+              )}
+            </View>
+
+            <View style={styles.sectionCard}>
+              <Text style={styles.sectionTitle}>Contact Info</Text>
+              {contactInputs.map((input) =>
+                renderInput(
+                  input.label,
+                  input.value,
+                  input.setter,
+                  input.placeholder,
+                  input.keyboardType || 'default'
+                )
+              )}
+            </View>
+
+            <View style={styles.sectionCard}>
+              <Text style={styles.sectionTitle}>Attachments (optional)</Text>
+              <View style={styles.fieldBlock}>
+                <Text style={styles.label}>Add Attachment</Text>
+                <View style={styles.attachmentBox}>
+                  <View style={styles.attachmentRow}>
+                    <Text style={styles.attachmentPrimary}>Tap to upload</Text>
+                    <Text style={styles.attachmentSecondary}>JPG, PNG (multiple) or capture</Text>
+                  </View>
+                  <View style={styles.attachmentHint}>
+                    <Text style={styles.attachmentHintText}>
+                      Attach supporting photos (multiple allowed)
+                    </Text>
+                  </View>
+                  <View style={styles.attachmentActions}>
+                    <TouchableOpacity
+                      style={styles.uploadButton}
+                      onPress={pickImages}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.uploadText}>Upload from Gallery</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.captureButton}
+                      onPress={captureImage}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.captureText}>Capture Photo</Text>
                     </TouchableOpacity>
                   </View>
-                ))}
+                  {attachments.length > 0 && (
+                    <View style={styles.attachmentList}>
+                      {attachments.map((a, idx) => (
+                        <View key={a.uri || idx} style={styles.attachmentItemRow}>
+                          <Text style={styles.attachmentItem} numberOfLines={1}>
+                            {a.fileName || a.uri?.split('/').pop() || 'image'}
+                          </Text>
+                          <TouchableOpacity
+                            onPress={() =>
+                              setAttachments((prev) => prev.filter((_, pIdx) => pIdx !== idx))
+                            }
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          >
+                            <Text style={styles.removeText}>✕</Text>
+                          </TouchableOpacity>
+                        </View>
+                      ))}
+                    </View>
+                  )}
                 </View>
-              )}
+              </View>
+            </View>
+          </>
+        )}
+
+        {activeTab === 'notes' && (
+          <View style={styles.sectionCard}>
+            <Text style={styles.sectionTitle}>Notes & follow-ups</Text>
+            <Text style={styles.label}>Lead notes</Text>
+            <TextInput
+              value={notesText}
+              onChangeText={setNotesText}
+              placeholder="Add notes or follow-up details"
+              style={[styles.input, styles.notesInput]}
+              multiline
+              textAlignVertical="top"
+            />
+            <TouchableOpacity
+              style={[styles.saveButton, savingNotes && styles.saveButtonDisabled]}
+              onPress={handleSaveNotes}
+              disabled={savingNotes}
+            >
+              <Text style={styles.saveText}>{savingNotes ? 'Saving...' : 'Save Notes'}</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        )}
 
         <TouchableOpacity style={[styles.saveButton, saving && styles.saveButtonDisabled]} onPress={handleSave} disabled={saving}>
           <Text style={styles.saveText}>{saveButtonLabel}</Text>
@@ -865,12 +974,14 @@ const LeadCreateScreen = () => {
           </View>
         </View>
       </Modal>
+
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
+  containerNotes: { backgroundColor: '#FFFFFF' },
   content: { padding: 16, paddingBottom: 32 },
   sectionTitle: {
     fontSize: 16,
@@ -903,6 +1014,10 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 12,
   },
+  progressCardActive: {
+    borderWidth: 1,
+    borderColor: '#0F172A',
+  },
   progressCardMuted: {
     flex: 1,
     backgroundColor: '#E2E8F0',
@@ -910,6 +1025,10 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#CBD5E1',
+  },
+  progressCardMutedActive: {
+    borderColor: '#1D3765',
+    backgroundColor: '#E5ECFF',
   },
   progressLabel: { fontSize: 12, fontWeight: '700', color: '#E5E7EB', letterSpacing: 0.5 },
   progressTitle: { fontSize: 15, fontWeight: '800', color: '#F8FAFC', marginTop: 6 },
@@ -973,8 +1092,24 @@ const styles = StyleSheet.create({
   attachmentSecondary: { fontSize: 12, color: '#6B7280' },
   attachmentHint: { marginTop: 6 },
   attachmentHintText: { fontSize: 12, color: '#6B7280' },
+  attachmentActions: {
+    marginTop: 10,
+    flexDirection: 'row',
+    gap: 10,
+    flexWrap: 'wrap',
+  },
+  uploadButton: {
+    backgroundColor: '#E5ECFF',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  uploadText: {
+    color: '#1D3765',
+    fontSize: 12,
+    fontWeight: '600',
+  },
   captureButton: {
-    marginTop: 8,
     alignSelf: 'flex-start',
     backgroundColor: '#1D3765',
     paddingHorizontal: 12,
@@ -1078,6 +1213,10 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontSize: 14,
     color: '#111827',
+  },
+  notesInput: {
+    height: 150,
+    backgroundColor: '#F9FAFB',
   },
   modalActions: {
     flexDirection: 'row',

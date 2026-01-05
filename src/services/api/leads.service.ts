@@ -379,3 +379,37 @@ export const getEventCategories = async (companyUrl?: string): Promise<EventCate
 
   return [];
 };
+
+export const createLeadComment = async (
+  leadName: string,
+  content: string,
+  companyUrl?: string,
+): Promise<{ ok: true; name?: string } | { ok: false; message: string }> => {
+  if (!leadName) return { ok: false, message: 'Lead ID is required' };
+  const cleaned = (content || '').trim();
+  if (!cleaned) return { ok: false, message: 'Notes cannot be empty' };
+
+  const baseResource =
+    normalizeResourceBase(companyUrl) || normalizeResourceBase(await getResourceUrl());
+  if (!baseResource) return { ok: false, message: 'ERP resource URL not configured' };
+
+  const commentPayload = {
+    doctype: 'Comment',
+    comment_type: 'Comment',
+    reference_doctype: 'Lead',
+    reference_name: leadName,
+    content: cleaned,
+  };
+
+  try {
+    const res = await requestJSON<{ data?: { name: string } }>(`${baseResource}/Comment`, {
+      method: 'POST',
+      headers: await authHeaders(),
+      body: JSON.stringify(commentPayload),
+    });
+    const doc = (res as any)?.data || (res as any);
+    return { ok: true, name: doc?.name };
+  } catch (err: any) {
+    return { ok: false, message: err?.message || 'Failed to save notes' };
+  }
+};

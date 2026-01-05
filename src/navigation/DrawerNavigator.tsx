@@ -10,6 +10,7 @@ import TaskListScreen from '../screens/Dashboard /Core/TaskListScreen';
 import TaskCreateNewScreen from '../screens/Dashboard /Core/TaskCreateNewScreen';
 import TimesheetScreen from '../screens/Dashboard /HRM/TimesheetScreen';
 import ExpenseScreen from '../screens/Dashboard /Accounts/ExpenseScreen';
+import CalendarScreen from '../screens/Dashboard /HRM/CalendarScreen';
 
 const Drawer = createDrawerNavigator();
 
@@ -67,6 +68,11 @@ const DrawerNavigator = () => {
       <Drawer.Screen
         name="Expense"
         component={ExpenseScreen}
+        options={{ drawerItemStyle: { display: 'none' } }}
+      />
+      <Drawer.Screen
+        name="Calendar"
+        component={CalendarScreen}
         options={{ drawerItemStyle: { display: 'none' } }}
       />
     </Drawer.Navigator>

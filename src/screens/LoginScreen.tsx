@@ -204,7 +204,7 @@ const LoginScreen = ({ navigation }: Props) => {
               styles.scrollContent,
               {
                 minHeight: screenHeight,
-                paddingBottom: keyboardVisible ? insets.bottom + 220 : insets.bottom + 24,
+                paddingBottom: keyboardVisible ? insets.bottom + 220 : 0,
               },
             ]}
             bounces={false}
@@ -222,7 +222,7 @@ const LoginScreen = ({ navigation }: Props) => {
               </View>
 
               <View
-                style={[styles.formContainer, { paddingBottom: insets.bottom }]}
+                style={[styles.formContainer, { paddingBottom: insets.bottom + 24 }]}
                 onLayout={(e) => {
                   formOffsetY.current = e.nativeEvent.layout.y;
                 }}

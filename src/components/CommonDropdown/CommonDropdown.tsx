@@ -25,6 +25,8 @@ interface CommonDropdownProps {
   onAdvancedSearch?: () => void;
   searchEnabled?: boolean;
   searchPlaceholder?: string;
+  listMaxHeight?: number;
+  nestedScrollEnabled?: boolean;
 }
 
 const CommonDropdown: React.FC<CommonDropdownProps> = ({
@@ -36,6 +38,8 @@ const CommonDropdown: React.FC<CommonDropdownProps> = ({
   onAdvancedSearch,
   searchEnabled = false,
   searchPlaceholder = 'Search',
+  listMaxHeight,
+  nestedScrollEnabled = false,
 }) => {
   const [query, setQuery] = useState('');
   const filtered = useMemo(() => {
@@ -52,6 +56,29 @@ const CommonDropdown: React.FC<CommonDropdownProps> = ({
     />
   );
 
+  const listHeader = (
+    <View>
+      {onCreateNew && (
+        <TouchableOpacity
+          style={styles.headerItem}
+          onPress={onCreateNew}
+        >
+          <Text style={styles.headerText}>
+            + {createLabel || 'Create new'}
+          </Text>
+        </TouchableOpacity>
+      )}
+      {searchEnabled && (
+        <TextInput
+          value={query}
+          onChangeText={setQuery}
+          placeholder={searchPlaceholder}
+          style={styles.searchInput}
+        />
+      )}
+    </View>
+  );
+
   return (
     <View style={styles.container}>
       <FlatList
@@ -59,29 +86,11 @@ const CommonDropdown: React.FC<CommonDropdownProps> = ({
         keyExtractor={item => String(item.id)}
         renderItem={renderItem}
         showsVerticalScrollIndicator={false}
-        ListHeaderComponent={
-          searchEnabled ? (
-            <TextInput
-              value={query}
-              onChangeText={setQuery}
-              placeholder={searchPlaceholder}
-              style={styles.searchInput}
-            />
-          ) : null
-        }
+        nestedScrollEnabled={nestedScrollEnabled}
+        style={listMaxHeight ? { maxHeight: listMaxHeight } : undefined}
+        ListHeaderComponent={listHeader}
         ListFooterComponent={
           <>
-            {onCreateNew && (
-              <TouchableOpacity
-                style={styles.footerItem}
-                onPress={onCreateNew}
-              >
-                <Text style={styles.footerText}>
-                  + {createLabel || 'Create new'}
-                </Text>
-              </TouchableOpacity>
-            )}
-
             {onAdvancedSearch && (
               <TouchableOpacity
                 style={styles.footerItem}
@@ -115,6 +124,18 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     fontSize: 14,
     color: '#0F172A',
+  },
+  headerItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderBottomWidth: 1,
+    borderColor: '#EEE',
+    backgroundColor: '#FFF',
+  },
+  headerText: {
+    fontSize: 14,
+    color: '#2563EB',
+    fontWeight: '600',
   },
   footerItem: {
     paddingVertical: 12,
