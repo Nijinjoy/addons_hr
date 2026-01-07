@@ -23,6 +23,9 @@ interface CommonDropdownProps {
   onCreateNew?: () => void;
   createLabel?: string;
   onAdvancedSearch?: () => void;
+  onLoadMore?: () => void;
+  loadingMore?: boolean;
+  hasMore?: boolean;
   searchEnabled?: boolean;
   searchPlaceholder?: string;
   listMaxHeight?: number;
@@ -36,6 +39,9 @@ const CommonDropdown: React.FC<CommonDropdownProps> = ({
   onCreateNew,
   createLabel,
   onAdvancedSearch,
+  onLoadMore,
+  loadingMore = false,
+  hasMore = false,
   searchEnabled = false,
   searchPlaceholder = 'Search',
   listMaxHeight,
@@ -63,9 +69,7 @@ const CommonDropdown: React.FC<CommonDropdownProps> = ({
           style={styles.headerItem}
           onPress={onCreateNew}
         >
-          <Text style={styles.headerText}>
-            + {createLabel || 'Create new'}
-          </Text>
+          <Text style={styles.headerText}>{createLabel || 'Create new'}</Text>
         </TouchableOpacity>
       )}
       {searchEnabled && (
@@ -91,6 +95,17 @@ const CommonDropdown: React.FC<CommonDropdownProps> = ({
         ListHeaderComponent={listHeader}
         ListFooterComponent={
           <>
+            {onLoadMore && hasMore && (
+              <TouchableOpacity
+                style={styles.footerItem}
+                onPress={loadingMore ? undefined : onLoadMore}
+                disabled={loadingMore}
+              >
+                <Text style={styles.footerText}>
+                  {loadingMore ? 'Loading more...' : 'Load more'}
+                </Text>
+              </TouchableOpacity>
+            )}
             {onAdvancedSearch && (
               <TouchableOpacity
                 style={styles.footerItem}

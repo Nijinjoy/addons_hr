@@ -105,36 +105,48 @@ const AttendanceScreen = () => {
     }
   };
 
-  const getLocation = (): Promise<{ latitude?: number; longitude?: number }> =>
-    new Promise((resolve, reject) => {
-      const hasNativeGeo = !!(NativeModules as any)?.RNCGeolocation;
-      const geo = Geolocation as any;
-      if (!hasNativeGeo || !geo?.getCurrentPosition) {
-        reject(
-          new Error(
-            'Geolocation module missing. Please install pods and rebuild the iOS app to enable location.'
-          )
-        );
-        return;
-      }
-      geo.getCurrentPosition(
-        (pos: any) => {
-          const { latitude, longitude } = pos?.coords || {};
-          resolve({ latitude, longitude });
-        },
-        (err: any) => {
-          const message =
-            err?.message ||
-            (err?.code === 1
-              ? 'Location permission denied'
-              : err?.code === 2
-              ? 'Location unavailable. Please turn on GPS.'
-              : 'Unable to fetch your location');
-          reject(new Error(message));
-        },
-        { enableHighAccuracy: true, timeout: 20000, maximumAge: 60000 }
+  const getLocation = (): Promise<{ latitude?: number; longitude?: number }> => {
+    const hasNativeGeo = !!(NativeModules as any)?.RNCGeolocation;
+    const geo = Geolocation as any;
+    if (!hasNativeGeo || !geo?.getCurrentPosition) {
+      return Promise.reject(
+        new Error(
+          'Geolocation module missing. Please install pods and rebuild the iOS app to enable location.'
+        )
       );
-    });
+    }
+
+    const getCurrentPosition = (options: {
+      enableHighAccuracy: boolean;
+      timeout: number;
+      maximumAge: number;
+    }) =>
+      new Promise<{ latitude?: number; longitude?: number }>((resolve, reject) => {
+        geo.getCurrentPosition(
+          (pos: any) => {
+            const { latitude, longitude } = pos?.coords || {};
+            resolve({ latitude, longitude });
+          },
+          (err: any) => {
+            const message =
+              err?.message ||
+              (err?.code === 1
+                ? 'Location permission denied'
+                : err?.code === 2
+                ? 'Location unavailable. Please turn on GPS.'
+                : err?.code === 3
+                ? 'Location request timed out. Please move outdoors and try again.'
+                : 'Unable to fetch your location');
+            const out = new Error(message) as Error & { code?: number };
+            out.code = err?.code;
+            reject(out);
+          },
+          options
+        );
+      });
+
+    return getCurrentPosition({ enableHighAccuracy: false, timeout: 20000, maximumAge: 300000 });
+  };
 
   const looksLikeCoords = (val?: string) =>
     typeof val === 'string' && /^\s*-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?\s*$/.test(val);
@@ -498,8 +510,16 @@ const AttendanceScreen = () => {
       fetchHistory();
       Alert.alert('Attendance', `You are ${type === 'IN' ? 'checked in' : 'checked out'}.`);
     } catch (err: any) {
-      console.log('Attendance check error:', err?.message || err);
-      Alert.alert('Attendance', err?.message || `Failed to check ${type === 'IN' ? 'in' : 'out'}.`);
+      const message = err?.message || `Failed to check ${type === 'IN' ? 'in' : 'out'}.`;
+      console.log('Attendance check error:', message);
+      if (/provider|gps|location services/i.test(String(message))) {
+        Alert.alert('Location services off', 'Turn on location services to record attendance.', [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => Linking.openSettings() },
+        ]);
+      } else {
+        Alert.alert('Attendance', message);
+      }
     } finally {
       setLoading(false);
     }

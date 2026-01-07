@@ -319,14 +319,18 @@ const normalizeLeadTypes = (rows: any[]): string[] => {
       '';
     const name = (typeof row?.name === 'string' && row.name.trim()) || '';
     const candidate = leadType || (name && !/^CRM-LEAD-/i.test(name) ? name : '');
-    if (candidate && !/^CRM-LEAD-/i.test(candidate)) deduped.add(candidate);
+    const cleaned = candidate.replace(/^"(.*)"$/, '$1').trim();
+    if (cleaned && !/^CRM-LEAD-/i.test(cleaned)) deduped.add(cleaned);
   });
   return Array.from(deduped);
 };
 
 const cleanLeadTypeOptions = (options: string[]): string[] => {
   const cleaned = (options || [])
-    .map((opt) => (opt || '').trim())
+    .map((opt) => {
+      const raw = (opt || '').trim();
+      return raw.replace(/^"(.*)"$/, '$1').trim();
+    })
     .filter(Boolean)
     .filter((opt) => !/^CRM-LEAD-/i.test(opt) && !/@/.test(opt));
   return Array.from(new Set(cleaned));
@@ -1000,6 +1004,30 @@ export const getLeadOwners = async (limit: number = 200): Promise<LeadOwnerResul
   }
 };
 
+const findBuildingField = (fields: any[]): any | undefined => {
+  const normalized = (fields || []).filter(Boolean);
+  const exactMatch = normalized.find(
+    (f: any) =>
+      f?.fieldname === 'building' ||
+      f?.fieldname === 'building_location' ||
+      f?.fieldname === 'custom_building__location'
+  );
+  if (exactMatch) return exactMatch;
+
+  return normalized.find((f: any) => {
+    const fieldname = String(f?.fieldname || '').toLowerCase();
+    const label = String(f?.label || '').toLowerCase();
+    const fieldType = String(f?.fieldtype || '').toLowerCase();
+    const hasBuilding = fieldname.includes('building') || label.includes('building');
+    const hasLocation = fieldname.includes('location') || label.includes('location');
+    const labelMatch = /building\s*(?:&|and)\s*location/i.test(label);
+    if (!hasBuilding && !labelMatch) return false;
+    if (labelMatch) return true;
+    if (hasBuilding && hasLocation) return true;
+    return fieldType === 'link' && hasBuilding;
+  });
+};
+
 const getBuildingLinkDocFromMeta = async (): Promise<string> => {
   const { baseMethod } = await getBases();
   if (!baseMethod) return '';
@@ -1011,10 +1039,7 @@ const getBuildingLinkDocFromMeta = async (): Promise<string> => {
     });
     const doc = (res as any)?.docs?.[0] || (res as any)?.doc;
     const fields = doc?.fields || [];
-    const buildingField =
-      fields.find((f: any) => f.fieldname === 'building') ||
-      fields.find((f: any) => f.fieldname === 'building_location') ||
-      fields.find((f: any) => f.fieldname === 'custom_building__location');
+    const buildingField = findBuildingField(fields);
     const opts = typeof buildingField?.options === 'string' ? buildingField.options.trim() : '';
     // If options contains newlines, it's a Select; otherwise it's likely a linked DocType name
     if (opts && !/\n/.test(opts)) return opts;
@@ -1023,6 +1048,22 @@ const getBuildingLinkDocFromMeta = async (): Promise<string> => {
     console.warn('Building link doc meta fetch failed', msg);
   }
   return '';
+};
+
+const findAssociateField = (fields: any[]): any | undefined => {
+  const normalized = (fields || []).filter(Boolean);
+  const exactMatch = normalized.find((f: any) => f?.fieldname === 'associate_details');
+  if (exactMatch) return exactMatch;
+
+  return normalized.find((f: any) => {
+    const fieldname = String(f?.fieldname || '').toLowerCase();
+    const label = String(f?.label || '').toLowerCase();
+    const fieldType = String(f?.fieldtype || '').toLowerCase();
+    const hasAssociate = fieldname.includes('associate') || label.includes('associate');
+    if (!hasAssociate) return false;
+    if (fieldType === 'link' || fieldType === 'select') return true;
+    return /associate/i.test(label);
+  });
 };
 
 const getAssociateLinkDocFromMeta = async (): Promise<string> => {
@@ -1036,7 +1077,7 @@ const getAssociateLinkDocFromMeta = async (): Promise<string> => {
     });
     const doc = (res as any)?.docs?.[0] || (res as any)?.doc;
     const fields = doc?.fields || [];
-    const associateField = fields.find((f: any) => f.fieldname === 'associate_details');
+    const associateField = findAssociateField(fields);
     const opts = typeof associateField?.options === 'string' ? associateField.options.trim() : '';
     if (opts && !/\n/.test(opts)) return opts;
   } catch (err: any) {
@@ -1132,10 +1173,7 @@ const fetchBuildingLocationsFromMeta = async (): Promise<string[]> => {
     });
     const doc = (res as any)?.docs?.[0] || (res as any)?.doc;
     const fields = doc?.fields || [];
-    const buildingField =
-      fields.find((f: any) => f.fieldname === 'building') ||
-      fields.find((f: any) => f.fieldname === 'building_location') ||
-      fields.find((f: any) => f.fieldname === 'custom_building__location');
+    const buildingField = findBuildingField(fields);
     const opts = typeof buildingField?.options === 'string' ? buildingField.options : '';
     if (!opts) return [];
     return opts
@@ -1179,6 +1217,17 @@ const fetchBuildingLocationsViaSearch = async (limit: number = 200): Promise<str
   return [];
 };
 
+const fetchBuildingLocationsFromLeads = async (limit: number = 200): Promise<string[]> => {
+  try {
+    const leads = await fetchLeads(limit);
+    return normalizeBuildingLocations(leads || []);
+  } catch (err: any) {
+    const msg = err?.message || err;
+    console.warn('Building/location fetch from leads failed', msg);
+    return [];
+  }
+};
+
 export const getBuildingLocations = async (
   limit: number = 200
 ): Promise<BuildingLocationResult> => {
@@ -1196,6 +1245,9 @@ export const getBuildingLocations = async (
     const meta = await fetchBuildingLocationsFromMeta();
     if (meta.length) return { ok: true, data: meta };
 
+    const fromLeads = await fetchBuildingLocationsFromLeads(limit);
+    if (fromLeads.length) return { ok: true, data: fromLeads };
+
     return { ok: false, message: 'No building/location values found in ERPNext.' };
   } catch (error: any) {
     const message = error?.message || 'Unexpected error while fetching building/location';
@@ -1206,8 +1258,9 @@ export const getBuildingLocations = async (
 
 const cleanAssociateLabel = (val: string): string => {
   if (!val) return val;
-  if (/^crm-lead-/i.test(val)) return '';
-  const parts = val
+  const trimmed = val.replace(/^"(.*)"$/, '$1').trim();
+  if (/^crm-lead-/i.test(trimmed)) return '';
+  const parts = trimmed
     .split(',')
     .map((p) => p.trim())
     .filter(Boolean);
@@ -1215,22 +1268,52 @@ const cleanAssociateLabel = (val: string): string => {
     (p) => !/@/.test(p) && !/^crm-lead-/i.test(p) && !/lead$/i
   );
   const cleaned = (filtered.length ? filtered : parts).join(', ').trim();
-  return cleaned || val;
+  return cleaned || trimmed;
 };
 
-const normalizeAssociateDetails = (rows: any[]): string[] => {
+const normalizeAssociateDetails = (rows: any[], docType?: string): string[] => {
+  const doc = (docType || '').toLowerCase();
+  const preferEmployee =
+    doc === 'employee' || doc === 'hr employee' || doc === 'hr-employee';
+  const preferAssociate =
+    doc === 'associate details' || doc === 'associate' || doc === 'associates';
   const deduped = new Set<string>();
   (rows || []).forEach((row) => {
-    const name =
-      (typeof row?.name === 'string' && row.name.trim()) ||
-      (typeof row?.full_name === 'string' && row.full_name.trim()) ||
-      (typeof row?.first_name === 'string' && row.first_name.trim()) ||
-      (typeof row?.employee_name === 'string' && row.employee_name.trim()) ||
-      (typeof row?.associate_name === 'string' && row.associate_name.trim()) ||
-      (typeof row?.associate_details === 'string' && row.associate_details.trim()) ||
-      (typeof (row as any)?.company_name === 'string' && (row as any).company_name.trim()) ||
-      '';
-    const cleaned = cleanAssociateLabel(name);
+    let name = '';
+    if (preferAssociate) {
+      name =
+        (typeof row?.associate_name === 'string' && row.associate_name.trim()) ||
+        (typeof (row as any)?.associate_full_name === 'string' &&
+          (row as any).associate_full_name.trim()) ||
+        (typeof (row as any)?.associate === 'string' && (row as any).associate.trim()) ||
+        (typeof (row as any)?.display_name === 'string' && (row as any).display_name.trim()) ||
+        (typeof (row as any)?.company_name === 'string' && (row as any).company_name.trim()) ||
+        (typeof row?.full_name === 'string' && row.full_name.trim()) ||
+        (typeof row?.first_name === 'string' && row.first_name.trim()) ||
+        (typeof row?.name === 'string' && row.name.trim()) ||
+        '';
+    } else if (preferEmployee) {
+      name =
+        (typeof row?.employee_name === 'string' && row.employee_name.trim()) ||
+        (typeof row?.first_name === 'string' && row.first_name.trim()) ||
+        (typeof row?.name === 'string' && row.name.trim()) ||
+        '';
+    } else {
+      name =
+        (typeof row?.associate_name === 'string' && row.associate_name.trim()) ||
+        (typeof (row as any)?.associate_full_name === 'string' &&
+          (row as any).associate_full_name.trim()) ||
+        (typeof (row as any)?.associate === 'string' && (row as any).associate.trim()) ||
+        (typeof (row as any)?.display_name === 'string' && (row as any).display_name.trim()) ||
+        (typeof (row as any)?.company_name === 'string' && (row as any).company_name.trim()) ||
+        (typeof row?.full_name === 'string' && row.full_name.trim()) ||
+        (typeof row?.first_name === 'string' && row.first_name.trim()) ||
+        (typeof row?.employee_name === 'string' && row.employee_name.trim()) ||
+        (typeof row?.associate_details === 'string' && row.associate_details.trim()) ||
+        (typeof row?.name === 'string' && row.name.trim()) ||
+        '';
+    }
+    const cleaned = cleanAssociateLabel(name.replace(/^"(.*)"$/, '$1').trim());
     if (cleaned) deduped.add(cleaned);
   });
   return Array.from(deduped).filter(Boolean);
@@ -1287,7 +1370,9 @@ const normalizeBuildingSearch = (rows: any[]): string[] => {
 
 const resolveAssociateNamesFromLeads = async (ids: string[]): Promise<Record<string, string>> => {
   const map: Record<string, string> = {};
-  const leadIds = ids.filter((id) => /^CRM-LEAD-/i.test(id));
+  const leadIds = ids
+    .map((id) => (id || '').replace(/^"(.*)"$/, '$1').trim())
+    .filter((id) => /^CRM-LEAD-/i.test(id));
   if (!leadIds.length) return map;
   const { baseMethod } = await getBases();
   if (!baseMethod) return map;
@@ -1377,40 +1462,113 @@ const resolveEmployeeNamesFromIds = async (ids: string[]): Promise<Record<string
   return map;
 };
 
-const fetchAssociateDetailsFromDoc = async (doc: string, limit: number): Promise<string[]> => {
+const fetchAssociateDetailsFromDoc = async (
+  doc: string,
+  limit: number,
+  offset: number
+): Promise<string[]> => {
   const { baseResource, baseMethod } = await getBases();
   const baseFields = [
     'name',
     'full_name',
     'associate_name',
     'associate_details',
+    'associate',
+    'display_name',
     'first_name',
     'employee_name',
     'company_name',
   ];
   const docFieldsMap: Record<string, string[]> = {
     Employee: ['name', 'employee_name', 'first_name', 'last_name'],
-    Associates: ['name', 'associate_name', 'company_name', 'first_name', 'employee_name'],
-    'Associate Details': ['name', 'associate_name', 'company_name', 'first_name', 'employee_name'],
-    Associate: ['name', 'associate_name', 'company_name', 'first_name', 'employee_name'],
+    Associates: [
+      'name',
+      'associate_name',
+      'associate',
+      'display_name',
+      'company_name',
+      'first_name',
+      'employee_name',
+    ],
+    'Associate Details': [
+      'name',
+      'associate_name',
+      'associate',
+      'display_name',
+      'company_name',
+      'first_name',
+      'employee_name',
+    ],
+    Associate: [
+      'name',
+      'associate_name',
+      'associate',
+      'display_name',
+      'company_name',
+      'first_name',
+      'employee_name',
+    ],
   };
+  const fallbackFields = ['name', 'associate_name', 'company_name'];
+  const minimalFields = ['name'];
   const fields = docFieldsMap[doc] || baseFields;
   try {
     if (!baseResource) throw new Error('Resource base not configured');
     const url = buildQuery(`${baseResource}/${encodeURIComponent(doc)}`, {
       fields: JSON.stringify(fields),
       order_by: 'modified desc',
+      limit_start: offset,
       limit_page_length: limit,
     });
     const res = await requestJSON<{ data?: any[] }>(url, {
       method: 'GET',
       headers: await authHeaders(),
     });
-    return normalizeAssociateDetails(res?.data ?? []);
+    console.log('Associate details raw rows (resource)', doc, res?.data ?? []);
+    return normalizeAssociateDetails(res?.data ?? [], doc);
   } catch (err1: any) {
     const msg = err1?.message || '';
     if (/DocType .*not found/i.test(String(msg))) {
       return [];
+    }
+    if (/Field not permitted in query/i.test(String(msg)) && baseResource) {
+      try {
+        const url = buildQuery(`${baseResource}/${encodeURIComponent(doc)}`, {
+          fields: JSON.stringify(fallbackFields),
+          order_by: 'modified desc',
+          limit_start: offset,
+          limit_page_length: limit,
+        });
+        const res = await requestJSON<{ data?: any[] }>(url, {
+          method: 'GET',
+          headers: await authHeaders(),
+        });
+        console.log('Associate details raw rows (resource retry)', doc, res?.data ?? []);
+        return normalizeAssociateDetails(res?.data ?? [], doc);
+      } catch (retryErr: any) {
+        const retryMsg = retryErr?.message || '';
+        if (/Field not permitted in query/i.test(String(retryMsg)) && baseResource) {
+          try {
+            const url = buildQuery(`${baseResource}/${encodeURIComponent(doc)}`, {
+              fields: JSON.stringify(minimalFields),
+              order_by: 'modified desc',
+              limit_start: offset,
+              limit_page_length: limit,
+            });
+            const res = await requestJSON<{ data?: any[] }>(url, {
+              method: 'GET',
+              headers: await authHeaders(),
+            });
+            console.log('Associate details raw rows (resource minimal)', doc, res?.data ?? []);
+            return normalizeAssociateDetails(res?.data ?? [], doc);
+          } catch (finalErr: any) {
+            const finalMsg = finalErr?.message || '';
+            console.warn(`fetchAssociateDetails resource minimal failed for ${doc}`, finalMsg || finalErr);
+          }
+        } else {
+          console.warn(`fetchAssociateDetails resource retry failed for ${doc}`, retryMsg || retryErr);
+        }
+      }
     }
     console.warn(`fetchAssociateDetails resource failed for ${doc}`, msg || err1);
   }
@@ -1421,25 +1579,72 @@ const fetchAssociateDetailsFromDoc = async (doc: string, limit: number): Promise
       doctype: doc,
       fields: JSON.stringify(fields),
       order_by: 'modified desc',
+      limit_start: offset,
       limit_page_length: limit,
     });
     const res = await requestJSON<{ message?: any[] }>(url, {
       method: 'GET',
       headers: await authHeaders(),
     });
-    return normalizeAssociateDetails(res?.message ?? []);
+    console.log('Associate details raw rows (method)', doc, res?.message ?? []);
+    return normalizeAssociateDetails(res?.message ?? [], doc);
   } catch (err2: any) {
     const msg = err2?.message || '';
     if (/DocType .*not found/i.test(String(msg))) {
       // ignore missing doctypes silently so we can fall back
       return [];
     }
+    if (/Field not permitted in query/i.test(String(msg)) && baseMethod) {
+      try {
+        const url = buildQuery(`${baseMethod}/frappe.client.get_list`, {
+          doctype: doc,
+          fields: JSON.stringify(fallbackFields),
+          order_by: 'modified desc',
+          limit_start: offset,
+          limit_page_length: limit,
+        });
+        const res = await requestJSON<{ message?: any[] }>(url, {
+          method: 'GET',
+          headers: await authHeaders(),
+        });
+        console.log('Associate details raw rows (method retry)', doc, res?.message ?? []);
+        return normalizeAssociateDetails(res?.message ?? [], doc);
+      } catch (retryErr: any) {
+        const retryMsg = retryErr?.message || '';
+        if (/Field not permitted in query/i.test(String(retryMsg)) && baseMethod) {
+          try {
+            const url = buildQuery(`${baseMethod}/frappe.client.get_list`, {
+              doctype: doc,
+              fields: JSON.stringify(minimalFields),
+              order_by: 'modified desc',
+              limit_start: offset,
+              limit_page_length: limit,
+            });
+            const res = await requestJSON<{ message?: any[] }>(url, {
+              method: 'GET',
+              headers: await authHeaders(),
+            });
+            console.log('Associate details raw rows (method minimal)', doc, res?.message ?? []);
+            return normalizeAssociateDetails(res?.message ?? [], doc);
+          } catch (finalErr: any) {
+            const finalMsg = finalErr?.message || '';
+            console.warn(`fetchAssociateDetails method minimal failed for ${doc}`, finalMsg || finalErr);
+          }
+        } else {
+          console.warn(`fetchAssociateDetails method retry failed for ${doc}`, retryMsg || retryErr);
+        }
+      }
+    }
     console.error(`fetchAssociateDetails method failed for ${doc}`, msg || err2);
     return [];
   }
 };
 
-const fetchAssociateDetailsViaSearch = async (referenceDoc: string, limit: number): Promise<string[]> => {
+const fetchAssociateDetailsViaSearch = async (
+  referenceDoc: string,
+  limit: number,
+  offset: number
+): Promise<string[]> => {
   const { baseMethod } = await getBases();
   if (!baseMethod) return [];
   try {
@@ -1452,6 +1657,7 @@ const fetchAssociateDetailsViaSearch = async (referenceDoc: string, limit: numbe
           doctype: 'Lead',
           reference_doctype: referenceDoc,
           txt: '',
+          start: offset,
           page_length: limit,
         }),
       },
@@ -1470,7 +1676,8 @@ const fetchAssociateDetailsViaSearch = async (referenceDoc: string, limit: numbe
 };
 
 export const getAssociateDetails = async (
-  limit: number = 100
+  limit: number = 100,
+  offset: number = 0
 ): Promise<AssociateDetailsResult> => {
   try {
     const sid = await AsyncStorage.getItem('sid');
@@ -1478,13 +1685,14 @@ export const getAssociateDetails = async (
       return { ok: false, message: 'No active session. Please log in.' };
     }
     const metaDoc = await getAssociateLinkDocFromMeta();
+    const preferred = ['Associates', 'Associate Details', 'Associate'];
     const docCandidates = Array.from(
       new Set(
-        [metaDoc, 'Associate Details', 'Associate', 'Associates', 'Employee'].filter(Boolean)
+        [metaDoc && !/employee/i.test(metaDoc) ? metaDoc : '', ...preferred].filter(Boolean)
       )
     );
     for (const doc of docCandidates) {
-      const data = await fetchAssociateDetailsFromDoc(doc, limit);
+      const data = await fetchAssociateDetailsFromDoc(doc, limit, offset);
       if (data.length) {
         const employeeResolution = await resolveEmployeeNamesFromIds(data);
         const resolved = data.map((item) => employeeResolution[item] || item);
@@ -1493,7 +1701,7 @@ export const getAssociateDetails = async (
     }
 
     for (const ref of docCandidates) {
-      const data = await fetchAssociateDetailsViaSearch(ref, limit);
+      const data = await fetchAssociateDetailsViaSearch(ref, limit, offset);
       if (data.length) {
         const employeeResolution = await resolveEmployeeNamesFromIds(data);
         const resolved = data.map((item) => employeeResolution[item] || item);
@@ -1502,8 +1710,9 @@ export const getAssociateDetails = async (
     }
 
     // Fallback: derive from existing leads if no dedicated doctype exists
-    const leads = await fetchLeads(limit);
+    const leads = await fetchLeads(limit + offset);
     let data = normalizeAssociateDetails(leads || []);
+    data = data.slice(offset, offset + limit);
 
     // Resolve any CRM-LEAD ids to friendly lead names if possible
     const resolution = await resolveAssociateNamesFromLeads(data);
@@ -1516,7 +1725,12 @@ export const getAssociateDetails = async (
       data = data.map((item) => employeeResolution[item] || item);
     }
 
-    return { ok: true, data };
+    const cleaned = data.filter((item) => !/^CRM-LEAD-/i.test(item.replace(/^"(.*)"$/, '$1').trim()));
+    if (!cleaned.length) {
+      return { ok: false, message: 'No associate details found in ERPNext.' };
+    }
+
+    return { ok: true, data: cleaned };
   } catch (error: any) {
     const message = error?.message || 'Unexpected error while fetching associate details';
     console.log('Associate details fetch error:', message);

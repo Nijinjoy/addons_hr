@@ -3,6 +3,7 @@ import { getApiKeySecret, getMethodUrl, getResourceUrl } from '../urlService';
 
 export type CreateLeadPayload = {
   lead_name: string;
+  company_name?: string;
   gender?: string;
   job_title?: string;
   source?: string;
@@ -132,6 +133,7 @@ export const createLead = async (
   const body = pruneEmpty({
     doctype: 'Lead',
     lead_name: payload.lead_name,
+    company_name: payload.company_name,
     gender: payload.gender,
     job_title: payload.job_title,
     source: payload.source,
@@ -207,6 +209,7 @@ export const updateLead = async (
 
   const body = pruneEmpty({
     lead_name: payload.lead_name,
+    company_name: payload.company_name,
     gender: payload.gender,
     job_title: payload.job_title,
     source: payload.source,

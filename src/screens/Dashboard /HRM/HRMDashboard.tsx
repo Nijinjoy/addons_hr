@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   StatusBar,
   ScrollView,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -51,6 +52,25 @@ const HRMDashboard = () => {
   const navigation = useNavigation();
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
+  const [userName, setUserName] = useState('');
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadName = async () => {
+      try {
+        const storedName = (await AsyncStorage.getItem('full_name')) || '';
+        const storedUserId = (await AsyncStorage.getItem('user_id')) || '';
+        const resolvedName = (storedName || storedUserId).trim();
+        if (isMounted) setUserName(resolvedName);
+      } catch {
+        // ignore storage errors
+      }
+    };
+    loadName();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Size cards for exactly 2 per row and healthy vertical fill
   const horizontalPadding = 20;
@@ -101,7 +121,9 @@ const HRMDashboard = () => {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.hero}>
-            <Text style={styles.heroHello}>Hello</Text>
+            <Text style={styles.heroHello}>
+              Hello{userName ? `, ${userName}` : ''}
+            </Text>
             <Text style={styles.heroTitle}>Everything You Need Fast</Text>
           </View>
 

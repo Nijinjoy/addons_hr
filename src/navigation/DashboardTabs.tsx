@@ -1,13 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { View, Text, Platform } from 'react-native';
-import Ionicons from 'react-native-vector-icons/Ionicons';
+import { Platform, Text, View } from 'react-native';
+import Feather from 'react-native-vector-icons/Feather';
 import HomeScreen from '../screens/Dashboard /Core/HomeScreen';
-import AccountDashboard from '../screens/Dashboard /Accounts/AccountDashboard';
-import CRMDashboard from '../screens/Dashboard /CRM/CRMDashboard';
-import TimesheetScreen from '../screens/Dashboard /HRM/TimesheetScreen';
-import MoreScreen from '../screens/Dashboard /Core/MoreScreen';
 import HRMDashboard from '../screens/Dashboard /HRM/HRMDashboard';
+import LeadStack from './LeadStack';
+import ExpenseScreen from '../screens/Dashboard /Accounts/ExpenseScreen';
+import MoreScreen from '../screens/Dashboard /Core/MoreScreen';
 
 const Tab = createBottomTabNavigator();
 
@@ -18,69 +17,53 @@ const DashboardTabs = () => {
     if (Platform.OS === 'ios') {
       const loadFonts = async () => {
         try {
-          const Font = require('react-native-vector-icons/Font');
-          await Font.load();
+          await Feather.loadFont();
           setFontsLoaded(true);
         } catch (error) {
           console.log('Font loading error:', error);
-          setFontsLoaded(false); 
+          setFontsLoaded(false);
         }
       };
       loadFonts();
     }
   }, []);
 
-  const renderTabIcon = ({ route, color, size, focused }) => {
+  const renderTabIcon = ({ route, color, size }) => {
     let iconName = '';
     let label = '';
     
     switch (route.name) {
       case 'Home':
-        iconName = 'home-outline';
+        iconName = 'home';
         label = '🏠';
         break;
       case 'HRM':
-        iconName = focused ? 'people' : 'people-outline';
+        iconName = 'users';
         label = '👥';
         break;
-      case 'CRM':
-        iconName = focused ? 'briefcase' : 'briefcase-outline';
-        label = '💼';
+      case 'Leads':
+        iconName = 'target';
+        label = '🎯';
         break;
-      case 'Accounts':
-        iconName = 'wallet-outline';
-        label = '💰';
+      case 'Expense':
+        iconName = 'credit-card';
+        label = '💳';
         break;
       case 'More':
-        iconName = focused ? 'ellipsis-horizontal' : 'ellipsis-horizontal-outline';
+        iconName = 'more-horizontal';
         label = '⋯';
         break;
     }
 
-    // If fonts are not loaded on iOS, use emoji fallback
-    if (!fontsLoaded && Platform.OS === 'ios') {
-      return (
-        <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-          <Text style={{ fontSize: size * 0.8, color }}>
-            {label}
-          </Text>
-        </View>
-      );
-    }
-
-    // Try to render the icon
-    try {
-      return <Ionicons name={iconName} size={size} color={color} />;
-    } catch (error) {
-      // Fallback if icon fails
-      return (
-        <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-          <Text style={{ fontSize: size * 0.8, color }}>
-            {label}
-          </Text>
-        </View>
-      );
-    }
+    return (
+      <TabIcon
+        color={color}
+        fontsLoaded={fontsLoaded}
+        iconName={iconName}
+        label={label}
+        size={size}
+      />
+    );
   };
 
   return (
@@ -88,8 +71,8 @@ const DashboardTabs = () => {
       detachInactiveScreens={false}
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarIcon: ({ color, size, focused }) => 
-          renderTabIcon({ route, color, size, focused }),
+        tabBarIcon: ({ color, size }) => 
+          renderTabIcon({ route, color, size }),
         tabBarActiveTintColor: '#007AFF',
         tabBarInactiveTintColor: 'gray',
         tabBarStyle: {
@@ -117,14 +100,14 @@ const DashboardTabs = () => {
         options={{ tabBarLabel: 'HRM' }}
       />
       <Tab.Screen 
-        name="CRM" 
-        component={CRMDashboard}
-        options={{ tabBarLabel: 'CRM' }}
+        name="Leads" 
+        component={LeadStack}
+        options={{ tabBarLabel: 'Lead' }}
       />
       <Tab.Screen 
-        name="Accounts" 
-        component={AccountDashboard}
-        options={{ tabBarLabel: 'Accounts' }}
+        name="Expense" 
+        component={ExpenseScreen}
+        options={{ tabBarLabel: 'Expense' }}
       />
       <Tab.Screen 
         name="More" 
@@ -132,6 +115,34 @@ const DashboardTabs = () => {
         options={{ tabBarLabel: 'More' }}
       />
     </Tab.Navigator>
+  );
+};
+
+const TabIcon = ({ color, fontsLoaded, iconName, label, size }) => {
+  const content = (() => {
+    if (!fontsLoaded && Platform.OS === 'ios') {
+      return (
+        <Text style={{ fontSize: size * 0.8, color }}>
+          {label}
+        </Text>
+      );
+    }
+
+    try {
+      return <Feather name={iconName} size={size} color={color} />;
+    } catch (error) {
+      return (
+        <Text style={{ fontSize: size * 0.8, color }}>
+          {label}
+        </Text>
+      );
+    }
+  })();
+
+  return (
+    <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+      {content}
+    </View>
   );
 };
 
