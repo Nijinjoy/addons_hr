@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,28 +7,18 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
-  Alert,
   Modal,
-  TextInput,
   TouchableWithoutFeedback,
-  Platform,
 } from 'react-native';
 import Header from '../../../components/Header';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import {
   getTimesheets,
   Timesheet,
-  getCustomers,
-  getActivityTypes,
-  getProjects,
-  getTasks,
-  createTimesheet,
-  submitTimesheet,
   getTimesheetDetail,
 } from '../../../services/timesheetService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import DateTimePicker from '@react-native-community/datetimepicker';
 
 const TimesheetScreen = () => {
   const navigation = useNavigation<any>();
@@ -36,42 +26,12 @@ const TimesheetScreen = () => {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
-  const [addModalVisible, setAddModalVisible] = useState(false);
-  const [addFromDateTime, setAddFromDateTime] = useState('');
-  const [addToDateTime, setAddToDateTime] = useState('');
-  const [addStatus, setAddStatus] = useState('Draft');
-  const [pickerVisible, setPickerVisible] = useState(false);
-  const [pickerTarget, setPickerTarget] = useState<'from' | 'to' | null>(null);
-  const [pickerMode, setPickerMode] = useState<'date' | 'time' | 'datetime'>('date');
-  const [pickerTempDate, setPickerTempDate] = useState<Date>(new Date());
-  const [customerOptions, setCustomerOptions] = useState<string[]>([]);
-  const [customer, setCustomer] = useState('');
-  const [showCustomerOptions, setShowCustomerOptions] = useState(false);
-  const [loadingCustomers, setLoadingCustomers] = useState(false);
-  const [customerSearch, setCustomerSearch] = useState('');
-  const [activityTypeOptions, setActivityTypeOptions] = useState<string[]>([]);
-  const [activityType, setActivityType] = useState('');
-  const [showActivityOptions, setShowActivityOptions] = useState(false);
-  const [loadingActivityTypes, setLoadingActivityTypes] = useState(false);
-  const [activitySearch, setActivitySearch] = useState('');
-  const [projectOptions, setProjectOptions] = useState<string[]>([]);
-  const [project, setProject] = useState('');
-  const [showProjectOptions, setShowProjectOptions] = useState(false);
-  const [loadingProjects, setLoadingProjects] = useState(false);
-  const [projectSearch, setProjectSearch] = useState('');
-  const [taskOptions, setTaskOptions] = useState<string[]>([]);
-  const [task, setTask] = useState('');
-  const [showTaskOptions, setShowTaskOptions] = useState(false);
-  const [loadingTasks, setLoadingTasks] = useState(false);
-  const [savingTimesheet, setSavingTimesheet] = useState(false);
-  const [taskSearch, setTaskSearch] = useState('');
-  const [taskDetails, setTaskDetails] = useState('');
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [selectedTimesheet, setSelectedTimesheet] = useState<Timesheet | null>(null);
   const [detailDoc, setDetailDoc] = useState<any>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
-  const fetchTimesheets = async (silent?: boolean) => {
+  const fetchTimesheets = useCallback(async (silent?: boolean) => {
     try {
       if (silent) setRefreshing(true);
       else setLoading(true);
@@ -96,80 +56,13 @@ const TimesheetScreen = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  };
-
-  useEffect(() => {
-    fetchTimesheets();
   }, []);
 
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        setLoadingCustomers(true);
-        setLoadingActivityTypes(true);
-        setLoadingProjects(true);
-
-        const [custRes, actRes, projRes, taskRes] = await Promise.all([
-          getCustomers(500),
-          getActivityTypes(200),
-          getProjects(200),
-          getTasks(200),
-        ]);
-
-        if (custRes.ok) {
-          const opts = custRes.data || [];
-          setCustomerOptions(opts);
-          if (!customer && opts.length) setCustomer(opts[0]);
-          else if (customer && opts.includes(customer)) setCustomer(customer);
-          else if (!opts.includes(customer) && opts.length) setCustomer(opts[0]);
-        } else {
-          setCustomerOptions([]);
-        }
-
-        if (actRes.ok) {
-          const opts = actRes.data || [];
-          setActivityTypeOptions(opts);
-          if (!activityType && opts.length) setActivityType(opts[0]);
-          else if (activityType && opts.includes(activityType)) setActivityType(activityType);
-          else if (!opts.includes(activityType) && opts.length) setActivityType(opts[0]);
-        } else {
-          setActivityTypeOptions([]);
-        }
-
-        if (projRes.ok) {
-          const opts = projRes.data || [];
-          setProjectOptions(opts);
-          if (!project && opts.length) setProject(opts[0]);
-          else if (project && opts.includes(project)) setProject(project);
-          else if (!opts.includes(project) && opts.length) setProject(opts[0]);
-        } else {
-          setProjectOptions([]);
-        }
-
-        if (taskRes.ok) {
-          const opts = taskRes.data || [];
-          setTaskOptions(opts);
-          if (!task && opts.length) setTask(opts[0]);
-          else if (task && opts.includes(task)) setTask(task);
-          else if (!opts.includes(task) && opts.length) setTask(opts[0]);
-        } else {
-          setTaskOptions([]);
-        }
-      } catch (err) {
-        setCustomerOptions([]);
-        setActivityTypeOptions([]);
-        setProjectOptions([]);
-        setTaskOptions([]);
-      } finally {
-        setLoadingCustomers(false);
-        setLoadingActivityTypes(false);
-        setLoadingProjects(false);
-        setLoadingTasks(false);
-      }
-    };
-    loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      fetchTimesheets();
+    }, [fetchTimesheets])
+  );
 
   const totalHours = useMemo(
     () =>
@@ -181,127 +74,7 @@ const TimesheetScreen = () => {
   );
 
   const handleAddTimesheet = () => {
-    setAddModalVisible(true);
-    setPickerMode('date');
-    setPickerTarget(null);
-    setPickerVisible(false);
-  };
-
-  const handleSaveTimesheet = async () => {
-    if (savingTimesheet) return;
-    if (!customer || !activityType || !project || !task || !taskDetails || !addFromDateTime || !addToDateTime) {
-      Alert.alert('Timesheet', 'All fields are mandatory. Please fill everything.');
-      return;
-    }
-    if (new Date(addToDateTime) <= new Date(addFromDateTime)) {
-      Alert.alert('Timesheet', 'End time must be after start time.');
-      return;
-    }
-    setSavingTimesheet(true);
-    try {
-      const employee =
-        (await AsyncStorage.getItem('employee_id')) ||
-        (await AsyncStorage.getItem('user_id')) ||
-        '';
-      const res = await createTimesheet({
-        employee,
-        customer,
-        activity_type: activityType,
-        project,
-        task,
-        from_time: addFromDateTime,
-        to_time: addToDateTime,
-        description: taskDetails,
-      });
-      if (!res.ok) {
-        Alert.alert('Timesheet', res.message || 'Failed to save timesheet');
-      } else {
-        // Submit the created timesheet
-        const name = (res.data && (res.data.name || res.data.id)) || '';
-        if (name) {
-          const submitRes = await submitTimesheet(name, res.data);
-          if (!submitRes.ok) {
-            Alert.alert('Timesheet', submitRes.message || 'Saved as draft. Submission failed.');
-          } else {
-            Alert.alert('Timesheet', 'Submitted. You can add another entry.');
-          }
-        } else {
-          Alert.alert('Timesheet', 'Saved. Unable to submit automatically.');
-        }
-        fetchTimesheets(true);
-        setAddFromDateTime('');
-        setAddToDateTime('');
-        setTask('');
-        setTaskDetails('');
-        setShowTaskOptions(false);
-        setShowCustomerOptions(false);
-        setShowProjectOptions(false);
-        setShowActivityOptions(false);
-        setPickerTempDate(new Date());
-        setPickerVisible(false);
-        setPickerTarget(null);
-        setPickerMode('date');
-      }
-    } catch (err: any) {
-      Alert.alert('Timesheet', err?.message || 'Failed to save timesheet');
-    } finally {
-      setSavingTimesheet(false);
-    }
-  };
-
-  const openPicker = (target: 'from' | 'to') => {
-    setPickerTarget(target);
-    const base =
-      target === 'from'
-        ? addFromDateTime
-          ? new Date(addFromDateTime)
-          : new Date()
-        : addToDateTime
-        ? new Date(addToDateTime)
-        : new Date();
-    setPickerTempDate(base);
-    setPickerMode(Platform.OS === 'ios' ? 'datetime' : 'date');
-    setPickerVisible(true);
-  };
-
-  const handlePickerChange = (_: any, selected?: Date) => {
-    const target = pickerTarget;
-    if (!target) {
-      setPickerVisible(false);
-      return;
-    }
-    if (Platform.OS === 'android') {
-      if (pickerMode === 'date') {
-        const base = selected || pickerTempDate || new Date();
-        setPickerTempDate(base);
-        setPickerMode('time');
-        setPickerVisible(true);
-        return;
-      }
-      if (pickerMode === 'time') {
-        setPickerVisible(false);
-        const base = pickerTempDate || new Date();
-        const applied = selected || base;
-        const finalDate = new Date(base);
-        finalDate.setHours(applied.getHours(), applied.getMinutes(), 0, 0);
-        if (target === 'from') setAddFromDateTime(finalDate.toISOString());
-        else setAddToDateTime(finalDate.toISOString());
-        setPickerMode('date');
-        return;
-      }
-    } else {
-      // iOS: update temp; apply on explicit Done
-      if (selected) setPickerTempDate(selected);
-    }
-  };
-
-  const applyIOSPicker = () => {
-    if (!pickerTarget) return;
-    const finalDate = pickerTempDate || new Date();
-    if (pickerTarget === 'from') setAddFromDateTime(finalDate.toISOString());
-    else setAddToDateTime(finalDate.toISOString());
-    setPickerVisible(false);
-    setPickerTarget(null);
+    navigation.navigate('TimesheetCreateNew');
   };
 
   const weekBuckets = useMemo(() => {
@@ -536,271 +309,6 @@ const TimesheetScreen = () => {
             ) : (
               <Text style={styles.detailRowValue}>No timesheet selected.</Text>
             )}
-          </ScrollView>
-        </View>
-      </Modal>
-
-      <Modal visible={addModalVisible} animationType="slide" transparent onRequestClose={() => setAddModalVisible(false)}>
-        <TouchableWithoutFeedback onPress={() => setAddModalVisible(false)}>
-          <View style={styles.modalOverlay} />
-        </TouchableWithoutFeedback>
-        <View style={styles.modalSheet}>
-          <ScrollView contentContainerStyle={styles.modalContent} showsVerticalScrollIndicator={false}>
-            <Text style={styles.modalTitle}>New Timesheet</Text>
-
-            <Text style={styles.modalLabel}>Customer</Text>
-            <TouchableOpacity
-              style={styles.modalInput}
-              activeOpacity={0.85}
-              onPress={() => setShowCustomerOptions((prev) => !prev)}
-            >
-              <Text style={customer ? styles.modalValue : styles.modalPlaceholder}>
-                {customer || (loadingCustomers ? 'Loading...' : 'Select customer')}
-              </Text>
-            </TouchableOpacity>
-            {showCustomerOptions && (
-              <View style={[styles.dropdownList, styles.dropdownScroll]}>
-                <TextInput
-                  style={styles.dropdownSearch}
-                  placeholder="Search customer"
-                  value={customerSearch}
-                  onChangeText={setCustomerSearch}
-                />
-                {customerOptions.length === 0 && (
-                  <Text style={styles.dropdownEmptyText}>
-                    {loadingCustomers ? 'Loading...' : 'No customers found'}
-                  </Text>
-                )}
-                <ScrollView nestedScrollEnabled>
-                  {customerOptions
-                    .filter((c) => c.toLowerCase().includes(customerSearch.toLowerCase()))
-                    .map((opt) => (
-                    <TouchableOpacity
-                      key={opt}
-                      style={styles.dropdownItem}
-                      onPress={() => {
-                        setCustomer(opt);
-                        setShowCustomerOptions(false);
-                      }}
-                    >
-                      <Text style={styles.dropdownItemText}>{opt}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-            )}
-
-            <Text style={styles.modalLabel}>Activity Type</Text>
-            <TouchableOpacity
-              style={styles.modalInput}
-              activeOpacity={0.85}
-              onPress={() => setShowActivityOptions((prev) => !prev)}
-            >
-              <Text style={activityType ? styles.modalValue : styles.modalPlaceholder}>
-                {activityType || (loadingActivityTypes ? 'Loading...' : 'Select activity')}
-              </Text>
-            </TouchableOpacity>
-            {showActivityOptions && (
-              <View style={[styles.dropdownList, styles.dropdownScroll]}>
-                <TextInput
-                  style={styles.dropdownSearch}
-                  placeholder="Search activity"
-                  value={activitySearch}
-                  onChangeText={setActivitySearch}
-                />
-                {activityTypeOptions.length === 0 && (
-                  <Text style={styles.dropdownEmptyText}>
-                    {loadingActivityTypes ? 'Loading...' : 'No activity types found'}
-                  </Text>
-                )}
-                <ScrollView nestedScrollEnabled>
-                  {activityTypeOptions
-                    .filter((c) => c.toLowerCase().includes(activitySearch.toLowerCase()))
-                    .map((opt) => (
-                    <TouchableOpacity
-                      key={opt}
-                      style={styles.dropdownItem}
-                      onPress={() => {
-                        setActivityType(opt);
-                        setShowActivityOptions(false);
-                      }}
-                    >
-                      <Text style={styles.dropdownItemText}>{opt}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-            )}
-
-            <Text style={styles.modalLabel}>From (Date & Time)</Text>
-          <TouchableOpacity
-            style={styles.modalInput}
-            activeOpacity={0.85}
-            onPress={() => openPicker('from')}
-          >
-            <Text style={addFromDateTime ? styles.modalValue : styles.modalPlaceholder}>
-              {addFromDateTime ? new Date(addFromDateTime).toLocaleString() : 'Select start date & time'}
-            </Text>
-          </TouchableOpacity>
-          {pickerVisible && pickerTarget === 'from' && (
-            <View style={styles.pickerContainerInline}>
-              <DateTimePicker
-                value={pickerTempDate || new Date()}
-                mode={pickerMode}
-                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                onChange={handlePickerChange}
-              />
-              <View style={styles.pickerInlineActions}>
-                <TouchableOpacity
-                  onPress={() => {
-                    setPickerVisible(false);
-                    setPickerTarget(null);
-                    setPickerMode('date');
-                  }}
-                  style={styles.inlineAction}
-                >
-                  <Text style={styles.modalCancelText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={applyIOSPicker} style={styles.inlineAction}>
-                  <Text style={styles.pickerPrimaryText}>Done</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
-
-          <Text style={styles.modalLabel}>To (Date & Time)</Text>
-          <TouchableOpacity
-            style={styles.modalInput}
-            activeOpacity={0.85}
-            onPress={() => openPicker('to')}
-          >
-            <Text style={addToDateTime ? styles.modalValue : styles.modalPlaceholder}>
-              {addToDateTime ? new Date(addToDateTime).toLocaleString() : 'Select end date & time'}
-            </Text>
-          </TouchableOpacity>
-          {pickerVisible && pickerTarget === 'to' && (
-            <View style={styles.pickerContainerInline}>
-              <DateTimePicker
-                value={pickerTempDate || new Date()}
-                mode={pickerMode}
-                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                onChange={handlePickerChange}
-              />
-              <View style={styles.pickerInlineActions}>
-                <TouchableOpacity
-                  onPress={() => {
-                    setPickerVisible(false);
-                    setPickerTarget(null);
-                    setPickerMode('date');
-                  }}
-                  style={styles.inlineAction}
-                >
-                  <Text style={styles.modalCancelText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={applyIOSPicker} style={styles.inlineAction}>
-                  <Text style={styles.pickerPrimaryText}>Done</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
-
-          <Text style={styles.modalLabel}>Task Details</Text>
-          <TextInput
-            style={[styles.modalTextInput, { height: 80 }]}
-            placeholder="Describe the work done"
-            value={taskDetails}
-            onChangeText={setTaskDetails}
-            multiline
-          />
-
-            <Text style={styles.modalLabel}>Project</Text>
-            <TouchableOpacity
-              style={styles.modalInput}
-              activeOpacity={0.85}
-              onPress={() => setShowProjectOptions((prev) => !prev)}
-            >
-              <Text style={project ? styles.modalValue : styles.modalPlaceholder}>
-                {project || 'Select project'}
-              </Text>
-            </TouchableOpacity>
-            {showProjectOptions && (
-              <View style={[styles.dropdownList, styles.dropdownScroll]}>
-                <TextInput
-                  style={styles.dropdownSearch}
-                  placeholder="Search project"
-                  value={projectSearch}
-                  onChangeText={setProjectSearch}
-                />
-                {projectOptions.length === 0 && (
-                  <Text style={styles.dropdownEmptyText}>{loadingProjects ? 'Loading...' : 'No projects found'}</Text>
-                )}
-                <ScrollView nestedScrollEnabled>
-                  {projectOptions
-                    .filter((c) => c.toLowerCase().includes(projectSearch.toLowerCase()))
-                    .map((opt) => (
-                    <TouchableOpacity
-                      key={opt}
-                      style={styles.dropdownItem}
-                      onPress={() => {
-                        setProject(opt);
-                        setShowProjectOptions(false);
-                      }}
-                    >
-                      <Text style={styles.dropdownItemText}>{opt}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-            )}
-
-            <Text style={styles.modalLabel}>Task</Text>
-            <TouchableOpacity
-              style={styles.modalInput}
-              activeOpacity={0.85}
-              onPress={() => setShowTaskOptions((prev) => !prev)}
-            >
-              <Text style={task ? styles.modalValue : styles.modalPlaceholder}>
-                {task || (loadingTasks ? 'Loading...' : 'Select task')}
-              </Text>
-            </TouchableOpacity>
-            {showTaskOptions && (
-              <View style={[styles.dropdownList, styles.dropdownScroll]}>
-                <TextInput
-                  style={styles.dropdownSearch}
-                  placeholder="Search task"
-                  value={taskSearch}
-                  onChangeText={setTaskSearch}
-                />
-                {taskOptions.length === 0 && (
-                  <Text style={styles.dropdownEmptyText}>{loadingTasks ? 'Loading...' : 'No tasks found'}</Text>
-                )}
-                <ScrollView nestedScrollEnabled>
-                  {taskOptions
-                    .filter((c) => c.toLowerCase().includes(taskSearch.toLowerCase()))
-                    .map((opt) => (
-                    <TouchableOpacity
-                      key={opt}
-                      style={styles.dropdownItem}
-                      onPress={() => {
-                        setTask(opt);
-                        setShowTaskOptions(false);
-                      }}
-                    >
-                      <Text style={styles.dropdownItemText}>{opt}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-            )}
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={[styles.modalButton, styles.modalCancel]} onPress={() => setAddModalVisible(false)}>
-                <Text style={styles.modalCancelText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.modalButton, styles.modalPrimary]} onPress={handleSaveTimesheet}>
-                <Text style={styles.modalPrimaryText}>Save</Text>
-              </TouchableOpacity>
-            </View>
           </ScrollView>
         </View>
       </Modal>

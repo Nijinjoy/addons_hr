@@ -9,6 +9,7 @@ import LeadStack from './LeadStack';
 import TaskListScreen from '../screens/Dashboard /Core/TaskListScreen';
 import TaskCreateNewScreen from '../screens/Dashboard /Core/TaskCreateNewScreen';
 import TimesheetScreen from '../screens/Dashboard /HRM/TimesheetScreen';
+import TimesheetCreateNewScreen from '../screens/Dashboard /HRM/TimesheetCreateNewScreen';
 import ExpenseScreen from '../screens/Dashboard /Accounts/ExpenseScreen';
 import CalendarScreen from '../screens/Dashboard /HRM/CalendarScreen';
 
@@ -58,6 +59,11 @@ const DrawerNavigator = () => {
       <Drawer.Screen
         name="TimesheetScreen"
         component={TimesheetScreen}
+        options={{ drawerItemStyle: { display: 'none' } }}
+      />
+      <Drawer.Screen
+        name="TimesheetCreateNew"
+        component={TimesheetCreateNewScreen}
         options={{ drawerItemStyle: { display: 'none' } }}
       />
       <Drawer.Screen

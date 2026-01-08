@@ -40,8 +40,14 @@ type ProjectResult =
   | { ok: true; data: string[] }
   | { ok: false; message: string; status?: number; raw?: string };
 
+type TaskOption = {
+  name: string;
+  subject?: string;
+  label: string;
+};
+
 type TaskResult =
-  | { ok: true; data: string[] }
+  | { ok: true; data: TaskOption[] }
   | { ok: false; message: string; status?: number; raw?: string };
 
 type CreateTimesheetInput = {
@@ -53,6 +59,8 @@ type CreateTimesheetInput = {
   from_time: string;
   to_time: string;
   description?: string;
+  status?: string;
+  hours?: number;
 };
 
 type CreateTimesheetResult =
@@ -444,13 +452,18 @@ export const getProjects = async (limit: number = 200): Promise<ProjectResult> =
   }
 };
 
-const normalizeTasks = (rows: any[]): string[] => {
-  const set = new Set<string>();
+const normalizeTasks = (rows: any[]): TaskOption[] => {
+  const seen = new Set<string>();
+  const results: TaskOption[] = [];
   (rows || []).forEach((row) => {
-    const name = (row?.name || row?.subject || row?.title || '').trim?.() || '';
-    if (name) set.add(name);
+    const name = (row?.name || '').trim?.() || '';
+    const subject = (row?.subject || row?.title || '').trim?.() || '';
+    if (!name || seen.has(name)) return;
+    const label = subject ? `${name} - ${subject}` : name;
+    results.push({ name, subject: subject || undefined, label });
+    seen.add(name);
   });
-  return Array.from(set);
+  return results;
 };
 
 export const getTasks = async (limit: number = 200): Promise<TaskResult> => {
@@ -517,6 +530,9 @@ export const createTimesheet = async (input: CreateTimesheetInput): Promise<Crea
       from_time: from,
       to_time: to,
     };
+    if (typeof input.hours === 'number' && !Number.isNaN(input.hours)) {
+      baseTimeLog.hours = input.hours;
+    }
     if (input.activity_type) baseTimeLog.activity_type = input.activity_type;
     if (input.task) baseTimeLog.task = input.task;
     if (input.project) baseTimeLog.project = input.project;
@@ -526,6 +542,7 @@ export const createTimesheet = async (input: CreateTimesheetInput): Promise<Crea
       doctype: 'Timesheet',
       ...(input.employee ? { employee: input.employee } : {}),
       ...(input.customer ? { customer: input.customer } : {}),
+      ...(input.status ? { status: input.status } : {}),
     };
 
     const tryInsert = async (doc: Record<string, any>): Promise<CreateTimesheetResult> => {
