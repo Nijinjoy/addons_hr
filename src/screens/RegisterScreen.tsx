@@ -333,7 +333,7 @@ const styles = StyleSheet.create({
   },
   registerButton: {
     marginTop: 8,
-    backgroundColor: '#1D2B4C',
+    backgroundColor: '#000000',
   },
   loginLinkContainer: {
     marginTop: 12,

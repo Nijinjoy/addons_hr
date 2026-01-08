@@ -131,13 +131,13 @@ const Header = ({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#141D35',
+    backgroundColor: '#000000',
     paddingHorizontal: 16,
     paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.08)',
-    shadowColor: '#0B1226',
-    shadowOpacity: 0.06,
+    borderBottomColor: 'rgba(255,255,255,0.12)',
+    shadowColor: '#000000',
+    shadowOpacity: 0.08,
     shadowOffset: { width: 0, height: 6 },
     shadowRadius: 10,
     elevation: 4,
@@ -163,7 +163,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'flex-end',
     alignItems: 'center',
-    gap: 10,
+    gap: 20,
   },
   title: {
     fontSize: 18,
@@ -182,7 +182,7 @@ const styles = StyleSheet.create({
   pillText: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#E5F0FF',
+    color: '#FFFFFF',
     letterSpacing: 0.4,
   },
   iconButton: {

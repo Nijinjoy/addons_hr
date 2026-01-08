@@ -6,7 +6,7 @@ import HomeScreen from '../screens/Dashboard /Core/HomeScreen';
 import HRMDashboard from '../screens/Dashboard /HRM/HRMDashboard';
 import LeadStack from './LeadStack';
 import ExpenseScreen from '../screens/Dashboard /Accounts/ExpenseScreen';
-import MoreScreen from '../screens/Dashboard /Core/MoreScreen';
+import QuotationScreen from '../screens/Dashboard /Core/QuotationScreen';
 
 const Tab = createBottomTabNavigator();
 
@@ -49,9 +49,9 @@ const DashboardTabs = () => {
         iconName = 'credit-card';
         label = '💳';
         break;
-      case 'More':
-        iconName = 'more-horizontal';
-        label = '⋯';
+      case 'Quotation':
+        iconName = 'file-text';
+        label = '📄';
         break;
     }
 
@@ -110,9 +110,9 @@ const DashboardTabs = () => {
         options={{ tabBarLabel: 'Expense' }}
       />
       <Tab.Screen 
-        name="More" 
-        component={MoreScreen}
-        options={{ tabBarLabel: 'More' }}
+        name="Quotation" 
+        component={QuotationScreen}
+        options={{ tabBarLabel: 'Quotation' }}
       />
     </Tab.Navigator>
   );

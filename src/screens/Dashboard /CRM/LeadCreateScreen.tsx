@@ -1343,7 +1343,7 @@ const styles = StyleSheet.create({
   removeText: { fontSize: 12, color: '#D14343', fontWeight: '600' },
   saveButton: {
     marginTop: 16,
-    backgroundColor: '#1D3765',
+    backgroundColor: '#000000',
     paddingVertical: 14,
     borderRadius: 10,
     alignItems: 'center',
@@ -1448,7 +1448,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#E5E7EB',
   },
   modalSave: {
-    backgroundColor: '#1D3765',
+    backgroundColor: '#000000',
   },
   modalCancelText: {
     color: '#111827',

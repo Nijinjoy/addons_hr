@@ -9,7 +9,7 @@ import {
   Alert,
   Platform,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import Header from '../../../components/Header';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -19,19 +19,23 @@ import {
   getActivityTypes,
   getProjects,
   getTasks,
+  getTimesheetDetail,
   createTimesheet,
   submitTimesheet,
 } from '../../../services/timesheetService';
 
 const TimesheetCreateNewScreen = () => {
   const navigation = useNavigation<any>();
+  const route = useRoute<any>();
+  const readOnly = route?.params?.mode === 'view';
+  const timesheetName = route?.params?.timesheetName as string | undefined;
   const [addFromDateTime, setAddFromDateTime] = useState('');
   const [addToDateTime, setAddToDateTime] = useState('');
   const [pickerVisible, setPickerVisible] = useState(false);
   const [pickerTarget, setPickerTarget] = useState<'from' | 'to' | null>(null);
   const [pickerMode, setPickerMode] = useState<'date' | 'time' | 'datetime'>('date');
   const [pickerTempDate, setPickerTempDate] = useState<Date>(new Date());
-  const [status, setStatus] = useState('Draft');
+  const [status, setStatus] = useState('');
   const [completed, setCompleted] = useState(false);
   const [customerOptions, setCustomerOptions] = useState<string[]>([]);
   const [customer, setCustomer] = useState('');
@@ -55,6 +59,8 @@ const TimesheetCreateNewScreen = () => {
   const [taskSearch, setTaskSearch] = useState('');
   const [taskDetails, setTaskDetails] = useState('');
   const [savingTimesheet, setSavingTimesheet] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
+
   const hoursNumber = useMemo(() => {
     if (!addFromDateTime || !addToDateTime) return '';
     const from = new Date(addFromDateTime);
@@ -81,15 +87,6 @@ const TimesheetCreateNewScreen = () => {
           getProjects(200),
           getTasks(200),
         ]);
-        if (taskRes?.ok) {
-          const total = Array.isArray(taskRes.data) ? taskRes.data.length : 0;
-          const preview = Array.isArray(taskRes.data)
-            ? taskRes.data.slice(0, 5).map((item) => item.label).join(', ')
-            : 'No data';
-          console.log(`Timesheet task options: ${total} items. First 5: ${preview}`);
-        } else {
-          console.log('Timesheet task options response:', taskRes);
-        }
 
         if (custRes.ok) {
           const opts = custRes.data || [];
@@ -146,8 +143,40 @@ const TimesheetCreateNewScreen = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    if (!readOnly || !timesheetName) return;
+    const loadDetail = async () => {
+      try {
+        setDetailLoading(true);
+        const res = await getTimesheetDetail(timesheetName);
+        if (!res.ok) return;
+        const doc = res.data || {};
+        const timeLog = Array.isArray(doc.time_logs) ? doc.time_logs[0] || {} : {};
+        const toISO = (value?: string) => {
+          if (!value) return '';
+          const d = new Date(value);
+          return isNaN(d.getTime()) ? '' : d.toISOString();
+        };
+        setCustomer(timeLog.customer || doc.customer || customer);
+        setActivityType(timeLog.activity_type || doc.activity_type || activityType);
+        setProject(timeLog.project || doc.project || project);
+        setTask(timeLog.task || doc.task || task);
+        setTaskDetails(timeLog.description || doc.description || doc.note || taskDetails);
+        setStatus(doc.status || status);
+        setCompleted((doc.status || '').toLowerCase().includes('completed'));
+        setAddFromDateTime(toISO(timeLog.from_time || doc.from_time || doc.start_date));
+        setAddToDateTime(toISO(timeLog.to_time || doc.to_time || doc.end_date));
+      } finally {
+        setDetailLoading(false);
+      }
+    };
+    loadDetail();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [readOnly, timesheetName]);
+
   const handleSaveTimesheet = async () => {
     if (savingTimesheet) return;
+    if (readOnly) return;
     if (!customer || !activityType || !project || !task || !taskDetails || !addFromDateTime || !addToDateTime) {
       Alert.alert('Timesheet', 'All fields are mandatory. Please fill everything.');
       return;
@@ -175,10 +204,9 @@ const TimesheetCreateNewScreen = () => {
         from_time: addFromDateTime,
         to_time: addToDateTime,
         description: taskDetails,
-        status,
+        status: status || undefined,
         hours: typeof hoursNumber === 'number' ? hoursNumber : undefined,
       });
-      console.log('Timesheet create response:', res);
       if (!res.ok) {
         Alert.alert('Timesheet', res.message || 'Failed to save timesheet');
         return;
@@ -269,7 +297,9 @@ const TimesheetCreateNewScreen = () => {
         <TouchableOpacity
           style={styles.input}
           activeOpacity={0.85}
-          onPress={() => setShowCustomerOptions((prev) => !prev)}
+          onPress={() => {
+            if (!readOnly) setShowCustomerOptions((prev) => !prev);
+          }}
         >
           <Text style={customer ? styles.value : styles.placeholder}>
             {customer || (loadingCustomers ? 'Loading...' : 'Select customer')}
@@ -282,8 +312,9 @@ const TimesheetCreateNewScreen = () => {
               placeholder="Search customer"
               value={customerSearch}
               onChangeText={setCustomerSearch}
+              editable={!readOnly}
             />
-            {customerOptions.length === 0 && (
+            {(customerOptions || []).length === 0 && (
               <Text style={styles.dropdownEmptyText}>{loadingCustomers ? 'Loading...' : 'No customers found'}</Text>
             )}
             <ScrollView nestedScrollEnabled>
@@ -294,6 +325,7 @@ const TimesheetCreateNewScreen = () => {
                   key={opt}
                   style={styles.dropdownItem}
                   onPress={() => {
+                    if (readOnly) return;
                     setCustomer(opt);
                     setShowCustomerOptions(false);
                   }}
@@ -309,7 +341,9 @@ const TimesheetCreateNewScreen = () => {
         <TouchableOpacity
           style={styles.input}
           activeOpacity={0.85}
-          onPress={() => setShowActivityOptions((prev) => !prev)}
+          onPress={() => {
+            if (!readOnly) setShowActivityOptions((prev) => !prev);
+          }}
         >
           <Text style={activityType ? styles.value : styles.placeholder}>
             {activityType || (loadingActivityTypes ? 'Loading...' : 'Select activity')}
@@ -322,6 +356,7 @@ const TimesheetCreateNewScreen = () => {
               placeholder="Search activity"
               value={activitySearch}
               onChangeText={setActivitySearch}
+              editable={!readOnly}
             />
             {activityTypeOptions.length === 0 && (
               <Text style={styles.dropdownEmptyText}>
@@ -329,13 +364,14 @@ const TimesheetCreateNewScreen = () => {
               </Text>
             )}
             <ScrollView nestedScrollEnabled>
-              {(activityTypeOptions || [])
+              {activityTypeOptions
                 .filter((c) => c.toLowerCase().includes(activitySearch.toLowerCase()))
                 .map((opt) => (
                 <TouchableOpacity
                   key={opt}
                   style={styles.dropdownItem}
                   onPress={() => {
+                    if (readOnly) return;
                     setActivityType(opt);
                     setShowActivityOptions(false);
                   }}
@@ -348,7 +384,13 @@ const TimesheetCreateNewScreen = () => {
         )}
 
         <Text style={styles.label}>From (Date & Time)</Text>
-        <TouchableOpacity style={styles.input} activeOpacity={0.85} onPress={() => openPicker('from')}>
+        <TouchableOpacity
+          style={styles.input}
+          activeOpacity={0.85}
+          onPress={() => {
+            if (!readOnly) openPicker('from');
+          }}
+        >
           <Text style={addFromDateTime ? styles.value : styles.placeholder}>
             {addFromDateTime ? new Date(addFromDateTime).toLocaleString() : 'Select start date & time'}
           </Text>
@@ -380,7 +422,13 @@ const TimesheetCreateNewScreen = () => {
         )}
 
         <Text style={styles.label}>To (Date & Time)</Text>
-        <TouchableOpacity style={styles.input} activeOpacity={0.85} onPress={() => openPicker('to')}>
+        <TouchableOpacity
+          style={styles.input}
+          activeOpacity={0.85}
+          onPress={() => {
+            if (!readOnly) openPicker('to');
+          }}
+        >
           <Text style={addToDateTime ? styles.value : styles.placeholder}>
             {addToDateTime ? new Date(addToDateTime).toLocaleString() : 'Select end date & time'}
           </Text>
@@ -425,13 +473,16 @@ const TimesheetCreateNewScreen = () => {
           value={taskDetails}
           onChangeText={setTaskDetails}
           multiline
+          editable={!readOnly}
         />
 
         <Text style={styles.label}>Project</Text>
         <TouchableOpacity
           style={styles.input}
           activeOpacity={0.85}
-          onPress={() => setShowProjectOptions((prev) => !prev)}
+          onPress={() => {
+            if (!readOnly) setShowProjectOptions((prev) => !prev);
+          }}
         >
           <Text style={project ? styles.value : styles.placeholder}>{project || 'Select project'}</Text>
         </TouchableOpacity>
@@ -442,18 +493,20 @@ const TimesheetCreateNewScreen = () => {
               placeholder="Search project"
               value={projectSearch}
               onChangeText={setProjectSearch}
+              editable={!readOnly}
             />
             {projectOptions.length === 0 && (
               <Text style={styles.dropdownEmptyText}>{loadingProjects ? 'Loading...' : 'No projects found'}</Text>
             )}
             <ScrollView nestedScrollEnabled>
-              {(projectOptions || [])
+              {projectOptions
                 .filter((c) => c.toLowerCase().includes(projectSearch.toLowerCase()))
                 .map((opt) => (
                 <TouchableOpacity
                   key={opt}
                   style={styles.dropdownItem}
                   onPress={() => {
+                    if (readOnly) return;
                     setProject(opt);
                     setShowProjectOptions(false);
                   }}
@@ -469,7 +522,9 @@ const TimesheetCreateNewScreen = () => {
         <TouchableOpacity
           style={styles.input}
           activeOpacity={0.85}
-          onPress={() => setShowTaskOptions((prev) => !prev)}
+          onPress={() => {
+            if (!readOnly) setShowTaskOptions((prev) => !prev);
+          }}
         >
           <Text style={task ? styles.value : styles.placeholder}>
             {task
@@ -486,8 +541,9 @@ const TimesheetCreateNewScreen = () => {
               placeholder="Search task"
               value={taskSearch}
               onChangeText={setTaskSearch}
+              editable={!readOnly}
             />
-            {taskOptions.length === 0 && (
+            {(taskOptions || []).length === 0 && (
               <Text style={styles.dropdownEmptyText}>{loadingTasks ? 'Loading...' : 'No tasks found'}</Text>
             )}
             <ScrollView nestedScrollEnabled>
@@ -505,6 +561,7 @@ const TimesheetCreateNewScreen = () => {
                   key={opt.name}
                   style={styles.dropdownItem}
                   onPress={() => {
+                    if (readOnly) return;
                     setTask(opt.name);
                     setShowTaskOptions(false);
                   }}
@@ -524,9 +581,16 @@ const TimesheetCreateNewScreen = () => {
           value={status}
           multiline
           onChangeText={setStatus}
+          editable={!readOnly}
         />
 
-        <TouchableOpacity style={styles.checkboxRow} activeOpacity={0.85} onPress={toggleCompleted}>
+        <TouchableOpacity
+          style={styles.checkboxRow}
+          activeOpacity={0.85}
+          onPress={() => {
+            if (!readOnly) toggleCompleted();
+          }}
+        >
           <Ionicons
             name={completed ? 'checkbox' : 'square-outline'}
             size={20}
@@ -539,13 +603,15 @@ const TimesheetCreateNewScreen = () => {
           <TouchableOpacity style={[styles.button, styles.cancelButton]} onPress={() => navigation.goBack()}>
             <Text style={styles.cancelText}>Cancel</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.button, styles.primaryButton]}
-            onPress={handleSaveTimesheet}
-            disabled={savingTimesheet}
-          >
-            <Text style={styles.primaryText}>{savingTimesheet ? 'Saving...' : 'Save'}</Text>
-          </TouchableOpacity>
+          {!readOnly && (
+            <TouchableOpacity
+              style={[styles.button, styles.primaryButton]}
+              onPress={handleSaveTimesheet}
+              disabled={savingTimesheet}
+            >
+              <Text style={styles.primaryText}>{savingTimesheet ? 'Saving...' : 'Save'}</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </ScrollView>
     </View>
@@ -575,7 +641,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 12,
     textAlignVertical: 'top',
-    minHeight: 44,
   },
   actions: {
     flexDirection: 'row',
@@ -595,8 +660,8 @@ const styles = StyleSheet.create({
     borderColor: '#E5E7EB',
   },
   primaryButton: {
-    backgroundColor: '#1D3765',
-    borderColor: '#1D3765',
+    backgroundColor: '#000000',
+    borderColor: '#000000',
   },
   cancelText: { color: '#374151', fontWeight: '700', fontSize: 13 },
   primaryText: { color: '#fff', fontWeight: '700', fontSize: 13 },

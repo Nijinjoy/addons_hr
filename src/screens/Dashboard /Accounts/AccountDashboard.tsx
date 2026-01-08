@@ -160,7 +160,7 @@ const styles = StyleSheet.create({
   statLabel: { fontSize: 12, color: '#6B7280' },
   statValue: { fontSize: 22, fontWeight: '700', color: '#0F172A', marginTop: 2 },
   primaryButton: {
-    backgroundColor: '#63B3E6',
+    backgroundColor: '#000000',
     borderRadius: 18,
     paddingVertical: 8,
     alignItems: 'center',
@@ -169,7 +169,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     paddingHorizontal: 16,
   },
-  primaryText: { color: '#0F172A', fontWeight: '700', fontSize: 13 },
+  primaryText: { color: '#FFFFFF', fontWeight: '700', fontSize: 13 },
   pressed: { opacity: 0.88 },
   sectionHeading: { fontSize: 16, fontWeight: '700', color: '#111827' },
   quickGrid: { gap: 10 },

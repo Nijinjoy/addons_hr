@@ -129,7 +129,8 @@ const TaskCreateNewScreen = () => {
   return (
     <View style={styles.container}>
       <Header
-        pillText="Task"
+        pillText="Create Task"
+        showBackButton
         badgeCount={0}
         onBackPress={() => navigation.goBack()}
         onBellPress={() => navigation.getParent?.()?.getParent?.()?.navigate?.('Notifications' as never)}

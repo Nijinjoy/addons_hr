@@ -1,76 +1,76 @@
 {
   "images" : [
     {
+      "filename" : "40.png",
       "idiom" : "iphone",
-      "size" : "20x20",
       "scale" : "2x",
-      "filename" : "40.png"
+      "size" : "20x20"
     },
     {
+      "filename" : "60.png",
       "idiom" : "iphone",
-      "size" : "20x20",
       "scale" : "3x",
-      "filename" : "60.png"
+      "size" : "20x20"
     },
     {
+      "filename" : "29.png",
       "idiom" : "iphone",
-      "size" : "29x29",
       "scale" : "1x",
-      "filename" : "29.png"
+      "size" : "29x29"
     },
     {
+      "filename" : "58.png",
       "idiom" : "iphone",
-      "size" : "29x29",
       "scale" : "2x",
-      "filename" : "58.png"
+      "size" : "29x29"
     },
     {
+      "filename" : "87.png",
       "idiom" : "iphone",
-      "size" : "29x29",
       "scale" : "3x",
-      "filename" : "87.png"
+      "size" : "29x29"
     },
     {
+      "filename" : "80.png",
       "idiom" : "iphone",
-      "size" : "40x40",
       "scale" : "2x",
-      "filename" : "80.png"
+      "size" : "40x40"
     },
     {
+      "filename" : "120.png",
       "idiom" : "iphone",
-      "size" : "40x40",
       "scale" : "3x",
-      "filename" : "120.png"
+      "size" : "40x40"
     },
     {
+      "filename" : "57.png",
       "idiom" : "iphone",
-      "size" : "57x57",
       "scale" : "1x",
-      "filename" : "57.png"
+      "size" : "57x57"
     },
     {
+      "filename" : "114.png",
       "idiom" : "iphone",
-      "size" : "57x57",
       "scale" : "2x",
-      "filename" : "114.png"
+      "size" : "57x57"
     },
     {
+      "filename" : "120.png",
       "idiom" : "iphone",
-      "size" : "60x60",
       "scale" : "2x",
-      "filename" : "120.png"
+      "size" : "60x60"
     },
     {
+      "filename" : "180.png",
       "idiom" : "iphone",
-      "size" : "60x60",
       "scale" : "3x",
-      "filename" : "180.png"
+      "size" : "60x60"
     },
     {
+      "filename" : "AppIcon.png",
       "idiom" : "ios-marketing",
-      "size" : "1024x1024",
       "scale" : "1x",
-      "filename" : "1024.png"
+      "size" : "1024x1024"
     }
   ],
   "info" : {

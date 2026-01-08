@@ -375,7 +375,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  loginButton: { marginTop: 16, backgroundColor: '#1D2B4C' },
+  loginButton: { marginTop: 16, backgroundColor: '#000000' },
   registerContainer: { marginTop: 12, alignItems: 'center' },
   registerText: { fontSize: 14, color: '#1D2B4C' },
   registerLink: { fontWeight: '700', color: '#6EC6FF' },

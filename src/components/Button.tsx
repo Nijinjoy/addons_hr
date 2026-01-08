@@ -24,7 +24,7 @@ const Button: React.FC<ButtonProps> = ({ title, onPress, containerStyle, textSty
 
 const styles = StyleSheet.create({
   button: {
-    backgroundColor: '#1D2B4C',
+    backgroundColor: '#000000',
     paddingVertical: 14,
     paddingHorizontal: 24,
     borderRadius: 8,
@@ -32,7 +32,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   disabledButton: {
-    backgroundColor: '#888',
+    backgroundColor: '#333333',
   },
   text: {
     color: '#FFFFFF',

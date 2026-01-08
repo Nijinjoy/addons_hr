@@ -729,7 +729,7 @@ const styles = StyleSheet.create({
   historyLocationText: { color: '#6B7280', fontSize: 12, flex: 1 },
   primaryButton: {
     marginTop: 12,
-    backgroundColor: '#1F1F2E',
+    backgroundColor: '#000000',
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 24,

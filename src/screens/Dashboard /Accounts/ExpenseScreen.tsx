@@ -246,6 +246,9 @@ const ExpenseScreen = () => {
         screenName="Expenses"
         showBackButton
         onBackPress={() => navigation.goBack()}
+        badgeCount={0}
+        onBellPress={() => navigation.getParent?.()?.getParent?.()?.navigate?.('Notifications' as never)}
+        onProfilePress={() => navigation.getParent()?.openDrawer?.()}
       />
       <View style={styles.whiteBackground}>
         <View style={styles.tabsContainer}>
@@ -510,9 +513,9 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   newExpenseButton: {
-    backgroundColor: '#E0E7FF',
+    backgroundColor: '#000000',
     borderWidth: 1,
-    borderColor: '#C7D2FE',
+    borderColor: '#000000',
     borderRadius: 12,
     padding: 20,
     flexDirection: 'row',
@@ -521,7 +524,7 @@ const styles = StyleSheet.create({
     marginBottom: 30,
   },
   newExpenseButtonText: {
-    color: '#1D3765',
+    color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '600',
     marginLeft: 10,
@@ -745,7 +748,7 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
   },
   submitButton: {
-    backgroundColor: '#1D3765',
+    backgroundColor: '#000000',
     padding: 16,
     borderRadius: 10,
     alignItems: 'center',

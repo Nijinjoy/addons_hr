@@ -174,6 +174,14 @@ const TimesheetScreen = () => {
                     style={[styles.rowBase, styles.tableRow]}
                     activeOpacity={0.85}
                     onPress={() => {
+                      const status = (item.status || '').toLowerCase();
+                      if (status.includes('submitted')) {
+                        navigation.navigate('TimesheetCreateNew', {
+                          mode: 'view',
+                          timesheetName: item.name,
+                        });
+                        return;
+                      }
                       console.log('Timesheet selected:', item);
                       setSelectedTimesheet(item);
                       setDetailModalVisible(true);
@@ -402,7 +410,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#1D3765',
+    backgroundColor: '#000000',
     paddingVertical: 12,
     paddingHorizontal: 14,
     borderRadius: 10,
