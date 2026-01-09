@@ -193,21 +193,32 @@ export const getAttendanceLogs = async (
   try {
     const { baseResource } = await getBases();
     if (!baseResource) throw new Error('ERP base URL not configured');
+    const fullFields = [
+      'name',
+      'employee',
+      'status',
+      'attendance_date',
+      'in_time',
+      'out_time',
+      'shift',
+      'shift_type',
+      'device_id',
+    ];
+    const minimalFields = [
+      'name',
+      'employee',
+      'status',
+      'attendance_date',
+      'in_time',
+      'out_time',
+      'shift',
+      'device_id',
+    ];
     const url =
       baseResource +
       '/Attendance?' +
       new URLSearchParams({
-        fields: JSON.stringify([
-          'name',
-          'employee',
-          'status',
-          'attendance_date',
-          'in_time',
-          'out_time',
-          'shift',
-          'shift_type',
-          'device_id',
-        ]),
+        fields: JSON.stringify(fullFields),
         filters: JSON.stringify([['employee', '=', emp]]),
         order_by: 'attendance_date desc',
         limit_page_length: String(limit),
@@ -221,6 +232,40 @@ export const getAttendanceLogs = async (
     if (data.length) return { ok: true, data };
   } catch (err: any) {
     console.warn('getAttendanceLogs Attendance resource failed', err?.message || err);
+    const message = err?.message || '';
+    if (typeof message === 'string' && message.toLowerCase().includes('field not permitted')) {
+      try {
+        const { baseResource } = await getBases();
+        if (!baseResource) throw new Error('ERP base URL not configured');
+        const url =
+          baseResource +
+          '/Attendance?' +
+          new URLSearchParams({
+            fields: JSON.stringify([
+              'name',
+              'employee',
+              'status',
+              'attendance_date',
+              'in_time',
+              'out_time',
+              'shift',
+              'device_id',
+            ]),
+            filters: JSON.stringify([['employee', '=', emp]]),
+            order_by: 'attendance_date desc',
+            limit_page_length: String(limit),
+          }).toString();
+        const res = await requestJSON<{ data?: any[] }>(url, {
+          method: 'GET',
+          headers: await authHeaders(),
+        });
+        console.log('Attendance logs (Attendance Doc) response (fallback):', res);
+        const data = normalizeAttendanceLogs(res?.data ?? []);
+        if (data.length) return { ok: true, data };
+      } catch (retryErr: any) {
+        console.warn('getAttendanceLogs Attendance resource retry failed', retryErr?.message || retryErr);
+      }
+    }
   }
 
   // Method fallback for Attendance
@@ -256,6 +301,41 @@ export const getAttendanceLogs = async (
     if (data.length) return { ok: true, data };
   } catch (err: any) {
     console.warn('getAttendanceLogs Attendance method failed', err?.message || err);
+    const message = err?.message || '';
+    if (typeof message === 'string' && message.toLowerCase().includes('field not permitted')) {
+      try {
+        const { baseMethod } = await getBases();
+        if (!baseMethod) throw new Error('ERP base URL not configured');
+        const url =
+          baseMethod +
+          '/frappe.client.get_list?' +
+          new URLSearchParams({
+            doctype: 'Attendance',
+            fields: JSON.stringify([
+              'name',
+              'employee',
+              'status',
+              'attendance_date',
+              'in_time',
+              'out_time',
+              'shift',
+              'device_id',
+            ]),
+            filters: JSON.stringify([['employee', '=', emp]]),
+            order_by: 'attendance_date desc',
+            limit_page_length: String(limit),
+          }).toString();
+        const res = await requestJSON<{ message?: any[] }>(url, {
+          method: 'GET',
+          headers: await authHeaders(),
+        });
+        console.log('Attendance logs (Attendance Doc) method response (fallback):', res);
+        const data = normalizeAttendanceLogs(res?.message ?? []);
+        if (data.length) return { ok: true, data };
+      } catch (retryErr: any) {
+        console.warn('getAttendanceLogs Attendance method retry failed', retryErr?.message || retryErr);
+      }
+    }
   }
 
   // Resource path first

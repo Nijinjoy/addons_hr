@@ -11,6 +11,7 @@ import {
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { Lead } from '../../../services/leadService';
+import { getLeadByName } from '../../../services/api/leads.service';
 import { LeadStackParamList } from '../../../navigation/LeadStack';
 import Header from '../../../components/Header';
 
@@ -26,6 +27,25 @@ const LeadDetailScreen = () => {
       setLead(params.lead);
     }
   }, [params?.lead]);
+
+  useEffect(() => {
+    let mounted = true;
+    const loadLead = async () => {
+      const leadName = (lead as any)?.name;
+      if (!leadName) return;
+      try {
+        const freshLead = await getLeadByName(leadName);
+        if (!mounted || !freshLead) return;
+        setLead((prev) => ({ ...(prev as any), ...(freshLead as any) }));
+      } catch (err: any) {
+        console.log('LeadDetailScreen refresh failed:', err?.message || err);
+      }
+    };
+    loadLead();
+    return () => {
+      mounted = false;
+    };
+  }, [(lead as any)?.name]);
 
   const handleCall = async (phone?: string | null) => {
     const raw = (phone || '').trim();
@@ -90,7 +110,7 @@ const LeadDetailScreen = () => {
         rows: [
           { label: 'Email', value: lead.email_id || '-' },
           { label: 'Mobile No', value: lead.mobile_no || lead.phone || '-' },
-          { label: 'WhatsApp', value: (lead as any)?.whatsapp || '-' },
+          { label: 'WhatsApp', value: (lead as any)?.whatsapp || (lead as any)?.whatsapp_no || '-' },
         ],
       },
       {

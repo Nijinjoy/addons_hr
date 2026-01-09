@@ -72,7 +72,7 @@ const LoginScreen = ({ navigation }: Props) => {
     }
 
     try {
-      const trimmedCompanyUrl = companyUrl.trim();
+      const trimmedCompanyUrl = companyUrl.trim().replace(/\/+$/, '');
       await AsyncStorage.setItem('company_url', trimmedCompanyUrl);
       const storedCompanyUrl = await AsyncStorage.getItem('company_url');
       console.log('Stored company_url:', storedCompanyUrl);
@@ -87,6 +87,7 @@ const LoginScreen = ({ navigation }: Props) => {
 
     try {
       setLoading(true);
+      console.log('Login request payload:', { companyUrl, email });
       const authRes = await authLogin(companyUrl, email, password);
       console.log('Login response user:====>', authRes);
 
@@ -98,12 +99,22 @@ const LoginScreen = ({ navigation }: Props) => {
       if (user?.user_image) toStore.push(['user_image', user.user_image]);
       toStore.push(['user_email', email]);
       if (authRes?.cookies?.sid) toStore.push(['sid', authRes.cookies.sid]);
-      if (companyUrl.trim()) toStore.push(['company_url', companyUrl.trim()]);
+      const cleanedCompanyUrl = companyUrl.trim().replace(/\/+$/, '');
+      if (cleanedCompanyUrl) toStore.push(['company_url', cleanedCompanyUrl]);
       if (authRes?.roles) toStore.push(['roles', JSON.stringify(authRes.roles)]);
       try {
         if (toStore.length) await AsyncStorage.multiSet(toStore);
       } catch {
         // ignore storage errors
+      }
+      try {
+        const employeeId = await resolveEmployeeIdForUser(user?.name || email);
+        if (employeeId) {
+          await AsyncStorage.setItem('employee_id', employeeId);
+          console.log('Resolved employee_id after login:', employeeId);
+        }
+      } catch (err) {
+        console.log('Failed to resolve employee_id after login:', err);
       }
       try {
         await saveSession({
@@ -112,7 +123,7 @@ const LoginScreen = ({ navigation }: Props) => {
           user_email: email,
           full_name: user?.full_name || '',
           roles: authRes?.roles || [],
-          companyUrl: companyUrl.trim(),
+          companyUrl: cleanedCompanyUrl,
         });
       } catch (err) {
         console.log('Failed to persist secure session:', err);

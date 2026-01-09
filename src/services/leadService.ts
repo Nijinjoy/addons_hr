@@ -17,6 +17,7 @@ type Lead = {
   request_type?: string;
   service_type?: string;
   whatsapp?: string;
+  whatsapp_no?: string;
   building?: string;
   location?: string;
   territory?: string;
@@ -132,6 +133,7 @@ const normalizeLeads = (rows: any[]): Lead[] => {
     request_type: (r as any)?.request_type,
     service_type: (r as any)?.service_type,
     whatsapp: (r as any)?.whatsapp,
+    whatsapp_no: (r as any)?.whatsapp_no,
     building: (r as any)?.building,
     location: (r as any)?.location,
     territory: (r as any)?.territory,
@@ -164,6 +166,7 @@ export const fetchLeads = async (limit: number = 50): Promise<Lead[]> => {
         'request_type',
         'service_type',
         'whatsapp',
+        'whatsapp_no',
         'building',
         'location',
         'territory',
@@ -206,6 +209,7 @@ export const fetchLeads = async (limit: number = 50): Promise<Lead[]> => {
         'request_type',
         'service_type',
         'whatsapp',
+        'whatsapp_no',
         'building',
         'location',
         'territory',

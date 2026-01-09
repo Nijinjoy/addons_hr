@@ -19,6 +19,7 @@ export type CreateLeadPayload = {
   phone?: string;
   website?: string;
   whatsapp?: string;
+  whatsapp_no?: string;
   date?: string; // YYYY-MM-DD
   custom_date?: string; // YYYY-MM-DD (custom field)
   custom_building__location?: string;
@@ -150,6 +151,7 @@ export const createLead = async (
     phone: payload.phone,
     website: payload.website,
     whatsapp: payload.whatsapp,
+    whatsapp_no: payload.whatsapp_no || payload.whatsapp,
     date: payload.date,
     custom_date: payload.custom_date || payload.date,
   });
@@ -226,6 +228,7 @@ export const updateLead = async (
     phone: payload.phone,
     website: payload.website,
     whatsapp: payload.whatsapp,
+    whatsapp_no: payload.whatsapp_no || payload.whatsapp,
     date: payload.date,
     custom_date: payload.custom_date || payload.date,
   });

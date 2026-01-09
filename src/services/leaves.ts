@@ -228,21 +228,23 @@ export async function fetchLeaveAllocations(employeeId: string): Promise<LeaveAl
   const id = String(employeeId || '').trim();
   if (!id) return [];
   const { baseResource, baseMethod } = await getBases();
+  const fullFields = [
+    'name',
+    'employee',
+    'leave_type',
+    'from_date',
+    'to_date',
+    'total_leaves_allocated',
+    'new_leaves_allocated',
+  ];
+  const minimalFields = ['name', 'employee', 'leave_type', 'from_date', 'to_date'];
 
   // Attempt 1: Resource endpoint with explicit fields/filters
   try {
     if (!baseResource) throw new Error('Resource URL not configured');
     const url = buildQuery(`${baseResource}/Leave%20Allocation`, {
       filters: JSON.stringify([['employee', '=', id]]),
-      fields: JSON.stringify([
-        'name',
-        'employee',
-        'leave_type',
-        'from_date',
-        'to_date',
-        'total_leaves_allocated',
-        'new_leaves_allocated',
-      ]),
+      fields: JSON.stringify(fullFields),
       limit_page_length: 500,
     });
     const res = await requestJSON<{ data?: any[] }>(url, {
@@ -252,6 +254,24 @@ export async function fetchLeaveAllocations(employeeId: string): Promise<LeaveAl
     return normalizeAllocations(res?.data ?? []);
   } catch (err1: any) {
     console.warn('fetchLeaveAllocations resource failed', err1?.message || err1);
+    const msg = err1?.message || '';
+    if (typeof msg === 'string' && msg.toLowerCase().includes('field not permitted')) {
+      try {
+        if (!baseResource) throw new Error('Resource URL not configured');
+        const url = buildQuery(`${baseResource}/Leave%20Allocation`, {
+          filters: JSON.stringify([['employee', '=', id]]),
+          fields: JSON.stringify(minimalFields),
+          limit_page_length: 500,
+        });
+        const res = await requestJSON<{ data?: any[] }>(url, {
+          method: 'GET',
+          headers: await authHeaders(),
+        });
+        return normalizeAllocations(res?.data ?? []);
+      } catch (retryErr: any) {
+        console.warn('fetchLeaveAllocations resource retry failed', retryErr?.message || retryErr);
+      }
+    }
   }
 
   // Attempt 2: Simplified resource filter shape (some servers accept object)
@@ -275,15 +295,7 @@ export async function fetchLeaveAllocations(employeeId: string): Promise<LeaveAl
     if (!baseMethod) throw new Error('Method URL not configured');
     const url = buildQuery(`${baseMethod}/frappe.client.get_list`, {
       doctype: 'Leave Allocation',
-      fields: JSON.stringify([
-        'name',
-        'employee',
-        'leave_type',
-        'from_date',
-        'to_date',
-        'total_leaves_allocated',
-        'new_leaves_allocated',
-      ]),
+      fields: JSON.stringify(fullFields),
       filters: JSON.stringify([['employee', '=', id]]),
       limit_page_length: 500,
     });
@@ -294,6 +306,25 @@ export async function fetchLeaveAllocations(employeeId: string): Promise<LeaveAl
     return normalizeAllocations(res?.message ?? []);
   } catch (err3: any) {
     console.error('fetchLeaveAllocations method failed', err3?.message || err3);
+    const msg = err3?.message || '';
+    if (typeof msg === 'string' && msg.toLowerCase().includes('field not permitted')) {
+      try {
+        if (!baseMethod) throw new Error('Method URL not configured');
+        const url = buildQuery(`${baseMethod}/frappe.client.get_list`, {
+          doctype: 'Leave Allocation',
+          fields: JSON.stringify(minimalFields),
+          filters: JSON.stringify([['employee', '=', id]]),
+          limit_page_length: 500,
+        });
+        const res = await requestJSON<{ message?: any[] }>(url, {
+          method: 'GET',
+          headers: await authHeaders(),
+        });
+        return normalizeAllocations(res?.message ?? []);
+      } catch (retryErr: any) {
+        console.error('fetchLeaveAllocations method retry failed', retryErr?.message || retryErr);
+      }
+    }
     return [];
   }
 }
@@ -416,21 +447,15 @@ export async function fetchLeaveHistory(employeeId: string, limit: number = 50):
   const id = String(employeeId || '').trim();
   if (!id) return [];
   const { baseResource, baseMethod } = await getBases();
+  const fullFields = ['name', 'leave_type', 'description', 'from_date', 'to_date', 'total_leave_days', 'status'];
+  const minimalFields = ['name', 'leave_type', 'from_date', 'to_date', 'status'];
 
   // Attempt 1: Resource endpoint
   try {
     if (!baseResource) throw new Error('Resource URL not configured');
     const url = buildQuery(`${baseResource}/Leave%20Application`, {
       filters: JSON.stringify([['employee', '=', id]]),
-      fields: JSON.stringify([
-        'name',
-        'leave_type',
-        'description',
-        'from_date',
-        'to_date',
-        'total_leave_days',
-        'status',
-      ]),
+      fields: JSON.stringify(fullFields),
       order_by: 'creation desc',
       limit_page_length: limit,
     });
@@ -438,6 +463,22 @@ export async function fetchLeaveHistory(employeeId: string, limit: number = 50):
     return (res?.data ?? []) as LeaveHistoryItem[];
   } catch (err1: any) {
     console.warn('fetchLeaveHistory resource failed', err1?.message || err1);
+    const msg = err1?.message || '';
+    if (typeof msg === 'string' && msg.toLowerCase().includes('field not permitted')) {
+      try {
+        if (!baseResource) throw new Error('Resource URL not configured');
+        const url = buildQuery(`${baseResource}/Leave%20Application`, {
+          filters: JSON.stringify([['employee', '=', id]]),
+          fields: JSON.stringify(minimalFields),
+          order_by: 'creation desc',
+          limit_page_length: limit,
+        });
+        const res = await requestJSON<{ data?: any[] }>(url, { method: 'GET', headers: await authHeaders() });
+        return (res?.data ?? []) as LeaveHistoryItem[];
+      } catch (retryErr: any) {
+        console.warn('fetchLeaveHistory resource retry failed', retryErr?.message || retryErr);
+      }
+    }
   }
 
   // Attempt 2: Method endpoint
@@ -445,15 +486,7 @@ export async function fetchLeaveHistory(employeeId: string, limit: number = 50):
     if (!baseMethod) throw new Error('Method URL not configured');
     const url = buildQuery(`${baseMethod}/frappe.client.get_list`, {
       doctype: 'Leave Application',
-      fields: JSON.stringify([
-        'name',
-        'leave_type',
-        'description',
-        'from_date',
-        'to_date',
-        'total_leave_days',
-        'status',
-      ]),
+      fields: JSON.stringify(fullFields),
       filters: JSON.stringify([['employee', '=', id]]),
       order_by: 'creation desc',
       limit_page_length: limit,
@@ -462,6 +495,23 @@ export async function fetchLeaveHistory(employeeId: string, limit: number = 50):
     return (res?.message ?? []) as LeaveHistoryItem[];
   } catch (err2: any) {
     console.error('fetchLeaveHistory method failed', err2?.message || err2);
+    const msg = err2?.message || '';
+    if (typeof msg === 'string' && msg.toLowerCase().includes('field not permitted')) {
+      try {
+        if (!baseMethod) throw new Error('Method URL not configured');
+        const url = buildQuery(`${baseMethod}/frappe.client.get_list`, {
+          doctype: 'Leave Application',
+          fields: JSON.stringify(minimalFields),
+          filters: JSON.stringify([['employee', '=', id]]),
+          order_by: 'creation desc',
+          limit_page_length: limit,
+        });
+        const res = await requestJSON<{ message?: any[] }>(url, { method: 'GET', headers: await authHeaders() });
+        return (res?.message ?? []) as LeaveHistoryItem[];
+      } catch (retryErr: any) {
+        console.error('fetchLeaveHistory method retry failed', retryErr?.message || retryErr);
+      }
+    }
     return [];
   }
 }

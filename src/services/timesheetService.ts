@@ -184,10 +184,12 @@ const fetchTimesheets = async (params: TimesheetListParams): Promise<Timesheet[]
       limit_page_length: limit,
       ...(filters.length ? { filters: JSON.stringify(filters) } : {}),
     });
+    console.log('Timesheet fetch resource url:', url);
     const res = await requestJSON<{ data?: any[] }>(url, {
       method: 'GET',
       headers: await authHeaders(),
     });
+    console.log('Timesheet fetch resource response:', res);
     return normalizeTimesheets(res?.data ?? []);
   } catch (err1: any) {
     console.warn('fetchTimesheets resource failed', err1?.message || err1);
@@ -213,10 +215,12 @@ const fetchTimesheets = async (params: TimesheetListParams): Promise<Timesheet[]
       limit_page_length: limit,
       ...(filters.length ? { filters: JSON.stringify(filters) } : {}),
     });
+    console.log('Timesheet fetch method url:', url);
     const res = await requestJSON<{ message?: any[] }>(url, {
       method: 'GET',
       headers: await authHeaders(),
     });
+    console.log('Timesheet fetch method response:', res);
     return normalizeTimesheets(res?.message ?? []);
   } catch (err2: any) {
     console.error('fetchTimesheets method failed', err2?.message || err2);
@@ -549,11 +553,13 @@ export const createTimesheet = async (input: CreateTimesheetInput): Promise<Crea
       // Resource insert
       try {
         if (!baseResource) throw new Error('Resource base not configured');
+        console.log('Timesheet create resource payload:', doc);
         const res = await requestJSON<{ data?: any }>(`${baseResource}/Timesheet`, {
           method: 'POST',
           headers: await authHeaders(),
           body: JSON.stringify(doc),
         });
+        console.log('Timesheet create resource response:', res);
         return { ok: true, data: (res as any)?.data ?? res };
       } catch (err1: any) {
         const msg = err1?.message || '';
@@ -566,11 +572,13 @@ export const createTimesheet = async (input: CreateTimesheetInput): Promise<Crea
       // Method insert
       try {
         if (!baseMethod) throw new Error('Method base not configured');
+        console.log('Timesheet create method payload:', doc);
         const res = await requestJSON<{ message?: any }>(`${baseMethod}/frappe.client.insert`, {
           method: 'POST',
           headers: await authHeaders(),
         body: JSON.stringify(doc),
       });
+      console.log('Timesheet create method response:', res);
       const message: any = (res as any)?.message ?? res;
       if (message && Array.isArray(message.errors) && message.errors.length) {
         return { ok: false, message: message.errors[0] };

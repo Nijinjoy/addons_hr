@@ -1,5 +1,15 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, Pressable, Alert, ScrollView } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  Pressable,
+  Alert,
+  ScrollView,
+  Modal,
+  TouchableOpacity,
+} from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import Header from '../../../components/Header';
 import {
@@ -31,6 +41,9 @@ const TaskCreateNewScreen = () => {
   const [priority, setPriority] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+  const [showParentModal, setShowParentModal] = useState(false);
+  const [parentTaskName, setParentTaskName] = useState('');
+  const [creatingParent, setCreatingParent] = useState(false);
 
   const [projectOptions, setProjectOptions] = useState<DropdownData[]>([]);
   const [issueOptions, setIssueOptions] = useState<DropdownData[]>([]);
@@ -73,6 +86,34 @@ const TaskCreateNewScreen = () => {
     }
   };
 
+  const handleCreateParentTask = async () => {
+    const name = parentTaskName.trim();
+    if (!name) {
+      Alert.alert('Task', 'Parent task name is required.');
+      return;
+    }
+    if (creatingParent) return;
+    try {
+      setCreatingParent(true);
+      const companyUrl = (await AsyncStorage.getItem('company_url')) || undefined;
+      const res = await createTask({ subject: name, is_group: 1 }, companyUrl);
+      const createdName =
+        (res as any)?.data?.name ||
+        (res as any)?.message?.name ||
+        (res as any)?.name ||
+        name;
+      setParentTaskOptions((prev) => [{ id: createdName, label: name }, ...prev]);
+      setParentTask(createdName);
+      setShowParentModal(false);
+      setParentTaskName('');
+      Alert.alert('Task', 'Parent task created successfully.');
+    } catch (err: any) {
+      Alert.alert('Task', err?.message || 'Failed to create parent task');
+    } finally {
+      setCreatingParent(false);
+    }
+  };
+
   const loadOptions = async () => {
     try {
       setLoadingOptions(true);
@@ -92,7 +133,7 @@ const TaskCreateNewScreen = () => {
       const typeList = types.map((t) => ({ id: t.id, label: t.label })).filter((t) => t.label);
       if (typeList.length) {
         setTypeOptions(typeList);
-        if (!taskType) setTaskType(typeList[0].label);
+        if (!taskType) setTaskType(typeList[0].id);
       } else if (!taskType) {
         setTypeOptions(fallbackTypes.map((t) => ({ id: t, label: t })));
         setTaskType(fallbackTypes[0]);
@@ -101,7 +142,7 @@ const TaskCreateNewScreen = () => {
       const statusList = statuses.map((s) => ({ id: s.id, label: s.label })).filter((s) => s.label);
       if (statusList.length) {
         setStatusOptions(statusList);
-        if (!status) setStatus(statusList[0].label);
+        if (!status) setStatus(statusList[0].id);
       } else if (!status) {
         setStatusOptions(fallbackStatuses.map((s) => ({ id: s, label: s })));
         setStatus(fallbackStatuses[0]);
@@ -110,7 +151,7 @@ const TaskCreateNewScreen = () => {
       const priorityList = priorities.map((p) => ({ id: p.id, label: p.label })).filter((p) => p.label);
       if (priorityList.length) {
         setPriorityOptions(priorityList);
-        if (!priority) setPriority(priorityList[0].label);
+        if (!priority) setPriority(priorityList[0].id);
       } else if (!priority) {
         setPriorityOptions(fallbackPriorities.map((p) => ({ id: p, label: p })));
         setPriority(fallbackPriorities[0]);
@@ -217,6 +258,11 @@ const TaskCreateNewScreen = () => {
           setOpenDropdown={setOpenDropdown}
           onSelect={setParentTask}
           showCreateNew
+          onCreateNew={() => {
+            setOpenDropdown(null);
+            setShowParentModal(true);
+          }}
+          createNewLabel="+ Create parent task"
         />
 
         <View style={styles.field}>
@@ -239,6 +285,36 @@ const TaskCreateNewScreen = () => {
           <Text style={styles.submitText}>{submitting ? 'Submitting...' : 'Create Task'}</Text>
         </Pressable>
       </ScrollView>
+
+      <Modal visible={showParentModal} transparent animationType="fade" onRequestClose={() => setShowParentModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Create Parent Task</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Parent task name"
+              value={parentTaskName}
+              onChangeText={setParentTaskName}
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalCancel]}
+                onPress={() => setShowParentModal(false)}
+                disabled={creatingParent}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalSave]}
+                onPress={handleCreateParentTask}
+                disabled={creatingParent}
+              >
+                <Text style={styles.modalSaveText}>{creatingParent ? 'Creating...' : 'Create'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -299,6 +375,59 @@ const styles = StyleSheet.create({
   },
   dropdownItem: { padding: 12 },
   dropdownItemText: { color: '#0F172A', fontSize: 13 },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  modalCard: {
+    width: '100%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  modalInput: {
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: '#0F172A',
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 10,
+    marginTop: 16,
+  },
+  modalButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+  },
+  modalCancel: {
+    backgroundColor: '#E5E7EB',
+  },
+  modalSave: {
+    backgroundColor: '#000000',
+  },
+  modalCancelText: {
+    color: '#0F172A',
+    fontWeight: '700',
+  },
+  modalSaveText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
 });
 
 export default TaskCreateNewScreen;
@@ -339,7 +468,7 @@ const Dropdown = ({
       onPress={() => setOpenDropdown(openDropdown === openKey ? null : openKey)}
     >
       <Text style={value ? styles.dropdownText : styles.dropdownPlaceholder}>
-        {value || placeholder}
+        {options.find((o) => String(o.id) === String(value))?.label || value || placeholder}
       </Text>
       <Ionicons
         name={openDropdown === openKey ? 'chevron-up' : 'chevron-down'}
@@ -352,9 +481,9 @@ const Dropdown = ({
         <ScrollView nestedScrollEnabled style={{ maxHeight: 180 }}>
           <CommonDropdown
             data={options}
-            value={options.find((o) => o.label === value) || null}
+            value={options.find((o) => String(o.id) === String(value)) || null}
             onSelect={(item) => {
-              onSelect(item.label);
+              onSelect(String(item.id));
               setOpenDropdown(null);
             }}
             searchEnabled={enableSearch}

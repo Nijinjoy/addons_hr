@@ -61,6 +61,7 @@ const LeadScreen = () => {
         setLoading(true);
         setError('');
         const list = await getLeads(undefined, 50);
+        console.log('LeadScreen list response:', list);
         setLeads(Array.isArray(list) ? list : []);
       } catch (err: any) {
         console.log('Lead fetch error:', err?.message || err);
@@ -216,6 +217,12 @@ const LeadScreen = () => {
           })}
         </View>
 
+        {!loading && !error && filteredLeads.length === 0 && (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyText}>No leads found.</Text>
+          </View>
+        )}
+
         {!loading &&
           !error &&
           filteredLeads.map((lead, idx) => {
@@ -349,6 +356,8 @@ const styles = StyleSheet.create({
   loaderRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12 },
   loaderText: { color: '#4B5563', fontSize: 14 },
   errorText: { color: '#DC2626', paddingVertical: 8 },
+  emptyState: { alignItems: 'center', justifyContent: 'center', paddingVertical: 24 },
+  emptyText: { color: '#6B7280', paddingVertical: 12 },
   filterRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',

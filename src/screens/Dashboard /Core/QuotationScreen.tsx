@@ -30,7 +30,7 @@ const QuotationScreen = () => {
     });
     const options = Array.from(set).sort((a, b) => a.localeCompare(b));
     return ['all', ...options];
-  }, []);
+  }, [quotes]);
 
   const statusCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -147,7 +147,7 @@ const QuotationScreen = () => {
         )}
 
         {filteredQuotes.map((quote) => {
-          const color = statusColor(quote.status);
+          const color = statusColor(quote.status || '');
           return (
             <View key={quote.name} style={styles.quoteCard}>
               <View style={styles.cardTop}>

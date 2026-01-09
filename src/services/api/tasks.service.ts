@@ -37,6 +37,7 @@ type CreateTaskPayload = {
   issue?: string;
   type?: string;
   parent_task?: string;
+  is_group?: number;
 };
 
 const persistCompanyUrl = async (companyUrl?: string) => {
@@ -310,10 +311,18 @@ export const createTask = async (payload: CreateTaskPayload, companyUrl?: string
     exp_end_date: payload.exp_end_date,
     project: payload.project?.trim() || undefined,
     issue: payload.issue?.trim() || undefined,
-    task_type: payload.type?.trim() || 'Task',
+    type: payload.type?.trim() || 'Task',
     parent_task: payload.parent_task?.trim() || undefined,
-    is_group: 0,
+    is_group: typeof payload.is_group === 'number' ? payload.is_group : 0,
   };
+
+  const withoutIssue = (payloadBody: typeof body) => ({ ...payloadBody, issue: undefined });
+  const withoutProject = (payloadBody: typeof body) => ({ ...payloadBody, project: undefined });
+  const withoutIssueAndProject = (payloadBody: typeof body) => ({
+    ...payloadBody,
+    issue: undefined,
+    project: undefined,
+  });
 
   const headers = await authHeaders();
   // Try resource insert first
@@ -327,6 +336,49 @@ export const createTask = async (payload: CreateTaskPayload, companyUrl?: string
     return res;
   } catch (err: any) {
     logTasks('create resource failed, trying method insert', err?.message || err);
+    const message = err?.message || '';
+    if (typeof message === 'string' && message.includes('Could not find Issue')) {
+      try {
+        const res = await requestJSON<any>(url, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(withoutIssue(body)),
+        });
+        logTasks('create success (resource without issue)', res);
+        return res;
+      } catch (retryErr: any) {
+        logTasks('create resource retry without issue failed', retryErr?.message || retryErr);
+      }
+    }
+    if (typeof message === 'string' && message.includes('Project') && message.includes('not found')) {
+      try {
+        const res = await requestJSON<any>(url, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(withoutProject(body)),
+        });
+        logTasks('create success (resource without project)', res);
+        return res;
+      } catch (retryErr: any) {
+        logTasks('create resource retry without project failed', retryErr?.message || retryErr);
+      }
+    }
+    if (
+      typeof message === 'string' &&
+      (message.includes('Could not find Issue') || (message.includes('Project') && message.includes('not found')))
+    ) {
+      try {
+        const res = await requestJSON<any>(url, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(withoutIssueAndProject(body)),
+        });
+        logTasks('create success (resource without issue/project)', res);
+        return res;
+      } catch (retryErr: any) {
+        logTasks('create resource retry without issue/project failed', retryErr?.message || retryErr);
+      }
+    }
   }
 
   // Fallback: method insert
@@ -337,6 +389,34 @@ export const createTask = async (payload: CreateTaskPayload, companyUrl?: string
     return res?.data;
   } catch (err: any) {
     logTasks('create method failed', err?.message || err);
-    throw new Error(err?.message || 'Failed to create task');
+    const message = err?.message || '';
+    if (typeof message === 'string' && message.includes('Could not find Issue')) {
+      const api = await ensureApi(companyUrl);
+      const res = await api.post('/frappe.client.insert', {
+        doc: { doctype: 'Task', ...withoutIssue(body) },
+      });
+      logTasks('create success (method without issue)', res?.data);
+      return res?.data;
+    }
+    if (typeof message === 'string' && message.includes('Project') && message.includes('not found')) {
+      const api = await ensureApi(companyUrl);
+      const res = await api.post('/frappe.client.insert', {
+        doc: { doctype: 'Task', ...withoutProject(body) },
+      });
+      logTasks('create success (method without project)', res?.data);
+      return res?.data;
+    }
+    if (
+      typeof message === 'string' &&
+      (message.includes('Could not find Issue') || (message.includes('Project') && message.includes('not found')))
+    ) {
+      const api = await ensureApi(companyUrl);
+      const res = await api.post('/frappe.client.insert', {
+        doc: { doctype: 'Task', ...withoutIssueAndProject(body) },
+      });
+      logTasks('create success (method without issue/project)', res?.data);
+      return res?.data;
+    }
+    throw new Error(message || 'Failed to create task');
   }
 };

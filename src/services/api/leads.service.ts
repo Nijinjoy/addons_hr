@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getApiKeySecret, getResourceUrl } from '../urlService';
+import { getApiKeySecret, getMethodUrl, getResourceUrl } from '../urlService';
 
 type Lead = {
   name: string;
@@ -9,8 +9,11 @@ type Lead = {
   email_id?: string;
   phone?: string;
   mobile_no?: string;
+  whatsapp?: string;
+  whatsapp_no?: string;
   source?: string;
   creation?: string;
+  job_title?: string;
 };
 
 export type LeadTaskPayload = {
@@ -112,32 +115,79 @@ export const getLeads = async (companyUrl?: string, limit: number = 50): Promise
     normalizeResourceBase(companyUrl) || normalizeResourceBase(await getResourceUrl());
   if (!baseResource) throw new Error('ERP resource URL not configured');
 
-  const url =
+  const baseFields = [
+    'name',
+    'lead_name',
+    'company_name',
+    'status',
+    'email_id',
+    'phone',
+    'mobile_no',
+    'source',
+    'creation',
+  ];
+  const optionalFields = ['job_title', 'whatsapp', 'whatsapp_no'];
+
+  const buildUrl = (fields: string[]) =>
     baseResource +
     '/Lead?' +
     new URLSearchParams({
-      fields: JSON.stringify([
-        'name',
-        'lead_name',
-        'company_name',
-        'status',
-        'email_id',
-        'phone',
-        'mobile_no',
-        'source',
-        'creation',
-      ]),
+      fields: JSON.stringify(fields),
       order_by: 'creation desc',
       limit_page_length: String(limit),
     }).toString();
 
-  const res = await requestJSON<{ data?: any[] }>(url, {
-    method: 'GET',
-    headers: await authHeaders(),
-  });
-  console.log('Leads API response:', res);
-  const rows = res?.data || (res as any) || [];
-  return Array.isArray(rows) ? rows : [];
+  try {
+    const res = await requestJSON<{ data?: any[] }>(buildUrl([...baseFields, ...optionalFields]), {
+      method: 'GET',
+      headers: await authHeaders(),
+    });
+    console.log('Leads API response:', res);
+    const rows = res?.data || (res as any) || [];
+    return Array.isArray(rows) ? rows : [];
+  } catch (err: any) {
+    const message = err?.message || '';
+    if (typeof message === 'string' && message.toLowerCase().includes('field not permitted')) {
+      const res = await requestJSON<{ data?: any[] }>(buildUrl(baseFields), {
+        method: 'GET',
+        headers: await authHeaders(),
+      });
+      console.log('Leads API response (fallback):', res);
+      const rows = res?.data || (res as any) || [];
+      return Array.isArray(rows) ? rows : [];
+    }
+    throw err;
+  }
+};
+
+export const getLeadByName = async (name: string, companyUrl?: string): Promise<any> => {
+  if (!name) throw new Error('Lead ID is required');
+  const baseResource =
+    normalizeResourceBase(companyUrl) || normalizeResourceBase(await getResourceUrl());
+  const baseMethod =
+    normalizeMethodBase(companyUrl) || normalizeMethodBase(await getMethodUrl());
+
+  if (baseResource) {
+    const res = await requestJSON<{ data?: any }>(
+      `${baseResource}/Lead/${encodeURIComponent(name)}`,
+      {
+        method: 'GET',
+        headers: await authHeaders(),
+      }
+    );
+    return (res as any)?.data ?? res;
+  }
+
+  if (baseMethod) {
+    const res = await requestJSON<{ message?: any }>(`${baseMethod}/frappe.client.get`, {
+      method: 'POST',
+      headers: await authHeaders(),
+      body: JSON.stringify({ doctype: 'Lead', name }),
+    });
+    return (res as any)?.message ?? res;
+  }
+
+  throw new Error('ERP URLs not configured');
 };
 
 export const createLeadTask = async (

@@ -418,7 +418,7 @@ const LeadCreateScreen = () => {
     setMobile((editingLead as any)?.mobile_no || '');
     setPhone(editingLead.phone || '');
     setWebsite((editingLead as any)?.website || '');
-    setWhatsapp((editingLead as any)?.whatsapp || '');
+    setWhatsapp((editingLead as any)?.whatsapp || (editingLead as any)?.whatsapp_no || '');
     setOpenDropdown('');
   }, [editingLead]);
 
@@ -502,6 +502,7 @@ const LeadCreateScreen = () => {
         custom_building__location: buildingTrimmed,
         email_id: email,
         phone,
+        mobile_no: mobile,
         date,
         custom_date: date,
       };
@@ -530,10 +531,14 @@ const LeadCreateScreen = () => {
         : await createLead(payload);
       console.log(isEditing ? 'Lead update response:' : 'Lead create response:', res);
       if (res.ok) {
-        const updatedLead = res.lead || {
+        const updatedLead = {
           ...(editingLead || {}),
+          ...(res.lead || {}),
           ...payload,
-          name: res.name || (editingLead as any)?.name,
+          name:
+            res.name ||
+            (res.lead as any)?.name ||
+            (editingLead as any)?.name,
         };
         if (!isEditing && notesText.trim() && res.name) {
           const notesRes = await createLeadComment(res.name, notesText);
