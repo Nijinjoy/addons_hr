@@ -6,12 +6,12 @@ export type CreateLeadPayload = {
   company_name?: string;
   gender?: string;
   job_title?: string;
+  custom_lead_type?: string;
   source?: string;
   associate_details?: string;
   building?: string;
   lead_owner?: string;
   status?: string;
-  lead_type?: string;
   request_type?: string;
   service_type?: string;
   email_id?: string;
@@ -137,13 +137,13 @@ export const createLead = async (
     company_name: payload.company_name,
     gender: payload.gender,
     job_title: payload.job_title,
+    custom_lead_type: payload.custom_lead_type,
     source: payload.source,
     associate_details: payload.associate_details,
     building: payload.building,
     custom_building__location: payload.custom_building__location || payload.building,
     lead_owner: payload.lead_owner,
     status: payload.status,
-    lead_type: payload.lead_type,
     request_type: payload.request_type,
     service_type: payload.service_type,
     email_id: payload.email_id,
@@ -214,13 +214,13 @@ export const updateLead = async (
     company_name: payload.company_name,
     gender: payload.gender,
     job_title: payload.job_title,
+    custom_lead_type: payload.custom_lead_type,
     source: payload.source,
     associate_details: payload.associate_details,
     building: payload.building,
     custom_building__location: payload.custom_building__location || payload.building,
     lead_owner: payload.lead_owner,
     status: payload.status,
-    lead_type: payload.lead_type,
     request_type: payload.request_type,
     service_type: payload.service_type,
     email_id: payload.email_id,

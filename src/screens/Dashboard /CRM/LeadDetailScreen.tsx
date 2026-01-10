@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -7,45 +7,67 @@ import {
   TouchableOpacity,
   Linking,
   Alert,
+  LayoutAnimation,
+  Platform,
+  UIManager,
 } from 'react-native';
-import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { Lead } from '../../../services/leadService';
-import { getLeadByName } from '../../../services/api/leads.service';
-import { LeadStackParamList } from '../../../navigation/LeadStack';
 import Header from '../../../components/Header';
-
-type LeadDetailRouteProp = RouteProp<LeadStackParamList, 'LeadDetail'>;
+import {
+  buildLeadDetailSections,
+  fetchLeadDetail,
+  LeadDetailSection,
+} from '../../../services/api/leadDetails.service';
 
 const LeadDetailScreen = () => {
-  const { params } = useRoute<LeadDetailRouteProp>();
   const navigation = useNavigation<any>();
-  const [lead, setLead] = useState<Lead>((params?.lead as Lead) || ({} as Lead));
-
-  useEffect(() => {
-    if (params?.lead) {
-      setLead(params.lead);
-    }
-  }, [params?.lead]);
+  const route = useRoute<any>();
+  const [sections, setSections] = useState<LeadDetailSection[]>([]);
+  const [lead, setLead] = useState<any>(null);
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     let mounted = true;
     const loadLead = async () => {
-      const leadName = (lead as any)?.name;
-      if (!leadName) return;
+      const leadName = route?.params?.lead?.name;
+      if (!leadName) {
+        setSections([]);
+        setLead(null);
+        return;
+      }
       try {
-        const freshLead = await getLeadByName(leadName);
-        if (!mounted || !freshLead) return;
-        setLead((prev) => ({ ...(prev as any), ...(freshLead as any) }));
+        const lead = await fetchLeadDetail(leadName);
+        if (!mounted) return;
+        setLead(lead);
+        const nextSections = buildLeadDetailSections(lead);
+        setSections(nextSections);
+        setExpandedSections((prev) => {
+          if (Object.keys(prev).length) return prev;
+          const initial: Record<string, boolean> = {};
+          nextSections.forEach((section) => {
+            initial[section.title] = true;
+          });
+          return initial;
+        });
       } catch (err: any) {
-        console.log('LeadDetailScreen refresh failed:', err?.message || err);
+        if (!mounted) return;
+        console.log('LeadDetailScreen load failed:', err?.message || err);
+        setSections([]);
+        setLead(null);
       }
     };
     loadLead();
     return () => {
       mounted = false;
     };
-  }, [(lead as any)?.name]);
+  }, [route?.params?.lead?.name]);
+
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      UIManager.setLayoutAnimationEnabledExperimental?.(true);
+    }
+  }, []);
 
   const handleCall = async (phone?: string | null) => {
     const raw = (phone || '').trim();
@@ -55,21 +77,10 @@ const LeadDetailScreen = () => {
       return;
     }
     const telUrl = `tel:${sanitized}`;
-    const telPromptUrl = `telprompt:${sanitized}`;
     try {
-      const canTel = await Linking.canOpenURL(telUrl);
-      if (canTel) {
-        await Linking.openURL(telUrl);
-        return;
-      }
-      const canPrompt = await Linking.canOpenURL(telPromptUrl);
-      if (canPrompt) {
-        await Linking.openURL(telPromptUrl);
-        return;
-      }
-      throw new Error('No dialer available');
+      await Linking.openURL(telUrl);
     } catch {
-      Alert.alert('Call', 'Unable to open the dialer. Please try on a physical device.');
+      Alert.alert('Call', 'Unable to open the dialer.');
     }
   };
 
@@ -81,56 +92,30 @@ const LeadDetailScreen = () => {
     }
     const url = `mailto:${encodeURIComponent(addr)}`;
     try {
-      const supported = await Linking.canOpenURL(url);
-      if (!supported) throw new Error('Cannot open mail app');
       await Linking.openURL(url);
     } catch {
       Alert.alert('Email', 'Unable to open the email app.');
     }
   };
 
-  const sections: { title: string; rows: { label: string; value?: string }[] }[] =
-    [
-      {
-        title: 'General',
-        rows: [
-          { label: 'Date', value: lead.creation ? new Date(lead.creation).toLocaleString() : '-' },
-          { label: 'Full Name', value: lead.lead_name || lead.company_name || lead.name },
-          { label: 'Job Title', value: (lead as any)?.job_title || '-' },
-          { label: 'Gender', value: (lead as any)?.gender || '-' },
-          { label: 'Status', value: lead.status || 'Open' },
-          { label: 'Lead Type', value: (lead as any)?.lead_type || '-' },
-          { label: 'Request Type', value: (lead as any)?.request_type || '-' },
-          { label: 'Service Type', value: (lead as any)?.service_type || '-' },
-          { label: 'Source', value: lead.source || '-' },
-        ],
-      },
-      {
-        title: 'Contact',
-        rows: [
-          { label: 'Email', value: lead.email_id || '-' },
-          { label: 'Mobile No', value: lead.mobile_no || lead.phone || '-' },
-          { label: 'WhatsApp', value: (lead as any)?.whatsapp || (lead as any)?.whatsapp_no || '-' },
-        ],
-      },
-      {
-        title: 'Organization',
-        rows: [
-          { label: 'Organization Name', value: lead.company_name || '-' },
-          { label: 'Building & Location', value: (lead as any)?.building || (lead as any)?.location || '-' },
-          { label: 'Territory', value: (lead as any)?.territory || '-' },
-          { label: 'No of Employees', value: (lead as any)?.no_of_employees || (lead as any)?.number_of_employees || '-' },
-          { label: 'Industry', value: (lead as any)?.industry || '-' },
-        ],
-      },
-      {
-        title: 'Ownership',
-        rows: [
-          { label: 'Lead Owner', value: (lead as any)?.owner || '-' },
-          { label: 'Associate Details', value: (lead as any)?.associate_details || '-' },
-        ],
-      },
-    ];
+  const leadDate = lead?.creation ? new Date(lead.creation).toLocaleDateString() : '-';
+  const leadName = lead?.lead_name || lead?.company_name || lead?.name || '-';
+  const leadSource = lead?.source || '-';
+  const leadStatus = lead?.status || 'Open';
+  const leadSubtitle = lead?.company_name || lead?.lead_name || 'Lead';
+
+  const statusTone = useMemo(() => {
+    const status = String(leadStatus || '').toLowerCase();
+    if (status.includes('open')) return { bg: '#DCFCE7', text: '#166534' };
+    if (status.includes('quotation')) return { bg: '#FFEDD5', text: '#9A3412' };
+    if (status.includes('lost')) return { bg: '#FEE2E2', text: '#991B1B' };
+    return { bg: '#E5E7EB', text: '#374151' };
+  }, [leadStatus]);
+
+  const toggleSection = (title: string) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setExpandedSections((prev) => ({ ...prev, [title]: !prev[title] }));
+  };
 
   return (
     <View style={styles.container}>
@@ -139,84 +124,107 @@ const LeadDetailScreen = () => {
         showBackButton
         onBackPress={() => navigation.goBack?.()}
       />
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.heroCard}>
-          <View style={styles.heroHeader}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.heroName}>
-                {lead.lead_name || lead.company_name || lead.name}
-              </Text>
-              <Text style={styles.heroSubtitle}>{lead.company_name || 'Lead'}</Text>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.summaryCard}>
+          <View style={styles.summaryTopRow}>
+            <View style={styles.summaryAvatar}>
+              <Ionicons name="person-outline" size={20} color="#111827" />
             </View>
-            <View style={[styles.statusPill, { backgroundColor: '#EEF2FF' }]}>
-              <Text style={[styles.statusPillText, { color: '#4F46E5' }]}>
-                {(lead.status || 'Open').toUpperCase()}
-              </Text>
+            <View style={styles.summaryTitleBlock}>
+              <Text style={styles.summaryName}>{leadName}</Text>
+              <Text style={styles.summarySubtitle}>{leadSubtitle}</Text>
             </View>
-          </View>
-
-          <View style={styles.heroMetaRow}>
-            <View style={styles.metaChip}>
-              <Ionicons name="briefcase-outline" size={14} color="#4B5563" />
-              <Text style={styles.metaChipText}>
-                {(lead as any)?.lead_type || 'Lead'}
-              </Text>
-            </View>
-            <View style={styles.metaChip}>
-              <Ionicons name="sparkles-outline" size={14} color="#4B5563" />
-              <Text style={styles.metaChipText}>{lead.source || 'Source N/A'}</Text>
-            </View>
-            <View style={styles.metaChip}>
-              <Ionicons name="time-outline" size={14} color="#4B5563" />
-              <Text style={styles.metaChipText}>
-                {lead.creation
-                  ? new Date(lead.creation).toLocaleDateString()
-                  : 'Date N/A'}
+            <View style={[styles.statusPill, { backgroundColor: statusTone.bg }]}>
+              <Text style={[styles.statusPillText, { color: statusTone.text }]}>
+                {leadStatus}
               </Text>
             </View>
           </View>
-
-          <View style={styles.actionRow}>
+          <View style={styles.summaryRow}>
+            <View style={styles.summaryItem}>
+              <Text style={styles.summaryLabel}>Date</Text>
+              <Text style={styles.summaryValue}>{leadDate}</Text>
+            </View>
+            <View style={styles.summaryItem}>
+              <Text style={styles.summaryLabel}>Source</Text>
+              <Text style={styles.summaryValue}>{leadSource}</Text>
+            </View>
+          </View>
+          <View style={styles.summaryActions}>
             <TouchableOpacity
-              style={styles.primaryButton}
-              onPress={() => handleCall(lead.mobile_no || lead.phone || '')}
+              style={[styles.actionButton, styles.actionPrimary]}
+              onPress={() =>
+                handleCall(
+                  lead?.mobile_no || lead?.phone || lead?.whatsapp || lead?.whatsapp_no || ''
+                )
+              }
             >
-              <Ionicons name="call-outline" size={18} color="#FFFFFF" />
-              <Text style={styles.primaryButtonText}>Call</Text>
+              <Ionicons name="call-outline" size={16} color="#FFFFFF" />
+              <Text style={styles.actionPrimaryText}>Call</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={styles.secondaryButton}
-              onPress={() => handleEmail(lead.email_id || '')}
+              style={[styles.actionButton, styles.actionSecondary]}
+              onPress={() => handleEmail(lead?.email_id || '')}
             >
-              <Ionicons name="mail-outline" size={18} color="#1D4ED8" />
-              <Text style={styles.secondaryButtonText}>Email</Text>
+              <Ionicons name="mail-outline" size={16} color="#111827" />
+              <Text style={styles.actionSecondaryText}>Email</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={styles.editButton}
+              style={styles.actionButton}
               onPress={() =>
                 navigation.navigate('LeadCreate', {
                   lead,
-                  onLeadUpdated: (updated: Lead) => setLead(updated),
+                  onLeadUpdated: () => {},
                 })
               }
             >
-              <Ionicons name="create-outline" size={18} color="#0F172A" />
-              <Text style={styles.editButtonText}>Edit</Text>
+              <Ionicons name="create-outline" size={16} color="#111827" />
+              <Text style={styles.actionNeutralText}>Edit</Text>
             </TouchableOpacity>
           </View>
         </View>
-
-        {sections.map(section => (
-          <View key={section.title} style={styles.card}>
-            <Text style={styles.sectionTitle}>{section.title}</Text>
-            {section.rows.map(row => (
-              <View key={row.label} style={styles.row}>
-                <Text style={styles.label}>{row.label}</Text>
-                <Text style={styles.value}>{row.value || '-'}</Text>
+        {sections.map((section) => (
+          <View key={section.title} style={styles.section}>
+            <TouchableOpacity
+              style={styles.sectionHeader}
+              onPress={() => toggleSection(section.title)}
+              activeOpacity={0.7}
+            >
+              <View style={styles.sectionHeaderLeft}>
+                <Text style={styles.sectionTitle}>{section.title}</Text>
+                <View style={styles.sectionCount}>
+                  <Text style={styles.sectionCountText}>{section.rows.length}</Text>
+                </View>
               </View>
-            ))}
+              <Ionicons
+                name={expandedSections[section.title] ? 'chevron-up' : 'chevron-down'}
+                size={18}
+                color="#6B7280"
+              />
+            </TouchableOpacity>
+            {expandedSections[section.title] && (
+              <View style={styles.sectionCard}>
+                {section.rows.map((row, index) => (
+                  <View
+                    key={row.label}
+                    style={[
+                      styles.row,
+                      index === section.rows.length - 1 && styles.rowLast,
+                    ]}
+                  >
+                    <Text style={styles.label}>{row.label}</Text>
+                    <Text style={styles.value}>{row.value || '-'}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
           </View>
         ))}
+        {sections.length === 0 && (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyText}>No lead details available.</Text>
+          </View>
+        )}
       </ScrollView>
     </View>
   );
@@ -225,146 +233,176 @@ const LeadDetailScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFFFFF',
   },
   content: {
     padding: 16,
   },
-  heroCard: {
+  summaryCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: '#E5E7EB',
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 3,
+    padding: 16,
+    marginBottom: 16,
   },
-  heroHeader: {
+  summaryTopRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 10,
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 14,
   },
-  heroName: {
-    fontSize: 20,
+  summaryAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  summaryTitleBlock: {
+    flex: 1,
+  },
+  summaryName: {
+    fontSize: 16,
     fontWeight: '700',
     color: '#111827',
   },
-  heroSubtitle: {
-    fontSize: 14,
+  summarySubtitle: {
+    fontSize: 12,
     color: '#6B7280',
-    marginTop: 4,
+    marginTop: 2,
   },
   statusPill: {
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 20,
+    borderRadius: 999,
   },
   statusPillText: {
     fontSize: 12,
     fontWeight: '700',
   },
-  heroMetaRow: {
+  summaryRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
+    gap: 12,
     marginBottom: 12,
   },
-  metaChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#F3F4F6',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 12,
+  summaryItem: {
+    flex: 1,
   },
-  metaChipText: {
+  summaryLabel: {
     fontSize: 12,
-    color: '#374151',
+    color: '#6B7280',
+    marginBottom: 4,
   },
-  actionRow: {
+  summaryValue: {
+    fontSize: 14,
+    color: '#111827',
+    fontWeight: '600',
+  },
+  summaryActions: {
     flexDirection: 'row',
     gap: 10,
+    marginTop: 4,
   },
-  primaryButton: {
+  actionButton: {
     flex: 1,
-    flexDirection: 'row',
+    borderRadius: 8,
+    paddingVertical: 10,
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#000000',
-    paddingVertical: 12,
-    borderRadius: 12,
-    gap: 8,
-  },
-  primaryButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  secondaryButton: {
-    flex: 1,
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#EFF6FF',
-    paddingVertical: 12,
-    borderRadius: 12,
-    gap: 8,
-    borderWidth: 1,
-    borderColor: '#BFDBFE',
-  },
-  secondaryButtonText: {
-    color: '#1D4ED8',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  editButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    gap: 6,
     backgroundColor: '#F3F4F6',
-    paddingVertical: 12,
-    borderRadius: 12,
-    gap: 8,
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
   },
-  editButtonText: {
-    color: '#0F172A',
-    fontSize: 14,
+  actionPrimary: {
+    backgroundColor: '#111827',
+  },
+  actionSecondary: {
+    backgroundColor: '#E5E7EB',
+  },
+  actionPrimaryText: {
+    color: '#FFFFFF',
     fontWeight: '700',
+    fontSize: 12,
   },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
+  actionSecondaryText: {
     color: '#111827',
+    fontWeight: '700',
+    fontSize: 12,
+  },
+  actionNeutralText: {
+    color: '#111827',
+    fontWeight: '700',
+    fontSize: 12,
+  },
+  section: {
+    marginBottom: 16,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 2,
     marginBottom: 8,
   },
+  sectionHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  sectionCount: {
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+  },
+  sectionCountText: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '600',
+  },
+  sectionCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
   row: {
-    marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  rowLast: {
+    borderBottomWidth: 0,
   },
   label: {
     fontSize: 13,
     color: '#6B7280',
-    marginBottom: 2,
+    flex: 1,
   },
   value: {
-    fontSize: 15,
+    fontSize: 13,
     color: '#111827',
     fontWeight: '600',
+    textAlign: 'right',
+    flex: 1,
+  },
+  emptyState: {
+    paddingVertical: 24,
+    alignItems: 'center',
+  },
+  emptyText: {
+    color: '#6B7280',
   },
 });
 

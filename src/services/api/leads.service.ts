@@ -14,6 +14,9 @@ type Lead = {
   source?: string;
   creation?: string;
   job_title?: string;
+  lead_type?: string;
+  request_type?: string;
+  service_type?: string;
 };
 
 export type LeadTaskPayload = {
@@ -126,7 +129,14 @@ export const getLeads = async (companyUrl?: string, limit: number = 50): Promise
     'source',
     'creation',
   ];
-  const optionalFields = ['job_title', 'whatsapp', 'whatsapp_no'];
+  const optionalFields = [
+    'job_title',
+    'lead_type',
+    'request_type',
+    'service_type',
+    'whatsapp',
+    'whatsapp_no',
+  ];
 
   const buildUrl = (fields: string[]) =>
     baseResource +
@@ -168,14 +178,18 @@ export const getLeadByName = async (name: string, companyUrl?: string): Promise<
     normalizeMethodBase(companyUrl) || normalizeMethodBase(await getMethodUrl());
 
   if (baseResource) {
-    const res = await requestJSON<{ data?: any }>(
-      `${baseResource}/Lead/${encodeURIComponent(name)}`,
-      {
-        method: 'GET',
-        headers: await authHeaders(),
-      }
-    );
-    return (res as any)?.data ?? res;
+    try {
+      const res = await requestJSON<{ data?: any }>(
+        `${baseResource}/Lead/${encodeURIComponent(name)}`,
+        {
+          method: 'GET',
+          headers: await authHeaders(),
+        }
+      );
+      return (res as any)?.data ?? res;
+    } catch (err: any) {
+      console.warn('getLeadByName resource failed', err?.message || err);
+    }
   }
 
   if (baseMethod) {

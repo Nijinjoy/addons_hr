@@ -50,17 +50,29 @@ type TaskResult =
   | { ok: true; data: TaskOption[] }
   | { ok: false; message: string; status?: number; raw?: string };
 
+type TimeLogInput = {
+  from_time: string;
+  to_time: string;
+  hours?: number;
+  activity_type?: string;
+  task?: string;
+  project?: string;
+  description?: string;
+  customer?: string;
+};
+
 type CreateTimesheetInput = {
   employee?: string;
   customer?: string;
   activity_type?: string;
   project?: string;
   task?: string;
-  from_time: string;
-  to_time: string;
+  from_time?: string;
+  to_time?: string;
   description?: string;
   status?: string;
   hours?: number;
+  time_logs?: TimeLogInput[];
 };
 
 type CreateTimesheetResult =
@@ -256,7 +268,9 @@ export const getTimesheetDetail = async (name: string): Promise<TimesheetDetailR
       headers: await authHeaders(),
     });
     const doc = (res as any)?.data || res;
-    if (doc?.name) return { ok: true, data: doc };
+    if (doc?.name && Array.isArray(doc?.time_logs)) {
+      return { ok: true, data: doc };
+    }
   } catch (err1: any) {
     console.warn('getTimesheetDetail resource failed', err1?.message || err1);
   }
@@ -526,28 +540,63 @@ export const createTimesheet = async (input: CreateTimesheetInput): Promise<Crea
     if (!sid) return { ok: false, message: 'No active session. Please log in.' };
     const { baseResource, baseMethod } = await getBases();
 
-    const from = formatLocalDateTime(input.from_time);
-    const to = formatLocalDateTime(input.to_time);
-    if (!from || !to) return { ok: false, message: 'Invalid date/time selected.' };
-
-    const baseTimeLog: Record<string, any> = {
-      from_time: from,
-      to_time: to,
+    const resolveTimeLog = (log: TimeLogInput): { ok: true; data: Record<string, any> } | { ok: false; message: string } => {
+      const from = formatLocalDateTime(log.from_time);
+      const to = formatLocalDateTime(log.to_time);
+      if (!from || !to) return { ok: false, message: 'Invalid date/time selected.' };
+      const baseTimeLog: Record<string, any> = {
+        from_time: from,
+        to_time: to,
+      };
+      if (typeof log.hours === 'number' && !Number.isNaN(log.hours)) {
+        baseTimeLog.hours = log.hours;
+      }
+      if (log.activity_type) baseTimeLog.activity_type = log.activity_type;
+      if (log.task) baseTimeLog.task = log.task;
+      if (log.project) baseTimeLog.project = log.project;
+      if (log.description) baseTimeLog.description = log.description;
+      if (log.customer) baseTimeLog.customer = log.customer;
+      return { ok: true, data: baseTimeLog };
     };
-    if (typeof input.hours === 'number' && !Number.isNaN(input.hours)) {
-      baseTimeLog.hours = input.hours;
+
+    const rawLogs: TimeLogInput[] =
+      input.time_logs && input.time_logs.length
+        ? input.time_logs
+        : [
+            {
+              from_time: input.from_time,
+              to_time: input.to_time,
+              hours: input.hours,
+              activity_type: input.activity_type,
+              task: input.task,
+              project: input.project,
+              description: input.description,
+              customer: input.customer,
+            },
+          ];
+
+    const timeLogs: Record<string, any>[] = [];
+    for (const log of rawLogs) {
+      if (!log?.from_time || !log?.to_time) {
+        return { ok: false, message: 'Invalid date/time selected.' };
+      }
+      const resolved = resolveTimeLog(log);
+      if (!resolved.ok) return { ok: false, message: resolved.message };
+      timeLogs.push(resolved.data);
     }
-    if (input.activity_type) baseTimeLog.activity_type = input.activity_type;
-    if (input.task) baseTimeLog.task = input.task;
-    if (input.project) baseTimeLog.project = input.project;
-    if (input.description) baseTimeLog.description = input.description;
 
     const baseDoc: Record<string, any> = {
       doctype: 'Timesheet',
       ...(input.employee ? { employee: input.employee } : {}),
-      ...(input.customer ? { customer: input.customer } : {}),
       ...(input.status ? { status: input.status } : {}),
     };
+    const logCustomers = timeLogs
+      .map((log) => (log.customer || '').trim())
+      .filter((val) => val);
+    const customer =
+      input.customer ||
+      (logCustomers.length && new Set(logCustomers).size === 1 ? logCustomers[0] : undefined);
+    if (customer) baseDoc.customer = customer;
 
     const tryInsert = async (doc: Record<string, any>): Promise<CreateTimesheetResult> => {
       // Resource insert
@@ -576,39 +625,39 @@ export const createTimesheet = async (input: CreateTimesheetInput): Promise<Crea
         const res = await requestJSON<{ message?: any }>(`${baseMethod}/frappe.client.insert`, {
           method: 'POST',
           headers: await authHeaders(),
-        body: JSON.stringify(doc),
-      });
-      console.log('Timesheet create method response:', res);
-      const message: any = (res as any)?.message ?? res;
-      if (message && Array.isArray(message.errors) && message.errors.length) {
-        return { ok: false, message: message.errors[0] };
-      }
-      let serverMsgs: any[] = [];
-      if (Array.isArray(message?._server_messages)) {
-        serverMsgs = message._server_messages;
-      } else if (typeof message?._server_messages === 'string') {
-        try {
-          serverMsgs = JSON.parse(message._server_messages);
-        } catch {
-          serverMsgs = [message._server_messages];
+          body: JSON.stringify({ doc }),
+        });
+        console.log('Timesheet create method response:', res);
+        const message: any = (res as any)?.message ?? res;
+        if (message && Array.isArray(message.errors) && message.errors.length) {
+          return { ok: false, message: message.errors[0] };
         }
-      }
-      if (serverMsgs.length) {
-        const first = typeof serverMsgs[0] === 'string' ? serverMsgs[0] : JSON.stringify(serverMsgs[0]);
-        return { ok: false, message: first || 'Failed to create timesheet' };
-      }
-      if (typeof message === 'string') {
+        let serverMsgs: any[] = [];
+        if (Array.isArray(message?._server_messages)) {
+          serverMsgs = message._server_messages;
+        } else if (typeof message?._server_messages === 'string') {
+          try {
+            serverMsgs = JSON.parse(message._server_messages);
+          } catch {
+            serverMsgs = [message._server_messages];
+          }
+        }
+        if (serverMsgs.length) {
+          const first = typeof serverMsgs[0] === 'string' ? serverMsgs[0] : JSON.stringify(serverMsgs[0]);
+          return { ok: false, message: first || 'Failed to create timesheet' };
+        }
+        if (typeof message === 'string') {
+          return { ok: true, data: message };
+        }
         return { ok: true, data: message };
+      } catch (err2: any) {
+        const msg = err2?.message || err2;
+        console.error('createTimesheet method failed', msg);
+        return { ok: false, message: msg || 'Failed to create timesheet' };
       }
-      return { ok: true, data: message };
-    } catch (err2: any) {
-      const msg = err2?.message || err2;
-      console.error('createTimesheet method failed', msg);
-      return { ok: false, message: msg || 'Failed to create timesheet' };
-    }
     };
 
-    const docWithTask = { ...baseDoc, time_logs: [baseTimeLog] };
+    const docWithTask = { ...baseDoc, time_logs: timeLogs };
     return await tryInsert(docWithTask);
   } catch (error: any) {
     const message = error?.message || 'Unexpected error while creating timesheet';

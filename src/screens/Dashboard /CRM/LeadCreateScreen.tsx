@@ -121,7 +121,7 @@ const LeadCreateScreen = () => {
       placeholder: 'Organization name',
     },
     { label: 'Email', value: email, setter: setEmail, placeholder: 'Email', keyboardType: 'email-address' as const },
-    { label: 'Phone Number', value: phone, setter: setPhone, placeholder: 'Phone number', keyboardType: 'phone-pad' as const },
+    { label: 'Mobile No', value: mobile, setter: setMobile, placeholder: 'Mobile number', keyboardType: 'phone-pad' as const },
   ];
   const leadDropdowns = [
     { label: 'Source', value: source, setter: setSource, options: sourceOptions, loading: loadingSources },
@@ -408,12 +408,12 @@ const LeadCreateScreen = () => {
     setLeadType((editingLead as any)?.lead_type || '');
     setRequestType((editingLead as any)?.request_type || '');
     setServiceType((editingLead as any)?.service_type || '');
-    setNotesText(
-      (editingLead as any)?.notes ||
-        (editingLead as any)?.note ||
-        (editingLead as any)?.remarks ||
-        ''
-    );
+    const rawNotes =
+      (editingLead as any)?.notes ??
+      (editingLead as any)?.note ??
+      (editingLead as any)?.remarks ??
+      '';
+    setNotesText(String(rawNotes));
     setEmail(editingLead.email_id || '');
     setMobile((editingLead as any)?.mobile_no || '');
     setPhone(editingLead.phone || '');
@@ -496,32 +496,27 @@ const LeadCreateScreen = () => {
         lead_name: fullName.trim(),
         company_name: organizationName.trim(),
         gender,
+        job_title: jobTitle,
         status,
         source,
+        associate_details: associate,
         building: buildingTrimmed,
         custom_building__location: buildingTrimmed,
+        lead_owner: leadOwnerValue,
+        custom_lead_type: leadType,
+        request_type: requestType,
+        service_type: serviceType,
         email_id: email,
         phone,
         mobile_no: mobile,
+        website,
+        whatsapp,
         date,
         custom_date: date,
       };
       const payload = isEditing
         ? {
             ...basePayload,
-            gender,
-            job_title: jobTitle,
-            source,
-            associate_details: associate,
-            building: buildingTrimmed,
-            lead_owner: leadOwnerValue,
-            status,
-            lead_type: leadType,
-            request_type: requestType,
-            service_type: serviceType,
-            mobile_no: mobile,
-            website,
-            whatsapp,
             custom_building__location: buildingTrimmed,
           }
         : basePayload;
@@ -530,6 +525,19 @@ const LeadCreateScreen = () => {
         ? await updateLead({ name: editingLead?.name || '', ...payload })
         : await createLead(payload);
       console.log(isEditing ? 'Lead update response:' : 'Lead create response:', res);
+      console.log(
+        'Lead type response:',
+        (res as any)?.lead?.custom_lead_type ||
+          (res as any)?.custom_lead_type ||
+          (res as any)?.message?.custom_lead_type ||
+          (res as any)?.lead?.lead_type ||
+          (res as any)?.lead_type ||
+          (res as any)?.message?.lead_type
+      );
+      if ((res as any)?.lead) {
+        console.log('Lead update lead keys:', Object.keys((res as any).lead || {}));
+        console.log('Lead update lead doc:', (res as any).lead);
+      }
       if (res.ok) {
         const updatedLead = {
           ...(editingLead || {}),
@@ -540,8 +548,9 @@ const LeadCreateScreen = () => {
             (res.lead as any)?.name ||
             (editingLead as any)?.name,
         };
-        if (!isEditing && notesText.trim() && res.name) {
-          const notesRes = await createLeadComment(res.name, notesText);
+        const notesTrimmed = String(notesText || '').trim();
+        if (!isEditing && notesTrimmed && res.name) {
+          const notesRes = await createLeadComment(res.name, notesTrimmed);
           if (!notesRes.ok) {
             console.log('Lead notes save failed:', notesRes.message);
           }
@@ -589,7 +598,7 @@ const LeadCreateScreen = () => {
 
   const handleSaveNotes = async () => {
     if (savingNotes) return;
-    const trimmed = notesText.trim();
+    const trimmed = String(notesText || '').trim();
     if (!trimmed) {
       Alert.alert('Lead Notes', 'Please enter notes.');
       return;
@@ -920,15 +929,17 @@ const LeadCreateScreen = () => {
               simpleErrors.name
             )}
             {renderGenderToggle()}
-            {simpleLeadInputs.slice(1).map((input) =>
-              renderInput(
-                input.label,
-                input.value,
-                input.setter,
-                input.placeholder,
-                input.keyboardType || 'default'
-              )
-            )}
+            {simpleLeadInputs.slice(1).map((input) => (
+              <React.Fragment key={input.label}>
+                {renderInput(
+                  input.label,
+                  input.value,
+                  input.setter,
+                  input.placeholder,
+                  input.keyboardType || 'default'
+                )}
+              </React.Fragment>
+            ))}
             {renderDropdown(
               'Status',
               status,
@@ -955,7 +966,7 @@ const LeadCreateScreen = () => {
             <View style={styles.fieldBlock}>
               <Text style={styles.label}>Notes</Text>
               <TextInput
-                value={notesText}
+                value={String(notesText || '')}
                 onChangeText={setNotesText}
                 placeholder="Add notes"
                 style={[styles.input, styles.notesInput]}
@@ -987,7 +998,7 @@ const LeadCreateScreen = () => {
                 <Text style={[styles.progressLabel, { color: '#0F172A' }]}>Step 2</Text>
                 <Text style={[styles.progressTitle, { color: '#0F172A' }]}>Notes & follow-ups</Text>
                 <Text style={[styles.progressSub, { color: '#1F2937' }]}>
-                  {notesText.trim() ? 'Edit notes' : 'Add notes'}
+                  {String(notesText || '').trim() ? 'Edit notes' : 'Add notes'}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -1022,38 +1033,44 @@ const LeadCreateScreen = () => {
                       }}
                     />
                   )}
-                  {leadDetailInputs.map((input) =>
-                    renderInput(
-                      input.label,
-                      input.value,
-                      input.setter,
-                      input.placeholder,
-                      input.keyboardType || 'default'
-                    )
-                  )}
+                  {leadDetailInputs.map((input) => (
+                    <React.Fragment key={input.label}>
+                      {renderInput(
+                        input.label,
+                        input.value,
+                        input.setter,
+                        input.placeholder,
+                        input.keyboardType || 'default'
+                      )}
+                    </React.Fragment>
+                  ))}
                   {renderGenderToggle()}
-                  {leadDropdowns.map((dropdown) =>
-                    renderDropdown(
-                      dropdown.label,
-                      dropdown.value,
-                      dropdown.setter,
-                      dropdown.options,
-                      dropdown.loading
-                    )
-                  )}
+                  {leadDropdowns.map((dropdown) => (
+                    <React.Fragment key={dropdown.label}>
+                      {renderDropdown(
+                        dropdown.label,
+                        dropdown.value,
+                        dropdown.setter,
+                        dropdown.options,
+                        dropdown.loading
+                      )}
+                    </React.Fragment>
+                  ))}
                 </View>
 
                 <View style={styles.sectionCard}>
                   <Text style={styles.sectionTitle}>Contact Info</Text>
-                  {contactInputs.map((input) =>
-                    renderInput(
-                      input.label,
-                      input.value,
-                      input.setter,
-                      input.placeholder,
-                      input.keyboardType || 'default'
-                    )
-                  )}
+                  {contactInputs.map((input) => (
+                    <React.Fragment key={input.label}>
+                      {renderInput(
+                        input.label,
+                        input.value,
+                        input.setter,
+                        input.placeholder,
+                        input.keyboardType || 'default'
+                      )}
+                    </React.Fragment>
+                  ))}
                 </View>
 
                 <View style={styles.sectionCard}>
@@ -1116,7 +1133,7 @@ const LeadCreateScreen = () => {
                 <Text style={styles.sectionTitle}>Notes & follow-ups</Text>
                 <Text style={styles.label}>Lead notes</Text>
                 <TextInput
-                  value={notesText}
+                  value={String(notesText || '')}
                   onChangeText={setNotesText}
                   placeholder="Add notes or follow-up details"
                   style={[styles.input, styles.notesInput]}

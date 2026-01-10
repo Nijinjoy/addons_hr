@@ -30,6 +30,7 @@ const TimesheetScreen = () => {
   const [selectedTimesheet, setSelectedTimesheet] = useState<Timesheet | null>(null);
   const [detailDoc, setDetailDoc] = useState<any>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [selectedLogIndex, setSelectedLogIndex] = useState(0);
 
   const fetchTimesheets = useCallback(async (silent?: boolean) => {
     try {
@@ -174,24 +175,18 @@ const TimesheetScreen = () => {
                     style={[styles.rowBase, styles.tableRow]}
                     activeOpacity={0.85}
                     onPress={() => {
-                      const status = (item.status || '').toLowerCase();
-                      if (status.includes('submitted')) {
-                        navigation.navigate('TimesheetCreateNew', {
-                          mode: 'view',
-                          timesheetName: item.name,
-                        });
-                        return;
-                      }
                       console.log('Timesheet selected:', item);
                       setSelectedTimesheet(item);
                       setDetailModalVisible(true);
                       setDetailLoading(true);
                       setDetailDoc(null);
+                      setSelectedLogIndex(0);
                       getTimesheetDetail(item.name)
                         .then((res) => {
                           console.log('Timesheet detail response:', res);
                           if (res.ok) {
                             setDetailDoc(res.data);
+                            setSelectedLogIndex(0);
                           } else {
                             setDetailDoc(null);
                           }
@@ -260,59 +255,118 @@ const TimesheetScreen = () => {
               <Text style={styles.detailRowValue}>Loading details...</Text>
             ) : selectedTimesheet ? (
               <>
+                {(() => {
+                  const logs = Array.isArray(detailDoc?.time_logs) ? detailDoc.time_logs : [];
+                  const activeLog = logs[selectedLogIndex] || logs[0] || {};
+                  const from = activeLog?.from_time ? new Date(activeLog.from_time).toLocaleString() : '-';
+                  const to = activeLog?.to_time ? new Date(activeLog.to_time).toLocaleString() : '-';
+                  const hours =
+                    typeof activeLog?.hours === 'number'
+                      ? activeLog.hours.toFixed(2)
+                      : activeLog?.hours
+                      ? Number(activeLog.hours).toFixed(2)
+                      : '-';
+                  return (
+                    <>
                 <Text style={styles.detailRowLabel}>Employee</Text>
                 <Text style={styles.detailRowValue}>
                   {(detailDoc?.employee_name || selectedTimesheet.employee_name || selectedTimesheet.employee) || '-'}
                 </Text>
 
+                {logs.length > 0 && (
+                  <>
+                    <Text style={styles.detailRowLabel}>Entries</Text>
+                    <View style={styles.logList}>
+                      {logs.map((log: any, index: number) => {
+                        const label = log?.project || log?.task || `Entry ${index + 1}`;
+                        const logHours =
+                          typeof log?.hours === 'number'
+                            ? log.hours.toFixed(2)
+                            : log?.hours
+                            ? Number(log.hours).toFixed(2)
+                            : '0.00';
+                        return (
+                          <TouchableOpacity
+                            key={`${log?.name || index}`}
+                            style={[
+                              styles.logChip,
+                              index === selectedLogIndex && styles.logChipActive,
+                            ]}
+                            onPress={() => setSelectedLogIndex(index)}
+                          >
+                            <Text
+                              style={[
+                                styles.logChipText,
+                                index === selectedLogIndex && styles.logChipTextActive,
+                              ]}
+                              numberOfLines={1}
+                            >
+                              {label} • {logHours}h
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </>
+                )}
+
                 <Text style={styles.detailRowLabel}>Project</Text>
                 <Text style={styles.detailRowValue}>
-                  {detailDoc?.project || detailDoc?.project_name || selectedTimesheet.project || '-'}
+                  {activeLog?.project || detailDoc?.project || detailDoc?.project_name || selectedTimesheet.project || '-'}
                 </Text>
 
                 <Text style={styles.detailRowLabel}>Task</Text>
                 <Text style={styles.detailRowValue}>
-                  {detailDoc?.task || detailDoc?.time_logs?.[0]?.task || selectedTimesheet.task || '-'}
+                  {activeLog?.task || detailDoc?.task || selectedTimesheet.task || '-'}
                 </Text>
 
                 <Text style={styles.detailRowLabel}>Activity Type</Text>
                 <Text style={styles.detailRowValue}>
-                  {detailDoc?.activity_type ||
-                    detailDoc?.time_logs?.[0]?.activity_type ||
+                  {activeLog?.activity_type ||
+                    detailDoc?.activity_type ||
                     selectedTimesheet.activity_type ||
                     '-'}
                 </Text>
 
                 <Text style={styles.detailRowLabel}>Customer</Text>
                 <Text style={styles.detailRowValue}>
-                  {detailDoc?.customer || detailDoc?.time_logs?.[0]?.customer || selectedTimesheet.customer || '-'}
+                  {activeLog?.customer || detailDoc?.customer || selectedTimesheet.customer || '-'}
                 </Text>
 
                 <Text style={styles.detailRowLabel}>From</Text>
-                <Text style={styles.detailRowValue}>{selectedTimesheet.start_date || '-'}</Text>
+                <Text style={styles.detailRowValue}>
+                  {logs.length ? from : selectedTimesheet.start_date || '-'}
+                </Text>
 
                 <Text style={styles.detailRowLabel}>To</Text>
-                <Text style={styles.detailRowValue}>{selectedTimesheet.end_date || '-'}</Text>
+                <Text style={styles.detailRowValue}>
+                  {logs.length ? to : selectedTimesheet.end_date || '-'}
+                </Text>
 
                 <Text style={styles.detailRowLabel}>Status</Text>
                 <Text style={styles.detailStatus}>{selectedTimesheet.status || 'Draft'}</Text>
 
                 <Text style={styles.detailRowLabel}>Hours</Text>
                 <Text style={styles.detailRowValue}>
-                  {typeof selectedTimesheet.total_hours === 'number'
+                  {logs.length
+                    ? hours
+                    : typeof selectedTimesheet.total_hours === 'number'
                     ? selectedTimesheet.total_hours.toFixed(2)
                     : selectedTimesheet.total_hours || '-'}
                 </Text>
 
                 <Text style={styles.detailRowLabel}>Note</Text>
                 <Text style={styles.detailRowValue}>
-                  {detailDoc?.note ||
+                  {activeLog?.description ||
+                    detailDoc?.note ||
                     detailDoc?.description ||
-                    detailDoc?.time_logs?.[0]?.description ||
                     selectedTimesheet.note ||
                     selectedTimesheet.task ||
                     'No notes'}
                 </Text>
+                    </>
+                  );
+                })()}
               </>
             ) : (
               <Text style={styles.detailRowValue}>No timesheet selected.</Text>
@@ -523,6 +577,21 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignSelf: 'flex-start',
   },
+  logList: { gap: 8 },
+  logChip: {
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    backgroundColor: '#F8FAFF',
+  },
+  logChipActive: {
+    borderColor: '#1D3765',
+    backgroundColor: '#E5ECFF',
+  },
+  logChipText: { fontSize: 12, fontWeight: '600', color: '#475569' },
+  logChipTextActive: { color: '#1D3765' },
   modalLabel: { fontSize: 13, color: '#4B5563', marginTop: 4 },
   modalInput: {
     borderWidth: 1,

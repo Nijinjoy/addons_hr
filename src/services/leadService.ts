@@ -146,36 +146,42 @@ const normalizeLeads = (rows: any[]): Lead[] => {
 
 export const fetchLeads = async (limit: number = 50): Promise<Lead[]> => {
   const { baseResource, baseMethod } = await getBases();
+  const baseFields = [
+    'name',
+    'lead_name',
+    'company_name',
+    'status',
+    'email_id',
+    'phone',
+    'mobile_no',
+    'source',
+    'creation',
+  ];
+  const optionalFields = [
+    'job_title',
+    'gender',
+    'lead_type',
+    'request_type',
+    'service_type',
+    'whatsapp',
+    'whatsapp_no',
+    'building',
+    'location',
+    'territory',
+    'no_of_employees',
+    'number_of_employees',
+    'industry',
+    'owner',
+    'associate_details',
+  ];
+
+  const buildFieldsQuery = (fields: string[]) => JSON.stringify(fields);
+
   // Try resource
   try {
     if (!baseResource) throw new Error('Resource base not configured');
     const url = buildQuery(`${baseResource}/Lead`, {
-      fields: JSON.stringify([
-        'name',
-        'lead_name',
-        'company_name',
-        'status',
-        'email_id',
-        'phone',
-        'mobile_no',
-        'source',
-        'creation',
-        'job_title',
-        'gender',
-        'lead_type',
-        'request_type',
-        'service_type',
-        'whatsapp',
-        'whatsapp_no',
-        'building',
-        'location',
-        'territory',
-        'no_of_employees',
-        'number_of_employees',
-        'industry',
-        'owner',
-        'associate_details',
-      ]),
+      fields: buildFieldsQuery([...baseFields, ...optionalFields]),
       order_by: 'creation desc',
       limit_page_length: limit,
     });
@@ -185,7 +191,24 @@ export const fetchLeads = async (limit: number = 50): Promise<Lead[]> => {
     });
     return normalizeLeads(res?.data ?? []);
   } catch (err1: any) {
-    console.warn('fetchLeads resource failed', err1?.message || err1);
+    const msg = err1?.message || '';
+    console.warn('fetchLeads resource failed', msg || err1);
+    if (typeof msg === 'string' && msg.toLowerCase().includes('field not permitted')) {
+      try {
+        const url = buildQuery(`${baseResource}/Lead`, {
+          fields: buildFieldsQuery(baseFields),
+          order_by: 'creation desc',
+          limit_page_length: limit,
+        });
+        const res = await requestJSON<{ data?: any[] }>(url, {
+          method: 'GET',
+          headers: await authHeaders(),
+        });
+        return normalizeLeads(res?.data ?? []);
+      } catch (err2: any) {
+        console.warn('fetchLeads resource fallback failed', err2?.message || err2);
+      }
+    }
   }
 
   // Fallback to method
@@ -193,32 +216,7 @@ export const fetchLeads = async (limit: number = 50): Promise<Lead[]> => {
     if (!baseMethod) throw new Error('Method base not configured');
     const url = buildQuery(`${baseMethod}/frappe.client.get_list`, {
       doctype: 'Lead',
-      fields: JSON.stringify([
-        'name',
-        'lead_name',
-        'company_name',
-        'status',
-        'email_id',
-        'phone',
-        'mobile_no',
-        'source',
-        'creation',
-        'job_title',
-        'gender',
-        'lead_type',
-        'request_type',
-        'service_type',
-        'whatsapp',
-        'whatsapp_no',
-        'building',
-        'location',
-        'territory',
-        'no_of_employees',
-        'number_of_employees',
-        'industry',
-        'owner',
-        'associate_details',
-      ]),
+      fields: buildFieldsQuery([...baseFields, ...optionalFields]),
       order_by: 'creation desc',
       limit_page_length: limit,
     });
@@ -228,7 +226,25 @@ export const fetchLeads = async (limit: number = 50): Promise<Lead[]> => {
     });
     return normalizeLeads(res?.message ?? []);
   } catch (err2: any) {
-    console.error('fetchLeads method failed', err2?.message || err2);
+    const msg = err2?.message || '';
+    console.error('fetchLeads method failed', msg || err2);
+    if (typeof msg === 'string' && msg.toLowerCase().includes('field not permitted')) {
+      try {
+        const url = buildQuery(`${baseMethod}/frappe.client.get_list`, {
+          doctype: 'Lead',
+          fields: buildFieldsQuery(baseFields),
+          order_by: 'creation desc',
+          limit_page_length: limit,
+        });
+        const res = await requestJSON<{ message?: any[] }>(url, {
+          method: 'GET',
+          headers: await authHeaders(),
+        });
+        return normalizeLeads(res?.message ?? []);
+      } catch (err3: any) {
+        console.error('fetchLeads method fallback failed', err3?.message || err3);
+      }
+    }
     return [];
   }
 };
