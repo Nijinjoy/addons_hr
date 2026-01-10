@@ -22,6 +22,10 @@ type QuotationResult =
   | { ok: true; data: Quotation[] }
   | { ok: false; message: string; status?: number; raw?: string };
 
+type QuotationDetailResult =
+  | { ok: true; data: any }
+  | { ok: false; message: string; status?: number; raw?: string };
+
 const getBases = async () => {
   const baseResource = (await getResourceUrl()) || '';
   const baseMethod = (await getMethodUrl()) || '';
@@ -166,6 +170,39 @@ export const getQuotations = async (params: QuotationListParams = {}): Promise<Q
     console.log('Quotation fetch error:', message);
     return { ok: false, message };
   }
+};
+
+export const getQuotationDetail = async (name: string): Promise<QuotationDetailResult> => {
+  if (!name) return { ok: false, message: 'Quotation id is required' };
+  const { baseResource, baseMethod } = await getBases();
+
+  try {
+    if (!baseResource) throw new Error('Resource base not configured');
+    const res = await requestJSON<{ data?: any }>(`${baseResource}/Quotation/${encodeURIComponent(name)}`, {
+      method: 'GET',
+      headers: await authHeaders(),
+    });
+    const doc = (res as any)?.data || res;
+    if (doc?.name) return { ok: true, data: doc };
+  } catch (err1: any) {
+    console.warn('getQuotationDetail resource failed', err1?.message || err1);
+  }
+
+  try {
+    if (!baseMethod) throw new Error('Method base not configured');
+    const res = await requestJSON<{ message?: any }>(`${baseMethod}/frappe.client.get`, {
+      method: 'POST',
+      headers: await authHeaders(),
+      body: JSON.stringify({ doctype: 'Quotation', name }),
+    });
+    const doc = (res as any)?.message || res;
+    if (doc?.name) return { ok: true, data: doc };
+  } catch (err2: any) {
+    console.error('getQuotationDetail method failed', err2?.message || err2);
+    return { ok: false, message: err2?.message || 'Failed to load quotation detail' };
+  }
+
+  return { ok: false, message: 'Quotation not found' };
 };
 
 export type { Quotation, QuotationListParams };

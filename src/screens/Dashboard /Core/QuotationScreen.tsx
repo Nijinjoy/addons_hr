@@ -1,5 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, StyleSheet, TextInput, TouchableOpacity, Text, ScrollView, ActivityIndicator } from 'react-native';
+import {
+  View,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  Text,
+  ScrollView,
+  ActivityIndicator,
+  Pressable,
+} from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useNavigation } from '@react-navigation/native';
 import Header from '../../../components/Header';
@@ -21,6 +30,15 @@ const QuotationScreen = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const scrollRef = useRef<ScrollView | null>(null);
+
+  const handleOpenDetail = (quote: Quotation) => {
+    const parent = navigation.getParent?.();
+    if (parent?.navigate) {
+      parent.navigate('QuotationDetail', { quotationName: quote.name });
+      return;
+    }
+    navigation.navigate('QuotationDetail', { quotationName: quote.name });
+  };
 
   const statusOptions = useMemo(() => {
     const set = new Set<string>();
@@ -149,7 +167,11 @@ const QuotationScreen = () => {
         {filteredQuotes.map((quote) => {
           const color = statusColor(quote.status || '');
           return (
-            <View key={quote.name} style={styles.quoteCard}>
+            <Pressable
+              key={quote.name}
+              style={({ pressed }) => [styles.quoteCard, pressed && styles.quoteCardPressed]}
+              onPress={() => handleOpenDetail(quote)}
+            >
               <View style={styles.cardTop}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.quoteTitle}>{quote.party_name || 'Quotation'}</Text>
@@ -181,7 +203,10 @@ const QuotationScreen = () => {
               </View>
 
               <View style={styles.cardActions}>
-                <TouchableOpacity style={[styles.actionBtn, styles.viewBtn]}>
+                <TouchableOpacity
+                  style={[styles.actionBtn, styles.viewBtn]}
+                  onPress={() => handleOpenDetail(quote)}
+                >
                   <Icon name="visibility" size={16} color="#2563EB" />
                   <Text style={[styles.actionBtnText, { color: '#2563EB' }]}>View</Text>
                 </TouchableOpacity>
@@ -189,12 +214,12 @@ const QuotationScreen = () => {
                   <Icon name="send" size={16} color="#7C3AED" />
                   <Text style={[styles.actionBtnText, { color: '#7C3AED' }]}>Send</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.viewMoreBtn}>
+                <TouchableOpacity style={styles.viewMoreBtn} onPress={() => handleOpenDetail(quote)}>
                   <Text style={styles.viewMoreText}>Details</Text>
                   <Icon name="chevron-right" size={18} color="#6B7280" />
                 </TouchableOpacity>
               </View>
-            </View>
+            </Pressable>
           );
         })}
       </ScrollView>
@@ -276,6 +301,10 @@ const styles = StyleSheet.create({
     elevation: 2,
     gap: 10,
     position: 'relative',
+  },
+  quoteCardPressed: {
+    borderColor: '#CBD5F5',
+    backgroundColor: '#F8FAFF',
   },
   quoteTitle: { fontSize: 16, fontWeight: '700', color: '#0D1B2A' },
   quoteSub: { fontSize: 13, color: '#4B5563', marginTop: 4 },

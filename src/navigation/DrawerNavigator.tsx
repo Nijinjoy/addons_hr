@@ -12,6 +12,8 @@ import TimesheetScreen from '../screens/Dashboard /HRM/TimesheetScreen';
 import TimesheetCreateNewScreen from '../screens/Dashboard /HRM/TimesheetCreateNewScreen';
 import ExpenseScreen from '../screens/Dashboard /Accounts/ExpenseScreen';
 import CalendarScreen from '../screens/Dashboard /HRM/CalendarScreen';
+import QuotationDetailScreen from '../screens/Dashboard /Core/QuotationDetailScreen';
+import QuotationEditScreen from '../screens/Dashboard /Core/QuotationEditScreen';
 
 const Drawer = createDrawerNavigator();
 
@@ -79,6 +81,16 @@ const DrawerNavigator = () => {
       <Drawer.Screen
         name="Calendar"
         component={CalendarScreen}
+        options={{ drawerItemStyle: { display: 'none' } }}
+      />
+      <Drawer.Screen
+        name="QuotationDetail"
+        component={QuotationDetailScreen}
+        options={{ drawerItemStyle: { display: 'none' } }}
+      />
+      <Drawer.Screen
+        name="QuotationEdit"
+        component={QuotationEditScreen}
         options={{ drawerItemStyle: { display: 'none' } }}
       />
     </Drawer.Navigator>
